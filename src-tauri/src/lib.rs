@@ -1,3 +1,6 @@
+use crate::errors::AppError;
+use crate::workout::{parse_zwo, ParsedWorkout};
+
 mod errors;
 mod ble;
 mod workout;
@@ -6,6 +9,13 @@ mod workout;
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
+}
+
+#[tauri::command]
+fn load_workout(path: String) -> Result<ParsedWorkout, AppError> {
+    let content = std::fs::read_to_string(path)
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    parse_zwo(&content)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
