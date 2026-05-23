@@ -8,6 +8,8 @@ pub enum AppError {
     ZWOFileParseError(String),
     #[error("FTMS packet parse error: {0}")]
     FTMSPacketParseError(String),
+    #[error("HRS packet parse error: {0}")]
+    HRSParseError(String),
     #[error("Device not found")]
     DeviceNotFound,
     #[error("Characteristic not found: {0}")]

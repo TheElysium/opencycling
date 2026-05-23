@@ -9,7 +9,7 @@ const HR_VALUE_FORMAT_FLAG: u8 = 1 << 0;
 
 pub fn parse_heart_rate_measurement(packet: &[u8]) -> Result<HeartRateMeasurement, AppError> {
     if packet.len() < 2 {
-        return Err(AppError::ParseError(String::from("Not enough packet")));
+        return Err(AppError::HRSParseError(String::from("Not enough packet")));
     }
     let flags = packet[0];
     if flags & HR_VALUE_FORMAT_FLAG == 0 {
@@ -20,7 +20,7 @@ pub fn parse_heart_rate_measurement(packet: &[u8]) -> Result<HeartRateMeasuremen
 
 #[cfg(test)]
 mod tests {
-    use crate::errors::AppError::ParseError;
+    use crate::errors::AppError::HRSParseError;
     use super::*;
 
     #[test]
@@ -28,7 +28,7 @@ mod tests {
         let packet: &[u8] = &[];
         let res = parse_heart_rate_measurement(packet);
         assert!(res.is_err());
-        assert!(matches!(res, Err(ParseError(_))));
+        assert!(matches!(res, Err(HRSParseError(_))));
     }
 
     #[test]
