@@ -1,0 +1,7 @@
+<workout_file>
+    <name>intervals_missing_repeat</name>
+    <sportType>bike</sportType>
+    <workout>
+        <IntervalsT OnDuration="60" OffDuration="60" OnPower="1.20" OffPower="0.50"/>
+    </workout>
+</workout_file>

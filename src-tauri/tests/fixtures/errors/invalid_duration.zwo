@@ -1,0 +1,7 @@
+<workout_file>
+    <name>invalid_duration</name>
+    <sportType>bike</sportType>
+    <workout>
+        <SteadyState Duration="not_a_number" Power="0.85"/>
+    </workout>
+</workout_file>

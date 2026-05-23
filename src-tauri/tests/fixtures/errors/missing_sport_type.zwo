@@ -1,0 +1,6 @@
+<workout_file>
+    <name>missing_sport_type</name>
+    <workout>
+        <SteadyState Duration="300" Power="0.85"/>
+    </workout>
+</workout_file>

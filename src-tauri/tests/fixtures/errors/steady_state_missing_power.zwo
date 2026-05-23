@@ -1,0 +1,7 @@
+<workout_file>
+    <name>steady_state_missing_power</name>
+    <sportType>bike</sportType>
+    <workout>
+        <SteadyState Duration="300"/>
+    </workout>
+</workout_file>
