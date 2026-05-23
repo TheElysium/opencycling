@@ -4,6 +4,10 @@ use thiserror::Error;
 pub enum AppError {
     #[error("Parse error: {0}")]
     ParseError(String),
+    #[error(".ZWO file parse error: {0}")]
+    ZWOFileParseError(String),
+    #[error("FTMS packet parse error: {0}")]
+    FTMSPacketParseError(String),
     #[error("Device not found")]
     DeviceNotFound,
     #[error("Characteristic not found: {0}")]

@@ -2,7 +2,7 @@ mod features;
 mod types;
 
 use crate::errors::AppError;
-use crate::errors::AppError::ParseError;
+use crate::errors::AppError::FTMSPacketParseError;
 use features::FEATURES;
 use types::{FeatureVal, FLAGS_LEN, MORE_DATA_FLAG};
 
@@ -18,7 +18,7 @@ fn speed_enabled(bitmask: u16, flags: u16) -> bool {
 
 pub fn parse_indoor_bike_data(packet: &[u8]) -> Result<IndoorBikeData, AppError> {
     if packet.len() < FLAGS_LEN {
-        return Err(ParseError("packet too short".into()));
+        return Err(FTMSPacketParseError("packet too short".into()));
     }
 
     let flags = u16::from_le_bytes([packet[0], packet[1]]);
@@ -69,7 +69,7 @@ mod tests {
         let packet: &[u8] = &[];
         let res = parse_indoor_bike_data(packet);
         assert!(res.is_err());
-        assert!(matches!(res, Err(ParseError(_))));
+        assert!(matches!(res, Err(FTMSPacketParseError(_))));
     }
 
     #[test]

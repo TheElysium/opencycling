@@ -1,5 +1,5 @@
 use crate::errors::AppError;
-use crate::errors::AppError::ParseError;
+use crate::errors::AppError::FTMSPacketParseError;
 use super::types::{
     Feature, FeatureVal,
     MORE_DATA_FLAG, AVERAGE_SPEED_FLAG, INSTANTANEOUS_CADENCE_FLAG,
@@ -10,7 +10,7 @@ use super::types::{
 
 fn read_u16(data: &[u8], size: usize) -> Result<u16, AppError> {
     if data.len() < size {
-        return Err(ParseError("packet too short".into()));
+        return Err(FTMSPacketParseError("packet too short".into()));
     }
     Ok(u16::from_le_bytes([data[0], data[1]]))
 }
@@ -33,7 +33,7 @@ fn get_average_cadence(data: &[u8], size: usize) -> Result<FeatureVal, AppError>
 
 fn get_total_distance(data: &[u8], size: usize) -> Result<FeatureVal, AppError> {
     if data.len() < size {
-        return Err(ParseError("packet too short".into()));
+        return Err(FTMSPacketParseError("packet too short".into()));
     }
     let val = u32::from_le_bytes([data[0], data[1], data[2], 0]);
     Ok(FeatureVal::TotalDistance(val))
@@ -53,7 +53,7 @@ fn get_average_power(data: &[u8], size: usize) -> Result<FeatureVal, AppError> {
 
 fn get_expended_energy(data: &[u8], size: usize) -> Result<FeatureVal, AppError> {
     if data.len() < size {
-        return Err(ParseError("packet too short".into()));
+        return Err(FTMSPacketParseError("packet too short".into()));
     }
     let val = u64::from_le_bytes([data[0], data[1], data[2], data[3], data[4], 0, 0, 0]);
     Ok(FeatureVal::ExpendedEnergy(val))
@@ -61,14 +61,14 @@ fn get_expended_energy(data: &[u8], size: usize) -> Result<FeatureVal, AppError>
 
 fn get_heart_rate(data: &[u8], size: usize) -> Result<FeatureVal, AppError> {
     if data.len() < size {
-        return Err(ParseError("packet too short".into()));
+        return Err(FTMSPacketParseError("packet too short".into()));
     }
     Ok(FeatureVal::HeartRate(data[0]))
 }
 
 fn get_metabolic_equivalent(data: &[u8], size: usize) -> Result<FeatureVal, AppError> {
     if data.len() < size {
-        return Err(ParseError("packet too short".into()));
+        return Err(FTMSPacketParseError("packet too short".into()));
     }
     Ok(FeatureVal::MetabolicEquivalent(data[0]))
 }
