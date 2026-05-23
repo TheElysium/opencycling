@@ -1,7 +1,8 @@
 use roxmltree::Node;
+use serde::Serialize;
 use crate::errors::AppError;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct ParsedWorkout {
     pub author: Option<String>,
     pub name: Option<String>,
@@ -9,18 +10,23 @@ pub struct ParsedWorkout {
     pub sport_type: SportType,
     pub workout_blocks: Vec<WorkoutBlock>
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone,Serialize)]
 pub enum WorkoutBlock {
     SteadyState{duration_s: u32, power_pct: f32, cadence_rpm: Option<u16>, label: Option<String>},
     Ramp{duration_s: u32, power_start_pct: f32, power_end_pct: f32, cadence_rpm: Option<u16>, label: Option<String>},
+    IntervalsT {
+        repeat: u16,
+        on: Box<WorkoutBlock>,
+        off: Box<WorkoutBlock>,
+    }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Serialize)]
 pub enum SportType {
     Bike,
     Running,
 }
-pub fn parse_zwo(file_content: &str) -> Result<ParsedWorkout, AppError> {
+pub(crate) fn parse_zwo(file_content: &str) -> Result<ParsedWorkout, AppError> {
     let doc = roxmltree::Document::parse(file_content)
         .map_err(|e| AppError::ZWOFileParseError(e.to_string()))?;
 
@@ -54,7 +60,7 @@ pub fn parse_zwo(file_content: &str) -> Result<ParsedWorkout, AppError> {
                parsed_blocks.push(steady_state_to_workout_block(block)?)
            }
            "IntervalsT"=>{
-               parsed_blocks.extend(intervals_t_to_workout_blocks(block)?)
+               parsed_blocks.push(intervals_t_to_workout_blocks(block)?)
            }
            "FreeRide"=>{}
            "Cooldown"=>{
@@ -80,20 +86,17 @@ fn zwo_metadata_text(node: Node, tag: &str) -> Option<String> {
         .map(str::to_string)
 }
 
-fn intervals_t_to_workout_blocks(intervals_t_node: Node) -> Result<Vec<WorkoutBlock>, AppError> {
+fn intervals_t_to_workout_blocks(intervals_t_node: Node) -> Result<WorkoutBlock, AppError> {
     let intervals_nbr = intervals_t_node.attribute("Repeat")
         .ok_or_else(|| AppError::ZWOFileParseError("missing interval repeat nbr".to_string()))?
         .parse::<u16>()
         .map_err(|_| AppError::ZWOFileParseError("interval repeat nbr parsing error".to_string()))?;
 
-    let mut workout_blocks: Vec<WorkoutBlock> = Vec::new();
-    let on_block = intervals_t_to_on_block(intervals_t_node)?;
-    let off_block = intervals_t_to_off_block(intervals_t_node)?;
-    for _ in 0..intervals_nbr {
-        workout_blocks.push(on_block.clone());
-        workout_blocks.push(off_block.clone());
-    }
-    Ok(workout_blocks)
+    Ok(WorkoutBlock::IntervalsT {
+        repeat: intervals_nbr,
+        on: Box::from(intervals_t_to_on_block(intervals_t_node)?),
+        off: Box::from(intervals_t_to_off_block(intervals_t_node)?),
+    })
 }
 
 fn intervals_t_to_on_block(node: Node) -> Result<WorkoutBlock, AppError> {
@@ -177,24 +180,24 @@ mod tests {
     const ALL_BLOCK_TYPES_PATH: &str = "tests/fixtures/all_block_types.zwo";
     const THRESHOLD_3X3_PATH: &str = "tests/fixtures/threshold_3x3.zwo";
 
+    fn parse_fixture(path: &str) -> Result<ParsedWorkout, AppError> {
+        let content = fs::read_to_string(path).unwrap();
+        parse_zwo(&content)
+    }
+
     #[test]
     fn test_parse_zwo_given_valid_zwo_return_() -> Result<(), AppError>{
-        let file_content = fs::read_to_string(ALL_BLOCK_TYPES_PATH);
-        assert!(file_content.is_ok());
-        let parsed_workout = parse_zwo(&file_content.unwrap())?;
+        let parsed_workout = parse_fixture(ALL_BLOCK_TYPES_PATH)?;
         assert_eq!(parsed_workout.author, Some("OpenCycling".to_string()));
         assert_eq!(parsed_workout.name, Some("Test Workout".to_string()));
         assert_eq!(parsed_workout.description, Some("A test workout covering all block types".to_string()));
         assert_eq!(parsed_workout.sport_type, Bike);
-        assert_eq!(parsed_workout.workout_blocks.len(), 11);
-        Ok(())
-    }
+        assert_eq!(parsed_workout.workout_blocks.len(), 4);
 
-    #[test]
-    fn test_parse_fixture_9_returns_14_blocks() -> Result<(), AppError> {
         let content = fs::read_to_string(THRESHOLD_3X3_PATH).unwrap();
         let workout = parse_zwo(&content)?;
-        assert_eq!(workout.workout_blocks.len(), 14);
+        assert_eq!(workout.workout_blocks.len(), 6);
+
         Ok(())
     }
 
@@ -212,9 +215,47 @@ mod tests {
         Ok(())
     }
 
-    fn parse_fixture(path: &str) -> Result<ParsedWorkout, AppError> {
-        let content = fs::read_to_string(path).unwrap();
-        parse_zwo(&content)
+    #[test]
+    fn test_parse_ramp_values() -> Result<(), AppError> {
+        let xml = r#"<workout_file><sportType>bike</sportType><workout><Warmup Duration="600" PowerLow="0.40" PowerHigh="0.75"/></workout></workout_file>"#;
+        let workout = parse_zwo(xml)?;
+        match &workout.workout_blocks[0] {
+            WorkoutBlock::Ramp { duration_s, power_start_pct, power_end_pct, .. } => {
+                assert_eq!(*duration_s, 600);
+                assert!((power_start_pct - 0.40).abs() < 0.001);
+                assert!((power_end_pct - 0.75).abs() < 0.001);
+            }
+            _ => panic!("Expected Ramp"),
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_intervals_t_values() -> Result<(), AppError> {
+        let xml = r#"<workout_file><sportType>bike</sportType><workout><IntervalsT Repeat="2" OnDuration="180" OffDuration="120" OnPower="1.10" OffPower="0.55"/></workout></workout_file>"#;
+        let workout = parse_zwo(xml)?;
+        assert_eq!(workout.workout_blocks.len(), 1);
+        match &workout.workout_blocks[0] {
+            WorkoutBlock::IntervalsT { repeat, on, off } => {
+                assert_eq!(*repeat, 2);
+                match on.as_ref() {
+                    WorkoutBlock::SteadyState { duration_s, power_pct, .. } => {
+                        assert_eq!(*duration_s, 180);
+                        assert!((power_pct - 1.10).abs() < 0.001);
+                    }
+                    _ => panic!("Expected SteadyState for ON block"),
+                }
+                match off.as_ref() {
+                    WorkoutBlock::SteadyState { duration_s, power_pct, .. } => {
+                        assert_eq!(*duration_s, 120);
+                        assert!((power_pct - 0.55).abs() < 0.001);
+                    }
+                    _ => panic!("Expected SteadyState for OFF block"),
+                }
+            }
+            _ => panic!("Expected IntervalsT"),
+        }
+        Ok(())
     }
 
     #[test]
