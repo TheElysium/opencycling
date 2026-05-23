@@ -60,7 +60,7 @@ pub fn parse_zwo(file_content: &str) -> Result<ParsedWorkout, AppError> {
            "Cooldown"=>{
                parsed_blocks.push(ramp_to_workout_block(block)?)
            },
-           &_ => {}
+           _ => {}
        }
    }
 
