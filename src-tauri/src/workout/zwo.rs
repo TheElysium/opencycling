@@ -7,7 +7,7 @@ pub struct ParsedWorkout {
     pub name: Option<String>,
     pub description: Option<String>,
     pub sport_type: SportType,
-    pub workout_blocks: Vec<WorkoutBlock>,
+    pub workout_blocks: Vec<WorkoutBlock>
 }
 #[derive(Debug, Clone)]
 pub enum WorkoutBlock {
@@ -25,20 +25,9 @@ pub fn parse_zwo(file_content: &str) -> Result<ParsedWorkout, AppError> {
         .map_err(|e| AppError::ZWOFileParseError(e.to_string()))?;
 
     let root = doc.root_element();
-
-    let author = root.children()
-        .find(|n| n.tag_name().name() == "author")
-        .and_then(|n| n.text())
-        .map(str::to_string);
-
-    let name = root.children()
-        .find(|n| n.tag_name().name() == "name")
-        .and_then(|n| n.text())
-        .map(str::to_string);
-    let description = root.children()
-        .find(|n| n.tag_name().name() == "description")
-        .and_then(|n| n.text())
-        .map(str::to_string);
+    let author = zwo_metadata_text(root, "author");
+    let name = zwo_metadata_text(root, "name");
+    let description = zwo_metadata_text(root, "description");
     let sport_type = match root.children()
         .find(|n| n.tag_name().name() == "sportType")
         .and_then(|n| n.text())
@@ -56,19 +45,19 @@ pub fn parse_zwo(file_content: &str) -> Result<ParsedWorkout, AppError> {
 
     let mut parsed_blocks: Vec<WorkoutBlock> = Vec::new();
 
-   for block in  workout_blocks.children() {
-       match block.tag_name().name().to_lowercase().as_str() {
-           "warmup"=> {
+   for block in  workout_blocks.children().filter(Node::is_element) {
+       match block.tag_name().name() {
+           "Warmup"=> {
                parsed_blocks.push(ramp_to_workout_block(block)?);
            }
-           "steadystate"=>{
+           "SteadyState"=>{
                parsed_blocks.push(steady_state_to_workout_block(block)?)
            }
-           "intervalst"=>{
+           "IntervalsT"=>{
                parsed_blocks.extend(intervals_t_to_workout_blocks(block)?)
            }
-           "freeride"=>{}
-           "cooldown"=>{
+           "FreeRide"=>{}
+           "Cooldown"=>{
                parsed_blocks.push(ramp_to_workout_block(block)?)
            },
            &_ => {}
@@ -82,6 +71,13 @@ pub fn parse_zwo(file_content: &str) -> Result<ParsedWorkout, AppError> {
         sport_type,
         workout_blocks: parsed_blocks,
     })
+}
+
+fn zwo_metadata_text(node: Node, tag: &str) -> Option<String> {
+    node.children()
+        .find(|n| n.has_tag_name(tag))
+        .and_then(|n| n.text())
+        .map(str::to_string)
 }
 
 fn intervals_t_to_workout_blocks(intervals_t_node: Node) -> Result<Vec<WorkoutBlock>, AppError> {
@@ -103,7 +99,7 @@ fn intervals_t_to_workout_blocks(intervals_t_node: Node) -> Result<Vec<WorkoutBl
 fn intervals_t_to_on_block(node: Node) -> Result<WorkoutBlock, AppError> {
     let duration_s = read_duration(node, "OnDuration")?;
     let power_pct = read_power(node, "OnPower")?;
-    let cadence_rpm = read_cadence(node, "OnCadence")?;
+    let cadence_rpm = read_cadence(node, "Cadence")?;
 
     Ok(WorkoutBlock::SteadyState {
         duration_s,
@@ -116,7 +112,7 @@ fn intervals_t_to_on_block(node: Node) -> Result<WorkoutBlock, AppError> {
 fn intervals_t_to_off_block(node: Node) -> Result<WorkoutBlock, AppError> {
     let duration_s = read_duration(node, "OffDuration")?;
     let power_pct = read_power(node, "OffPower")?;
-    let cadence_rpm = read_cadence(node, "OffCadence")?;
+    let cadence_rpm = read_cadence(node, "CadenceResting")?;
 
     Ok(WorkoutBlock::SteadyState {
         duration_s,
@@ -168,10 +164,7 @@ fn read_cadence(node: Node, attribute_name: &str) -> Result<Option<u16>, AppErro
     }
 }
 fn read_label(node: Node) -> Option<String> {
-    match node.attribute("name") {
-        Some(label) => Some(label.to_string()),
-        None => None,
-    }
+    node.attribute("name").map(|label| label.to_string())
 }
 
 #[cfg(test)]
