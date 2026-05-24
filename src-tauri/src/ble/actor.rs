@@ -1,4 +1,4 @@
-use btleplug::api::{Central, Peripheral, PeripheralProperties, ScanFilter, Service};
+use btleplug::api::{Central, Peripheral, ScanFilter};
 use btleplug::platform::Adapter;
 use tokio::sync::oneshot::Sender;
 use crate::ble::types::{BleActor, BleCommand, DeviceInfo, DeviceKind};
@@ -7,7 +7,6 @@ use uuid::Uuid;
 
 
 // UUIDs standard Bluetooth SIG
-const CYCLING_POWER_SERVICE: Uuid = Uuid::from_u128(0x00001818_0000_1000_8000_00805f9b34fb);
 const FITNESS_MACHINE_SERVICE: Uuid = Uuid::from_u128(0x00001826_0000_1000_8000_00805f9b34fb);
 const HEART_RATE_SERVICE: Uuid = Uuid::from_u128(0x0000180d_0000_1000_8000_00805f9b34fb);
 
@@ -17,10 +16,7 @@ impl BleActor {
         loop {
             match self.cmd_rx.recv().await {
                 None => {break}
-                Some(cmd) => match cmd {
-                    BleCommand::Scan { reply } => handle_scan(reply, &self.adapter).await,
-                    _ => {}
-                }
+                Some(cmd) => if let BleCommand::Scan { reply } = cmd { handle_scan(reply, &self.adapter).await }
             }
         }
     }
