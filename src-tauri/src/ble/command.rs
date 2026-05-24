@@ -32,7 +32,7 @@ impl BleActorHandle {
             _manager: manager,
         };
 
-        let actor = spawn(ble_actor.run());
+        spawn(ble_actor.run());
 
         Ok(Self {sender: tx})
     }
