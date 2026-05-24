@@ -1,3 +1,5 @@
+use tauri::Manager;
+use crate::ble::{BleActorHandle, DeviceInfo};
 use crate::errors::AppError;
 use crate::workout::{parse_zwo, ParsedWorkout};
 
@@ -18,11 +20,22 @@ fn load_workout(path: String) -> Result<ParsedWorkout, AppError> {
     parse_zwo(&content)
 }
 
+#[tauri::command]
+async fn scan_devices(state: tauri::State<'_, BleActorHandle>) -> Result<Vec<DeviceInfo>, AppError> {
+    state.scan().await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .invoke_handler(tauri::generate_handler![greet, load_workout, scan_devices])
+        .setup(|app| {
+            let handle = tauri::async_runtime::block_on(BleActorHandle::spawn())
+                .expect("BLE init failed");
+            app.manage(handle);
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

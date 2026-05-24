@@ -1,9 +1,13 @@
-use btleplug::platform::{Adapter, Manager};
+use btleplug::platform::Manager;
 use btleplug::api::Manager as _;
 use tokio::spawn;
 use tokio::sync::mpsc::{channel, Sender};
-use crate::ble::types::{BleActor, BleCommand};
+use tokio::sync::oneshot;
+use crate::ble::types::{BleActor, BleCommand, DeviceInfo};
 use crate::errors::AppError;
+
+
+
 
 pub struct BleActorHandle {
     sender: Sender<BleCommand>,
@@ -21,7 +25,7 @@ impl BleActorHandle {
 
         let adapter = adapters
             .into_iter()
-            .nth(0)
+            .next()
             .ok_or_else(|| AppError::DeviceNotFound("No BLE adapter".to_string()))?;
 
 
@@ -35,5 +39,15 @@ impl BleActorHandle {
         spawn(ble_actor.run());
 
         Ok(Self {sender: tx})
+    }
+
+    pub async fn scan(&self) -> Result<Vec<DeviceInfo>, AppError> {
+        let (tx,rx) = oneshot::channel::<Result<Vec<DeviceInfo>, AppError>>();
+        let cmd = BleCommand::Scan {reply:tx};
+        self.sender.send(cmd)
+            .await
+            .map_err(|_| AppError::BLEScanError(String::from("Failed to send BLE command")))?;
+
+        rx.await.map_err(|_| AppError::BLEScanError(String::from("Failed to receive BLE command")))?
     }
 }
