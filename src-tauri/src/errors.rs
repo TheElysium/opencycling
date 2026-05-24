@@ -10,8 +10,10 @@ pub enum AppError {
     FTMSPacketParseError(String),
     #[error("HRS packet parse error: {0}")]
     HRSParseError(String),
-    #[error("Device not found")]
-    DeviceNotFound,
+    #[error("BLE scan error: {0}")]
+    BLEScanError(String),
+    #[error("Device not found: {0}")]
+    DeviceNotFound(String),
     #[error("Characteristic not found: {0}")]
     CharacteristicNotFound(String),
     #[error("Actor channel closed")]
