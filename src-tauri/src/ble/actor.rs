@@ -1,24 +1,97 @@
 use btleplug::api::{Central, Peripheral, ScanFilter};
-use btleplug::platform::Adapter;
+use btleplug::platform;
+use btleplug::platform::{Adapter, Peripheral as OtherPeripheral};
 use tokio::sync::oneshot::Sender;
 use crate::ble::types::{BleActor, BleCommand, DeviceInfo, DeviceKind};
 use crate::errors::AppError;
 use uuid::Uuid;
-
+use crate::ble::ftms::IndoorBikeData;
 
 // UUIDs standard Bluetooth SIG
 const FITNESS_MACHINE_SERVICE: Uuid = Uuid::from_u128(0x00001826_0000_1000_8000_00805f9b34fb);
 const HEART_RATE_SERVICE: Uuid = Uuid::from_u128(0x0000180d_0000_1000_8000_00805f9b34fb);
-
+const INDOOR_BIKE_DATA: Uuid = Uuid::from_u128(0x00002AD2_0000_1000_8000_00805f9b34fb);
+const HEART_RATE_MEAS: Uuid = Uuid::from_u128(0x00002A37_0000_1000_8000_00805f9b34fb);
+const KEEP_ALIVE_TICK: u64 = 10;
+const METRICS_TICK: u64 = 1;
 
 impl BleActor {
     pub async fn run(mut self) {
+        let mut keep_alive = tokio::time::interval(tokio::time::Duration::from_secs(KEEP_ALIVE_TICK));
+        let mut metrics_ticker = tokio::time::interval(tokio::time::Duration::from_secs(METRICS_TICK));
         loop {
-            match self.cmd_rx.recv().await {
-                None => {break}
-                Some(cmd) => if let BleCommand::Scan { reply } = cmd { handle_scan(reply, &self.adapter).await }
+            tokio::select! {
+                cmd = self.cmd_rx.recv() => {
+                    match cmd {
+                        None => {break;},
+                        Some(cmd) => if let BleCommand::Scan { reply } = cmd { handle_scan(reply, &self.adapter).await }
+                    }
+                }
+                _keep_alive = keep_alive.tick() => {
+
+                }
+                _metrics_ticker = metrics_ticker.tick() => {
+
+                }
             }
         }
+    }
+
+    async fn handle_connect_trainer(
+        &mut self,
+        device_id: String,
+        reply: oneshot::Sender<Result<(), AppError>>,
+    ) {
+        let _ = reply.send(self.do_connect_trainer(device_id).await);
+    }
+
+    async fn connect_peripheral(&self, device_id: String, characteristic_uuid: Uuid) -> Result<platform::Peripheral, AppError> {
+        let peripherals = self.adapter.peripherals()
+            .await
+            .map_err(|e| AppError::BLEConnectError(e.to_string()))?;
+
+        let trainer = peripherals
+            .into_iter()
+            .find(|p| p.id().to_string() == device_id)
+            .ok_or_else(|| AppError::DeviceNotFound(device_id.clone()))?;
+
+        trainer.connect().await.map_err(|e| AppError::BLEConnectError(e.to_string()))?;
+        trainer.discover_services().await.map_err(|e| AppError::BLEConnectError(e.to_string()))?;
+
+        let characteristic = trainer.characteristics()
+            .into_iter().find(|c| c.uuid == characteristic_uuid)
+            .ok_or_else(|| AppError::CharacteristicNotFound(characteristic_uuid.to_string()))?;
+
+        trainer.subscribe(&characteristic)
+            .await
+            .map_err(|e| AppError::BLEConnectError(e.to_string()))?;
+
+        Ok(trainer)
+    }
+
+    async fn do_connect_trainer(&mut self, device_id: String) -> Result<(), AppError> {
+        let trainer = self
+            .connect_peripheral(device_id, INDOOR_BIKE_DATA)
+            .await?;
+
+        self.trainer = Some(trainer);
+        Ok(())
+    }
+
+    async fn handle_connect_hrm(
+        &mut self,
+        device_id: String,
+        reply: oneshot::Sender<Result<(), AppError>>
+    ) {
+        let _ = reply.send(self.do_connect_hrm(device_id).await);
+    }
+
+    async fn do_connect_hrm(&mut self, device_id: String) -> Result<(), AppError>{
+        let hrm = self
+            .connect_peripheral(device_id, HEART_RATE_MEAS)
+            .await?;
+        self.hrm = Some(hrm);
+        Ok(())
     }
 }
 
@@ -94,3 +167,4 @@ fn get_device_kind(services: Vec<Uuid>, name: &str) -> Option<DeviceKind> {
 
     None
 }
+

@@ -1,5 +1,6 @@
 use btleplug::platform::Manager;
 use btleplug::api::Manager as _;
+use tauri::AppHandle;
 use tokio::spawn;
 use tokio::sync::mpsc::{channel, Sender};
 use tokio::sync::oneshot;
@@ -14,7 +15,7 @@ pub struct BleActorHandle {
 }
 
 impl BleActorHandle {
-    pub async fn spawn() -> Result<Self, AppError> {
+    pub async fn spawn(app_handle: AppHandle) -> Result<Self, AppError> {
         let manager = Manager::new()
             .await
             .map_err(|err| AppError::BLEScanError(err.to_string()))?;
@@ -34,6 +35,10 @@ impl BleActorHandle {
             cmd_rx: rx,
             adapter,
             _manager: manager,
+            trainer: None,
+            hrm: None,
+            last_target_w: None,
+            app_handle,
         };
 
         spawn(ble_actor.run());

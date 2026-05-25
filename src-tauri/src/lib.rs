@@ -31,7 +31,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![greet, load_workout, scan_devices])
         .setup(|app| {
-            let handle = tauri::async_runtime::block_on(BleActorHandle::spawn())
+            let handle = tauri::async_runtime::block_on(BleActorHandle::spawn(app.handle().clone()))
                 .expect("BLE init failed");
             app.manage(handle);
             Ok(())

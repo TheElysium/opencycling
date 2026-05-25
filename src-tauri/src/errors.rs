@@ -14,6 +14,8 @@ pub enum AppError {
     BLEScanError(String),
     #[error("Device not found: {0}")]
     DeviceNotFound(String),
+    #[error("BLE connection failed: {0}")]
+    BLEConnectError(String),
     #[error("Characteristic not found: {0}")]
     CharacteristicNotFound(String),
     #[error("Actor channel closed")]

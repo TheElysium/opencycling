@@ -1,6 +1,7 @@
 use tokio::sync::mpsc::Receiver;
-use btleplug::platform::{Adapter, Manager};
+use btleplug::platform::{Adapter, Manager, Peripheral};
 use serde::Serialize;
+use tauri::AppHandle;
 use tokio::sync::oneshot;
 use crate::errors::AppError;
 
@@ -40,5 +41,9 @@ pub enum BleCommand {
 pub struct BleActor {
     pub cmd_rx: Receiver<BleCommand>,
     pub adapter: Adapter,
-    pub _manager: Manager
+    pub _manager: Manager,
+    pub trainer: Option<Peripheral>,
+    pub hrm: Option<Peripheral>,
+    pub last_target_w: Option<i16>,
+    pub app_handle: AppHandle,
 }
