@@ -24,7 +24,12 @@ impl BleActor {
                 cmd = self.cmd_rx.recv() => {
                     match cmd {
                         None => {break;},
-                        Some(cmd) => if let BleCommand::Scan { reply } = cmd { handle_scan(reply, &self.adapter).await }
+                        Some(cmd) => match cmd {
+                            BleCommand::Scan { reply } => handle_scan(reply, &self.adapter).await,
+                            BleCommand::ConnectTrainer { device_id, reply } => self.handle_connect_trainer(device_id, reply).await,
+                            BleCommand::ConnectHrm { device_id, reply } => self.handle_connect_hrm(device_id, reply).await,
+                            BleCommand::SetTargetPower { watts } => self.last_target_w = Some(watts),
+                        }
                     }
                 }
                 _keep_alive = keep_alive.tick() => {
@@ -42,7 +47,7 @@ impl BleActor {
     async fn handle_connect_trainer(
         &mut self,
         device_id: String,
-        reply: oneshot::Sender<Result<(), AppError>>,
+        reply: Sender<Result<(), AppError>>,
     ) {
         let _ = reply.send(self.do_connect_trainer(device_id).await);
     }
@@ -81,7 +86,7 @@ impl BleActor {
     async fn handle_connect_hrm(
         &mut self,
         device_id: String,
-        reply: oneshot::Sender<Result<(), AppError>>
+        reply: Sender<Result<(), AppError>>
     ) {
         let _ = reply.send(self.do_connect_hrm(device_id).await);
     }
