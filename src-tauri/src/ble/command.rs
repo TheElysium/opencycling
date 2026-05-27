@@ -4,7 +4,7 @@ use tauri::AppHandle;
 use tokio::spawn;
 use tokio::sync::mpsc::{channel, Sender};
 use tokio::sync::oneshot;
-use crate::ble::types::{BleActor, BleCommand, DeviceInfo};
+use crate::ble::types::{BleActor, BleCommand, DeviceInfo, ParsedNotifications};
 use crate::errors::AppError;
 
 
@@ -30,20 +30,26 @@ impl BleActorHandle {
             .ok_or_else(|| AppError::DeviceNotFound("No BLE adapter".to_string()))?;
 
 
-        let (tx,rx) = channel::<BleCommand>(32);
+        let (cmd_tx,cmd_rx) = channel::<BleCommand>(32);
+        let (notif_tx,notif_rx) = channel::<ParsedNotifications>(64);
         let ble_actor = BleActor{
-            cmd_rx: rx,
+            cmd_rx,
+            notif_tx,
+            notif_rx,
             adapter,
             _manager: manager,
             trainer: None,
             hrm: None,
             last_target_w: None,
+            last_power_w: None,
+            last_cadence_rpm: None,
             app_handle,
+            last_hr_bpm: None,
         };
 
         spawn(ble_actor.run());
 
-        Ok(Self {sender: tx})
+        Ok(Self {sender: cmd_tx})
     }
 
     pub async fn scan(&self) -> Result<Vec<DeviceInfo>, AppError> {

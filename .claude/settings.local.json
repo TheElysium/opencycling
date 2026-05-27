@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Skill(writing-plans)"
+      "Skill(writing-plans)",
+      "Bash(cargo clippy *)",
+      "Bash(cargo check *)"
     ]
   }
 }

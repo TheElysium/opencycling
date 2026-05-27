@@ -1,10 +1,14 @@
 use btleplug::api::{Central, Peripheral, ScanFilter, WriteType};
 use btleplug::platform;
 use btleplug::platform::Adapter;
+use futures::StreamExt;
+use tauri::Emitter;
 use tokio::sync::oneshot::Sender;
-use crate::ble::types::{BleActor, BleCommand, DeviceInfo, DeviceKind};
+use crate::ble::types::{BleActor, BleCommand, BleMetrics, DeviceInfo, DeviceKind, ParsedNotifications};
 use crate::errors::AppError;
 use uuid::Uuid;
+use crate::ble::ftms::parse_indoor_bike_data;
+use crate::ble::hrs::parse_heart_rate_measurement;
 
 // UUIDs standard Bluetooth SIG
 const FITNESS_MACHINE_SERVICE: Uuid = Uuid::from_u128(0x00001826_0000_1000_8000_00805f9b34fb);
@@ -37,8 +41,19 @@ impl BleActor {
                         let _ = send_erg(trainer, watts).await;
                     }
                 }
+                Some(notifications) = self.notif_rx.recv() => {
+                    match notifications {
+                        ParsedNotifications::TrainerData{ power_w, cadence_rpm } => {
+                            self.last_power_w = power_w;
+                            self.last_cadence_rpm = cadence_rpm;
+                        }
+                        ParsedNotifications::HRMData{ hr_bpm } => {
+                            self.last_hr_bpm = Some(hr_bpm);
+                        }
+                    }
+                }
                 _metrics_ticker = metrics_ticker.tick() => {
-
+                    self.emit_metrics()
                 }
             }
         }
@@ -79,6 +94,22 @@ impl BleActor {
     async fn do_connect_trainer(&mut self, device_id: String) -> Result<(), AppError> {
         let trainer = self.connect_peripheral(device_id, INDOOR_BIKE_DATA).await?;
         request_control(&trainer).await?;
+        let mut stream = trainer.notifications()
+            .await
+            .map_err(|e| AppError::BLEConnectError(e.to_string()))?;
+        let tx = self.notif_tx.clone();
+        tokio::spawn(async move {
+            while let Some(notification) = stream.next().await {
+                if notification.uuid == INDOOR_BIKE_DATA {
+                    if let Ok(data) = parse_indoor_bike_data(&notification.value) {
+                        let _ = tx
+                            .send(ParsedNotifications::TrainerData { power_w: data.instantaneous_power_w, cadence_rpm: data.instantaneous_cadence_rpm })
+                            .await;
+                    }
+
+                }
+            }
+        });
         self.trainer = Some(trainer);
         Ok(())
     }
@@ -95,8 +126,33 @@ impl BleActor {
         let hrm = self
             .connect_peripheral(device_id, HEART_RATE_MEAS)
             .await?;
+        let mut stream = hrm.notifications()
+            .await
+            .map_err(|e| AppError::BLEConnectError(e.to_string()))?;
+        let tx = self.notif_tx.clone();
+        tokio::spawn(async move {
+            while let Some(notification) = stream.next().await {
+                if notification.uuid == HEART_RATE_MEAS {
+                    if let Ok(data) = parse_heart_rate_measurement(&notification.value) {
+                        let _ = tx
+                            .send(ParsedNotifications::HRMData { hr_bpm: data.hr_bpm })
+                            .await;
+                    }
+
+                }
+            }
+        });
         self.hrm = Some(hrm);
         Ok(())
+    }
+
+    fn emit_metrics(&self) {
+        let ble_metric = BleMetrics{
+            power_w: self.last_power_w,
+            hr_bpm: self.last_hr_bpm,
+            cadence_rpm: self.last_cadence_rpm,
+        };
+        let _ = self.app_handle.emit("ble_metrics", &ble_metric);
     }
 }
 

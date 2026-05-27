@@ -1,4 +1,4 @@
-use tokio::sync::mpsc::Receiver;
+use tokio::sync::mpsc::{Receiver, Sender};
 use btleplug::platform::{Adapter, Manager, Peripheral};
 use serde::Serialize;
 use tauri::AppHandle;
@@ -39,11 +39,21 @@ pub enum BleCommand {
 }
 
 pub struct BleActor {
+    pub app_handle: AppHandle,
     pub cmd_rx: Receiver<BleCommand>,
+    pub notif_tx: Sender<ParsedNotifications>,
+    pub notif_rx: Receiver<ParsedNotifications>,
     pub adapter: Adapter,
     pub _manager: Manager,
     pub trainer: Option<Peripheral>,
     pub hrm: Option<Peripheral>,
-    pub last_target_w: Option<i16>,
-    pub app_handle: AppHandle,
+    pub last_target_w: Option<i16>,  // ERG command sent to trainer (outgoing)
+    pub last_power_w: Option<i16>, // actual power measured by trainer (incoming)
+    pub last_cadence_rpm: Option<u16>,
+    pub last_hr_bpm: Option<u16>,
+}
+
+pub enum ParsedNotifications {
+    TrainerData{power_w: Option<i16>, cadence_rpm: Option<u16>},
+    HRMData{hr_bpm: u16},
 }
