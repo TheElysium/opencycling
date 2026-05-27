@@ -16,6 +16,8 @@ pub enum AppError {
     DeviceNotFound(String),
     #[error("BLE connection failed: {0}")]
     BLEConnectError(String),
+    #[error("BLE command failed: {0}")]
+    BLECommandError(String),
     #[error("Characteristic not found: {0}")]
     CharacteristicNotFound(String),
     #[error("Actor channel closed")]

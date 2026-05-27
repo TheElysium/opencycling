@@ -1,4 +1,4 @@
-use btleplug::api::{Central, Peripheral, ScanFilter};
+use btleplug::api::{Central, Peripheral, ScanFilter, WriteType};
 use btleplug::platform;
 use btleplug::platform::{Adapter, Peripheral as OtherPeripheral};
 use tokio::sync::oneshot::Sender;
@@ -12,6 +12,7 @@ const FITNESS_MACHINE_SERVICE: Uuid = Uuid::from_u128(0x00001826_0000_1000_8000_
 const HEART_RATE_SERVICE: Uuid = Uuid::from_u128(0x0000180d_0000_1000_8000_00805f9b34fb);
 const INDOOR_BIKE_DATA: Uuid = Uuid::from_u128(0x00002AD2_0000_1000_8000_00805f9b34fb);
 const HEART_RATE_MEAS: Uuid = Uuid::from_u128(0x00002A37_0000_1000_8000_00805f9b34fb);
+const FTMS_CONTROL_POINT: Uuid = Uuid::from_u128(0x00002AD9_0000_1000_8000_00805f9b34fb);
 const KEEP_ALIVE_TICK: u64 = 10;
 const METRICS_TICK: u64 = 1;
 
@@ -28,7 +29,9 @@ impl BleActor {
                     }
                 }
                 _keep_alive = keep_alive.tick() => {
-
+                    if let (Some(trainer), Some(watts)) = (&self.trainer, self.last_target_w) {
+                        let _ = send_erg(trainer, watts).await;
+                    }
                 }
                 _metrics_ticker = metrics_ticker.tick() => {
 
@@ -70,10 +73,8 @@ impl BleActor {
     }
 
     async fn do_connect_trainer(&mut self, device_id: String) -> Result<(), AppError> {
-        let trainer = self
-            .connect_peripheral(device_id, INDOOR_BIKE_DATA)
-            .await?;
-
+        let trainer = self.connect_peripheral(device_id, INDOOR_BIKE_DATA).await?;
+        request_control(&trainer).await?;
         self.trainer = Some(trainer);
         Ok(())
     }
@@ -168,3 +169,32 @@ fn get_device_kind(services: Vec<Uuid>, name: &str) -> Option<DeviceKind> {
     None
 }
 
+async fn request_control(trainer: &platform::Peripheral) -> Result<(), AppError> {
+    let control_point = trainer.characteristics()
+        .into_iter()
+        .find(|c|c.uuid == FTMS_CONTROL_POINT)
+        .ok_or_else(|| AppError::BLEConnectError("Failed to find FTMS_CONTROL_POINT characteristic".to_string()))?;
+
+    trainer.subscribe(&control_point)
+        .await
+        .map_err(|e| AppError::BLEConnectError(e.to_string()))?;
+
+    let payload = [0x00u8];
+    trainer.write(&control_point, &payload, WriteType::WithResponse)
+        .await
+        .map_err(|e| AppError::BLECommandError(e.to_string()))
+}
+
+async fn send_erg(trainer: &platform::Peripheral, watts: i16) -> Result<(), AppError> {
+    let control_point = trainer.characteristics()
+        .into_iter()
+        .find(|c|c.uuid == FTMS_CONTROL_POINT)
+        .ok_or_else(|| AppError::BLECommandError("Failed to find FTMS_CONTROL_POINT characteristic".to_string()))?;
+
+    let watts_le = watts.to_le_bytes();
+    let payload = [0x05, watts_le[0], watts_le[1]];
+
+    trainer.write(&control_point, &payload, WriteType::WithResponse)
+        .await
+        .map_err(|e| AppError::BLECommandError(e.to_string()))
+}
