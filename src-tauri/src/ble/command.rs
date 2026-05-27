@@ -55,4 +55,26 @@ impl BleActorHandle {
 
         rx.await.map_err(|_| AppError::BLEScanError(String::from("Failed to receive BLE command")))?
     }
+
+    pub async fn connect_trainer(&self, device_id: String) -> Result<(), AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender.send(BleCommand::ConnectTrainer { device_id, reply: tx })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    pub async fn set_target_power(&self, watts: i16) -> Result<(), AppError> {
+        self.sender.send(BleCommand::SetTargetPower { watts })
+            .await
+            .map_err(|_| AppError::ChannelClosed)
+    }
+
+    pub async fn connect_hrm(&self, device_id: String) -> Result<(), AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender.send(BleCommand::ConnectHrm { device_id, reply: tx })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
 }

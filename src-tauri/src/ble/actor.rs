@@ -1,11 +1,10 @@
 use btleplug::api::{Central, Peripheral, ScanFilter, WriteType};
 use btleplug::platform;
-use btleplug::platform::{Adapter, Peripheral as OtherPeripheral};
+use btleplug::platform::Adapter;
 use tokio::sync::oneshot::Sender;
 use crate::ble::types::{BleActor, BleCommand, DeviceInfo, DeviceKind};
 use crate::errors::AppError;
 use uuid::Uuid;
-use crate::ble::ftms::IndoorBikeData;
 
 // UUIDs standard Bluetooth SIG
 const FITNESS_MACHINE_SERVICE: Uuid = Uuid::from_u128(0x00001826_0000_1000_8000_00805f9b34fb);

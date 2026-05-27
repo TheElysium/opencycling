@@ -25,6 +25,21 @@ async fn scan_devices(state: tauri::State<'_, BleActorHandle>) -> Result<Vec<Dev
     state.scan().await
 }
 
+#[tauri::command]
+async fn connect_trainer(state: tauri::State<'_, BleActorHandle>, device_id: String) -> Result<(), AppError> {
+    state.connect_trainer(device_id).await
+}
+
+#[tauri::command]
+async fn connect_hrm(state: tauri::State<'_, BleActorHandle>, device_id: String) -> Result<(), AppError> {
+    state.connect_hrm(device_id).await
+}
+
+#[tauri::command]
+async fn set_target_power(state: tauri::State<'_, BleActorHandle>, watts: i16) -> Result<(), AppError> {
+    state.set_target_power(watts).await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
