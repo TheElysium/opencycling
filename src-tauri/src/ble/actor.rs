@@ -4,6 +4,7 @@ use btleplug::platform::Adapter;
 use futures::StreamExt;
 use tauri::Emitter;
 use tokio::sync::oneshot::Sender;
+use tracing::{error, info, warn};
 use crate::ble::types::{BleActor, BleCommand, BleMetrics, DeviceInfo, DeviceKind, ParsedNotifications};
 use crate::errors::AppError;
 use uuid::Uuid;
@@ -33,7 +34,10 @@ impl BleActor {
             tokio::select! {
                 cmd = self.cmd_rx.recv() => {
                     match cmd {
-                        None => {break;},
+                        None => {
+                            info!("BleActor shutting down");
+                            break;
+                        }
                         Some(cmd) => match cmd {
                             BleCommand::Scan { reply } => handle_scan(reply, &self.adapter).await,
                             BleCommand::ConnectTrainer { device_id, reply } => self.handle_connect_trainer(device_id, reply).await,
@@ -44,7 +48,9 @@ impl BleActor {
                 }
                 _keep_alive = keep_alive.tick() => {
                     if let (Some(trainer), Some(watts)) = (&self.trainer, self.last_target_w) {
-                        let _ = send_erg(trainer, watts).await;
+                        if let Err(e) = send_erg(trainer, watts).await {
+                            error!("ERG keep-alive failed: {e}");
+                        }
                     }
                 }
                 Some(notifications) = self.notif_rx.recv() => {
@@ -70,7 +76,11 @@ impl BleActor {
         device_id: String,
         reply: Sender<Result<(), AppError>>,
     ) {
-        let _ = reply.send(self.do_connect_trainer(device_id).await);
+        let result = self.do_connect_trainer(device_id).await;
+        if let Err(ref e) = result {
+            error!("connect_trainer failed: {e}");
+        }
+        let _ = reply.send(result);
     }
 
     async fn connect_peripheral(&self, device_id: String, characteristic_uuid: Uuid) -> Result<platform::Peripheral, AppError> {
@@ -98,6 +108,7 @@ impl BleActor {
     }
 
     async fn do_connect_trainer(&mut self, device_id: String) -> Result<(), AppError> {
+        info!("connecting trainer: {device_id}");
         let trainer = self.connect_peripheral(device_id, INDOOR_BIKE_DATA).await?;
         request_control(&trainer).await?;
         // The btleplug notification stream cannot be polled directly inside select!
@@ -115,12 +126,14 @@ impl BleActor {
                         let _ = tx
                             .send(ParsedNotifications::TrainerData { power_w: data.instantaneous_power_w, cadence_rpm: data.instantaneous_cadence_rpm })
                             .await;
+                    } else {
+                        warn!("failed to parse indoor bike data");
                     }
-
                 }
             }
         });
         self.trainer = Some(trainer);
+        info!("trainer connected");
         Ok(())
     }
 
@@ -129,10 +142,15 @@ impl BleActor {
         device_id: String,
         reply: Sender<Result<(), AppError>>
     ) {
-        let _ = reply.send(self.do_connect_hrm(device_id).await);
+        let result = self.do_connect_hrm(device_id).await;
+        if let Err(ref e) = result {
+            error!("connect_hrm failed: {e}");
+        }
+        let _ = reply.send(result);
     }
 
     async fn do_connect_hrm(&mut self, device_id: String) -> Result<(), AppError>{
+        info!("connecting hrm: {device_id}");
         let hrm = self
             .connect_peripheral(device_id, HEART_RATE_MEAS)
             .await?;
@@ -149,12 +167,14 @@ impl BleActor {
                         let _ = tx
                             .send(ParsedNotifications::HRMData { hr_bpm: data.hr_bpm })
                             .await;
+                    } else {
+                        warn!("failed to parse heart rate measurement");
                     }
-
                 }
             }
         });
         self.hrm = Some(hrm);
+        info!("hrm connected");
         Ok(())
     }
 
@@ -169,10 +189,15 @@ impl BleActor {
 }
 
 async fn handle_scan(reply: Sender<Result<Vec<DeviceInfo>, AppError>>, adapter: &Adapter)  {
-    let _ = reply.send(do_scan(adapter).await);
+    let result = do_scan(adapter).await;
+    if let Err(ref e) = result {
+        error!("scan failed: {e}");
+    }
+    let _ = reply.send(result);
 }
 
 async fn do_scan(adapter: &Adapter) -> Result<Vec<DeviceInfo>, AppError> {
+    info!("BLE scan started");
     adapter
         .start_scan(ScanFilter::default())
         .await
@@ -208,7 +233,7 @@ async fn do_scan(adapter: &Adapter) -> Result<Vec<DeviceInfo>, AppError> {
             }
         }
     }
-
+    info!("BLE scan complete: {} device(s) found", devices_info.len());
     Ok(devices_info)
 }
 

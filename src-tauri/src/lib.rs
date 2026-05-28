@@ -1,4 +1,6 @@
 use tauri::Manager;
+use tracing::metadata::LevelFilter;
+use tracing_subscriber::EnvFilter;
 use crate::ble::{BleActorHandle, DeviceInfo};
 use crate::errors::AppError;
 use crate::workout::{parse_zwo, ParsedWorkout};
@@ -42,6 +44,12 @@ async fn set_target_power(state: tauri::State<'_, BleActorHandle>, watts: i16) -
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::builder()
+            .with_default_directive(LevelFilter::INFO.into())
+            .from_env_lossy())
+        .init();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![greet, load_workout, scan_devices, connect_trainer, connect_hrm, set_target_power])
