@@ -10,6 +10,8 @@ use crate::errors::AppError;
 
 
 
+// Public handle to the BleActor: only exposes the mpsc Sender so callers
+// cannot access actor internals. Cheap to clone; safe to share across threads.
 pub struct BleActorHandle {
     sender: Sender<BleCommand>,
 }
@@ -30,7 +32,9 @@ impl BleActorHandle {
             .ok_or_else(|| AppError::DeviceNotFound("No BLE adapter".to_string()))?;
 
 
+        // cmd channel: Tauri handlers → actor (commands and replies).
         let (cmd_tx,cmd_rx) = channel::<BleCommand>(32);
+        // notif channel: per-device spawned tasks → actor (parsed BLE notifications).
         let (notif_tx,notif_rx) = channel::<ParsedNotifications>(64);
         let ble_actor = BleActor{
             cmd_rx,
@@ -53,6 +57,8 @@ impl BleActorHandle {
     }
 
     pub async fn scan(&self) -> Result<Vec<DeviceInfo>, AppError> {
+        // Request-reply over two channels: send the command with a oneshot tx,
+        // then await the rx. The actor sends the result back through that oneshot.
         let (tx,rx) = oneshot::channel::<Result<Vec<DeviceInfo>, AppError>>();
         let cmd = BleCommand::Scan {reply:tx};
         self.sender.send(cmd)
@@ -71,6 +77,8 @@ impl BleActorHandle {
     }
 
     pub async fn set_target_power(&self, watts: i16) -> Result<(), AppError> {
+        // Fire-and-forget: no oneshot reply needed; the actor stores watts and the
+        // keep-alive interval retransmits it every 10 s.
         self.sender.send(BleCommand::SetTargetPower { watts })
             .await
             .map_err(|_| AppError::ChannelClosed)

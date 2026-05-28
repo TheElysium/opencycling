@@ -23,6 +23,12 @@ impl BleActor {
     pub async fn run(mut self) {
         let mut keep_alive = tokio::time::interval(tokio::time::Duration::from_secs(KEEP_ALIVE_TICK));
         let mut metrics_ticker = tokio::time::interval(tokio::time::Duration::from_secs(METRICS_TICK));
+        // select! races all branches each iteration; whichever future resolves first wins.
+        // The four branches cover the actor's four responsibilities:
+        //   1. handle incoming commands from Tauri handlers
+        //   2. re-send last ERG target on the keep-alive tick
+        //   3. update last_* fields from parsed BLE notifications
+        //   4. emit ble_metrics to the frontend on the metrics tick
         loop {
             tokio::select! {
                 cmd = self.cmd_rx.recv() => {
@@ -94,6 +100,10 @@ impl BleActor {
     async fn do_connect_trainer(&mut self, device_id: String) -> Result<(), AppError> {
         let trainer = self.connect_peripheral(device_id, INDOOR_BIKE_DATA).await?;
         request_control(&trainer).await?;
+        // The btleplug notification stream cannot be polled directly inside select!
+        // because holding a mutable reference to the stream would conflict with
+        // &mut self on the other branches. Instead we spawn a dedicated task that
+        // owns the stream and forwards parsed values over the notif channel.
         let mut stream = trainer.notifications()
             .await
             .map_err(|e| AppError::BLEConnectError(e.to_string()))?;
@@ -126,6 +136,8 @@ impl BleActor {
         let hrm = self
             .connect_peripheral(device_id, HEART_RATE_MEAS)
             .await?;
+        // Same pattern as the trainer task: dedicated task owns the stream,
+        // forwards parsed HR values over the shared notif channel.
         let mut stream = hrm.notifications()
             .await
             .map_err(|e| AppError::BLEConnectError(e.to_string()))?;
