@@ -1,156 +1,202 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { listen } from "@tauri-apps/api/event";
+  import { onMount } from "svelte";
 
-  let name = $state("");
-  let greetMsg = $state("");
+  type DeviceInfo = { id: string; name: string; kind: 'Trainer' | 'Hrm' | null };
+  type BleMetrics = { power_w: number | null; hr_bpm: number | null; cadence_rpm: number | null };
 
-  async function greet(event: Event) {
-    event.preventDefault();
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    greetMsg = await invoke("greet", { name });
+  let devices = $state<DeviceInfo[]>([]);
+  let scanning = $state(false);
+  let metrics = $state<BleMetrics | null>(null);
+
+  async function scanDevices() {
+    scanning = true;
+    try {
+      devices = await invoke<DeviceInfo[]>('scan_devices');
+    } finally {
+      scanning = false;
+    }
   }
+
+  async function connectDevice(device: DeviceInfo) {
+    if (device.kind === 'Trainer') {
+      await invoke('connect_trainer', { deviceId: device.id });
+    } else if (device.kind === 'Hrm') {
+      await invoke('connect_hrm', { deviceId: device.id });
+    }
+  }
+
+  onMount(() => {
+    scanDevices();
+
+    let unlisten: (() => void) | undefined;
+    listen('ble_metrics', (e) => {
+      metrics = e.payload as BleMetrics;
+    }).then((fn) => { unlisten = fn; });
+    return () => unlisten?.();
+  });
 </script>
 
-<main class="container">
-  <h1>Welcome to Tauri + Svelte</h1>
+<main>
+  <h1>OpenCycling</h1>
 
-  <div class="row">
-    <a href="https://vitejs.dev" target="_blank">
-      <img src="/vite.svg" class="logo vite" alt="Vite Logo" />
-    </a>
-    <a href="https://tauri.app" target="_blank">
-      <img src="/tauri.svg" class="logo tauri" alt="Tauri Logo" />
-    </a>
-    <a href="https://kit.svelte.dev" target="_blank">
-      <img src="/svelte.svg" class="logo svelte-kit" alt="SvelteKit Logo" />
-    </a>
-  </div>
-  <p>Click on the Tauri, Vite, and SvelteKit logos to learn more.</p>
+  <section class="devices">
+    <div class="section-header">
+      <h2>Devices</h2>
+      <button onclick={scanDevices} disabled={scanning}>
+        {scanning ? 'Scanning...' : 'Scan'}
+      </button>
+    </div>
 
-  <form class="row" onsubmit={greet}>
-    <input id="greet-input" placeholder="Enter a name..." bind:value={name} />
-    <button type="submit">Greet</button>
-  </form>
-  <p>{greetMsg}</p>
+    {#if devices.length === 0 && !scanning}
+      <p class="empty">No devices found.</p>
+    {/if}
+
+    <ul>
+      {#each devices as device}
+        <li class="device">
+          <span class="device-name">{device.name}</span>
+          <span class="device-kind">{device.kind ?? '?'}</span>
+          {#if device.kind}
+            <button onclick={() => connectDevice(device)}>Connect</button>
+          {/if}
+        </li>
+      {/each}
+    </ul>
+  </section>
+
+  <section class="metrics">
+    <h2>Metrics</h2>
+    {#if metrics}
+      <div class="metric-grid">
+        <div class="metric">
+          <span class="value">{metrics.power_w ?? '—'}</span>
+          <span class="label">W</span>
+        </div>
+        <div class="metric">
+          <span class="value">{metrics.cadence_rpm ?? '—'}</span>
+          <span class="label">rpm</span>
+        </div>
+        <div class="metric">
+          <span class="value">{metrics.hr_bpm ?? '—'}</span>
+          <span class="label">bpm</span>
+        </div>
+      </div>
+    {:else}
+      <p class="empty">Waiting for data…</p>
+    {/if}
+  </section>
 </main>
 
 <style>
-.logo.vite:hover {
-  filter: drop-shadow(0 0 2em #747bff);
-}
-
-.logo.svelte-kit:hover {
-  filter: drop-shadow(0 0 2em #ff3e00);
-}
-
-:root {
-  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 400;
-
-  color: #0f0f0f;
-  background-color: #f6f6f6;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  -webkit-text-size-adjust: 100%;
-}
-
-.container {
-  margin: 0;
-  padding-top: 10vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  text-align: center;
-}
-
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: 0.75s;
-}
-
-.logo.tauri:hover {
-  filter: drop-shadow(0 0 2em #24c8db);
-}
-
-.row {
-  display: flex;
-  justify-content: center;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-
-a:hover {
-  color: #535bf2;
-}
-
-h1 {
-  text-align: center;
-}
-
-input,
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  color: #0f0f0f;
-  background-color: #ffffff;
-  transition: border-color 0.25s;
-  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
-}
-
-button {
-  cursor: pointer;
-}
-
-button:hover {
-  border-color: #396cd8;
-}
-button:active {
-  border-color: #396cd8;
-  background-color: #e8e8e8;
-}
-
-input,
-button {
-  outline: none;
-}
-
-#greet-input {
-  margin-right: 5px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color: #f6f6f6;
-    background-color: #2f2f2f;
+  main {
+    max-width: 600px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+    font-family: system-ui, sans-serif;
   }
 
-  a:hover {
-    color: #24c8db;
+  h1 {
+    font-size: 1.8rem;
+    margin-bottom: 2rem;
   }
 
-  input,
+  h2 {
+    font-size: 1.1rem;
+    margin: 0;
+  }
+
+  section {
+    background: #f5f5f5;
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+  }
+
+  ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .device {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+    border-top: 1px solid #e0e0e0;
+  }
+
+  .device-name {
+    flex: 1;
+    font-size: 0.95rem;
+  }
+
+  .device-kind {
+    font-size: 0.8rem;
+    color: #999;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .metric-grid {
+    display: flex;
+    gap: 2rem;
+    margin-top: 0.75rem;
+  }
+
+  .metric {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+  }
+
+  .value {
+    font-size: 2.5rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+
+  .label {
+    font-size: 0.8rem;
+    color: #999;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .empty {
+    color: #aaa;
+    font-size: 0.9rem;
+    margin: 0.5rem 0 0;
+  }
+
   button {
-    color: #ffffff;
-    background-color: #0f0f0f98;
+    padding: 0.4rem 0.9rem;
+    border: 1px solid #d0d0d0;
+    border-radius: 6px;
+    background: #fff;
+    color: #222;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.15s;
   }
-  button:active {
-    background-color: #0f0f0f69;
-  }
-}
 
+  button:hover:not(:disabled) {
+    background: #f0f0f0;
+  }
+
+  button:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
 </style>
