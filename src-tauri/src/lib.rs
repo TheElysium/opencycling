@@ -44,7 +44,7 @@ async fn set_target_power(state: tauri::State<'_, BleActorHandle>, watts: i16) -
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet, load_workout, scan_devices])
+        .invoke_handler(tauri::generate_handler![greet, load_workout, scan_devices, connect_trainer, connect_hrm, set_target_power])
         .setup(|app| {
             let handle = tauri::async_runtime::block_on(BleActorHandle::spawn(app.handle().clone()))
                 .expect("BLE init failed");
