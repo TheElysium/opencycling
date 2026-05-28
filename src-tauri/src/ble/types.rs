@@ -25,7 +25,7 @@ pub struct BleMetrics {
     pub cadence_rpm: Option<u16>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct BleError {
     pub device: String,
     pub message: String,
@@ -67,4 +67,5 @@ pub struct BleActor {
 pub enum ParsedNotifications {
     TrainerData{power_w: Option<i16>, cadence_rpm: Option<u16>},
     HRMData{hr_bpm: u16},
+    ParseError{device_kind: DeviceKind,error: AppError},
 }

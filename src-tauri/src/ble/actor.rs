@@ -4,12 +4,14 @@ use btleplug::platform::Adapter;
 use futures::StreamExt;
 use tauri::Emitter;
 use tokio::sync::oneshot::Sender;
-use tracing::{error, info, warn};
-use crate::ble::types::{BleActor, BleCommand, BleMetrics, DeviceInfo, DeviceKind, ParsedNotifications};
+use tracing::{error, info};
+use crate::ble::types::{BleActor, BleCommand, BleError, BleMetrics, DeviceInfo, DeviceKind, ParsedNotifications};
 use crate::errors::AppError;
 use uuid::Uuid;
+use DeviceKind::Hrm;
 use crate::ble::ftms::parse_indoor_bike_data;
 use crate::ble::hrs::parse_heart_rate_measurement;
+use crate::ble::types::DeviceKind::Trainer;
 
 // UUIDs standard Bluetooth SIG
 const FITNESS_MACHINE_SERVICE: Uuid = Uuid::from_u128(0x00001826_0000_1000_8000_00805f9b34fb);
@@ -62,6 +64,16 @@ impl BleActor {
                         ParsedNotifications::HRMData{ hr_bpm } => {
                             self.last_hr_bpm = Some(hr_bpm);
                         }
+                          ParsedNotifications::ParseError { device_kind, error } => {
+                              let device = match device_kind {
+                                  Trainer => "trainer",
+                                  Hrm => "hrm",
+                              };
+                              let _ = self.app_handle.emit("ble_error", BleError {
+                                  device: device.into(),
+                                  message: error.to_string(),
+                              });
+                          }
                     }
                 }
                 _metrics_ticker = metrics_ticker.tick() => {
@@ -122,12 +134,9 @@ impl BleActor {
         tokio::spawn(async move {
             while let Some(notification) = stream.next().await {
                 if notification.uuid == INDOOR_BIKE_DATA {
-                    if let Ok(data) = parse_indoor_bike_data(&notification.value) {
-                        let _ = tx
-                            .send(ParsedNotifications::TrainerData { power_w: data.instantaneous_power_w, cadence_rpm: data.instantaneous_cadence_rpm })
-                            .await;
-                    } else {
-                        warn!("failed to parse indoor bike data");
+                    match parse_indoor_bike_data(&notification.value) {
+                        Ok(data) => { let _ = tx.send(ParsedNotifications::TrainerData { power_w: data.instantaneous_power_w, cadence_rpm: data.instantaneous_cadence_rpm }).await; }
+                        Err(e)   => { let _ = tx.send(ParsedNotifications::ParseError { device_kind: Trainer, error: e }).await; }
                     }
                 }
             }
@@ -163,12 +172,9 @@ impl BleActor {
         tokio::spawn(async move {
             while let Some(notification) = stream.next().await {
                 if notification.uuid == HEART_RATE_MEAS {
-                    if let Ok(data) = parse_heart_rate_measurement(&notification.value) {
-                        let _ = tx
-                            .send(ParsedNotifications::HRMData { hr_bpm: data.hr_bpm })
-                            .await;
-                    } else {
-                        warn!("failed to parse heart rate measurement");
+                    match parse_heart_rate_measurement(&notification.value) {
+                        Ok(data) => { let _ = tx.send(ParsedNotifications::HRMData { hr_bpm: data.hr_bpm }).await; }
+                        Err(e)   => { let _ = tx.send(ParsedNotifications::ParseError { device_kind: Hrm, error: e }).await; }
                     }
                 }
             }
@@ -242,7 +248,7 @@ fn get_device_kind(services: Vec<Uuid>, name: &str) -> Option<DeviceKind> {
         return Some(DeviceKind::Trainer);
     }
     if services.contains(&HEART_RATE_SERVICE) {
-        return Some(DeviceKind::Hrm)
+        return Some(Hrm)
     }
 
     let name_lower = name.to_lowercase();
@@ -260,7 +266,7 @@ fn get_device_kind(services: Vec<Uuid>, name: &str) -> Option<DeviceKind> {
         || name_lower.contains("polar h")
         || name_lower.contains("wahoo tickr")
     {
-        return Some(DeviceKind::Hrm);
+        return Some(Hrm);
     }
 
     None

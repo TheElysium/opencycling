@@ -9,12 +9,6 @@ mod errors;
 mod ble;
 mod workout;
 
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
-
 #[tauri::command]
 fn load_workout(path: String) -> Result<ParsedWorkout, AppError> {
     let content = std::fs::read_to_string(path)
@@ -52,7 +46,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet, load_workout, scan_devices, connect_trainer, connect_hrm, set_target_power])
+        .invoke_handler(tauri::generate_handler![load_workout, scan_devices, connect_trainer, connect_hrm, set_target_power])
         .setup(|app| {
             let handle = tauri::async_runtime::block_on(BleActorHandle::spawn(app.handle().clone()))
                 .expect("BLE init failed");
