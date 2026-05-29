@@ -1,217 +1,331 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
-  import { listen } from "@tauri-apps/api/event";
-  import { onMount } from "svelte";
+  import { invoke } from '@tauri-apps/api/core';
+  import { onMount } from 'svelte';
+  import { ble, type DeviceStatus } from '$lib/ble.svelte';
 
   type DeviceInfo = { id: string; name: string; kind: 'Trainer' | 'Hrm' | null };
-  type BleMetrics = { power_w: number | null; hr_bpm: number | null; cadence_rpm: number | null };
-  type BleError = { device: string; message: string };
 
-  let devices = $state<DeviceInfo[]>([]);
-  let scanning = $state(false);
-  let metrics = $state<BleMetrics | null>(null);
-  let bleError = $state<string | null>(null);
+  let trainerId  = $state<string | null>(null);
+  let hrmId      = $state<string | null>(null);
+  let scanning   = $state(false);
+  let scanError  = $state<string | null>(null);
+
+  const statusConfig: Record<DeviceStatus, { color: string; label: string }> = {
+    scanning:     { color: '#94a3b8', label: 'Scanning…' },
+    not_found:    { color: '#94a3b8', label: 'Not found' },
+    detected:     { color: '#3b82f6', label: 'Detected' },
+    connecting:   { color: '#f59e0b', label: 'Connecting…' },
+    connected:    { color: '#22c55e', label: 'Connected' },
+    disconnected: { color: '#f59e0b', label: 'Disconnected' },
+    error:        { color: '#ef4444', label: 'Error' },
+  };
 
   async function scanDevices() {
     scanning = true;
+    scanError = null;
+    ble.trainerError = null;
+    ble.hrmError = null;
+
+    // Don't reset already-connected devices — the BLE actor still holds the connection.
+    if (ble.trainerStatus !== 'connected') {
+      ble.trainerStatus = 'scanning';
+      ble.trainerName = null;
+      trainerId = null;
+    }
+    if (ble.hrmStatus !== 'connected') {
+      ble.hrmStatus = 'scanning';
+      ble.hrmName = null;
+      hrmId = null;
+    }
+
     try {
-      devices = await invoke<DeviceInfo[]>('scan_devices');
+      const devices = await invoke<DeviceInfo[]>('scan_devices');
+
+      const trainer = devices.find(d => d.kind === 'Trainer');
+      const hrm     = devices.find(d => d.kind === 'Hrm');
+
+      if (trainer) {
+        trainerId = trainer.id;
+        ble.trainerName = trainer.name;
+        if (ble.trainerStatus !== 'connected') ble.trainerStatus = 'detected';
+      } else if (ble.trainerStatus !== 'connected') {
+        ble.trainerStatus = 'not_found';
+      }
+
+      if (hrm) {
+        hrmId = hrm.id;
+        ble.hrmName = hrm.name;
+        if (ble.hrmStatus !== 'connected') ble.hrmStatus = 'detected';
+      } else if (ble.hrmStatus !== 'connected') {
+        ble.hrmStatus = 'not_found';
+      }
     } catch (e) {
-      bleError = e as string;
+      scanError = e as string;
     } finally {
       scanning = false;
     }
   }
 
-  async function connectDevice(device: DeviceInfo) {
+  async function connect(kind: 'Trainer' | 'Hrm') {
+    const isTrainer = kind === 'Trainer';
+    const id = isTrainer ? trainerId : hrmId;
+    if (!id) return;
+    const setStatus = (s: DeviceStatus) => { if (isTrainer) ble.trainerStatus = s; else ble.hrmStatus = s; };
+    const setError = (e: string | null) => { if (isTrainer) ble.trainerError = e; else ble.hrmError = e; };
+    setStatus('connecting');
+    setError(null);
     try {
-      if (device.kind === 'Trainer') {
-        await invoke('connect_trainer', { deviceId: device.id });
-      } else if (device.kind === 'Hrm') {
-        await invoke('connect_hrm', { deviceId: device.id });
-      }
+      await invoke(`connect_${kind.toLowerCase()}`, { deviceId: id });
+      setStatus('connected');
     } catch (e) {
-      bleError = e as string;
+      setStatus('error');
+      setError(e as string);
     }
   }
 
   onMount(() => {
-    scanDevices();
-
-    let unlistenMetrics: (() => void) | undefined;
-    let unlistenError: (() => void) | undefined;
-
-    listen('ble_metrics', (e) => {
-      metrics = e.payload as BleMetrics;
-    }).then((fn) => { unlistenMetrics = fn; });
-
-    listen('ble_error', (e) => {
-      bleError = (e.payload as BleError).message;
-    }).then((fn) => { unlistenError = fn; });
-
-    return () => { unlistenMetrics?.(); unlistenError?.(); };
+    if (ble.trainerStatus !== 'connected' || ble.hrmStatus !== 'connected') {
+      scanDevices();
+    }
   });
 </script>
 
-<main>
-  <h1>OpenCycling</h1>
+<div class="page">
+  <div class="header">
+    <h1>Connection</h1>
+    <button onclick={scanDevices} disabled={scanning} class="btn-secondary">
+      {scanning ? 'Scanning…' : 'Scan'}
+    </button>
+  </div>
 
-  <section class="devices">
-    <div class="section-header">
-      <h2>Devices</h2>
-      <button onclick={scanDevices} disabled={scanning}>
-        {scanning ? 'Scanning...' : 'Scan'}
-      </button>
-    </div>
+  {#if scanError}
+    <p class="scan-error">{scanError}</p>
+  {/if}
 
-    {#if devices.length === 0 && !scanning}
-      <p class="empty">No devices found.</p>
-    {/if}
-
-    <ul>
-      {#each devices as device}
-        <li class="device">
-          <span class="device-name">{device.name}</span>
-          <span class="device-kind">{device.kind ?? '?'}</span>
-          {#if device.kind}
-            <button onclick={() => connectDevice(device)}>Connect</button>
+  <div class="devices">
+    <!-- Trainer card -->
+    <div class="card">
+      <div class="card-header">
+        <div class="device-info">
+          <span class="device-label">Home Trainer</span>
+          {#if ble.trainerName}
+            <span class="device-name">{ble.trainerName}</span>
           {/if}
-        </li>
-      {/each}
-    </ul>
-  </section>
-
-  <section class="metrics">
-    <h2>Metrics</h2>
-    {#if metrics}
-      <div class="metric-grid">
-        <div class="metric">
-          <span class="value">{metrics.power_w ?? '—'}</span>
-          <span class="label">W</span>
         </div>
-        <div class="metric">
-          <span class="value">{metrics.cadence_rpm ?? '—'}</span>
-          <span class="label">rpm</span>
-        </div>
-        <div class="metric">
-          <span class="value">{metrics.hr_bpm ?? '—'}</span>
-          <span class="label">bpm</span>
+        <div class="status">
+          <span class="dot" style="background: {statusConfig[ble.trainerStatus].color}"></span>
+          <span class="status-text">{statusConfig[ble.trainerStatus].label}</span>
         </div>
       </div>
-    {:else}
-      <p class="empty">Waiting for data…</p>
-    {/if}
-  </section>
+      {#if ble.trainerStatus === 'not_found'}
+        <p class="hint">Make sure your trainer is powered on, then scan again.</p>
+      {/if}
+      {#if ble.trainerStatus === 'disconnected'}
+        <p class="hint">Trainer disconnected. Scan to reconnect.</p>
+      {/if}
+      {#if ble.trainerStatus === 'detected'}
+        <button onclick={() => connect('Trainer')} class="btn-primary">Connect</button>
+      {/if}
+      {#if ble.trainerError}
+        <p class="error">{ble.trainerError}</p>
+      {/if}
+    </div>
 
-  {#if bleError}
-    <p class="error">{bleError}</p>
+    <!-- HRM card -->
+    <div class="card">
+      <div class="card-header">
+        <div class="device-info">
+          <span class="device-label">
+            Heart Rate Monitor
+            <span class="optional">Optional</span>
+          </span>
+          {#if ble.hrmName}
+            <span class="device-name">{ble.hrmName}</span>
+          {/if}
+        </div>
+        <div class="status">
+          <span class="dot" style="background: {statusConfig[ble.hrmStatus].color}"></span>
+          <span class="status-text">{statusConfig[ble.hrmStatus].label}</span>
+        </div>
+      </div>
+      {#if ble.hrmStatus === 'not_found'}
+        <p class="hint">No heart rate monitor detected. Sessions work without HR.</p>
+      {/if}
+      {#if ble.hrmStatus === 'disconnected'}
+        <p class="hint">Heart rate monitor disconnected. Scan to reconnect.</p>
+      {/if}
+      {#if ble.hrmStatus === 'detected'}
+        <button onclick={() => connect('Hrm')} class="btn-primary">Connect</button>
+      {/if}
+      {#if ble.hrmError}
+        <p class="error">{ble.hrmError}</p>
+      {/if}
+    </div>
+  </div>
+
+  <!-- Live preview -->
+  {#if ble.metrics}
+    <div class="metrics-preview">
+      <div class="metric">
+        <span class="value">{ble.metrics.power_w ?? '—'}</span>
+        <span class="unit">W</span>
+      </div>
+      <div class="metric">
+        <span class="value">{ble.metrics.cadence_rpm ?? '—'}</span>
+        <span class="unit">rpm</span>
+      </div>
+      <div class="metric">
+        <span class="value">{ble.metrics.hr_bpm ?? '—'}</span>
+        <span class="unit">bpm</span>
+      </div>
+    </div>
   {/if}
-</main>
+</div>
 
 <style>
-  main {
-    max-width: 600px;
-    margin: 2rem auto;
-    padding: 0 1rem;
-    font-family: system-ui, sans-serif;
+  .page {
+    max-width: 520px;
   }
 
-  h1 {
-    font-size: 1.8rem;
-    margin-bottom: 2rem;
-  }
-
-  h2 {
-    font-size: 1.1rem;
-    margin: 0;
-  }
-
-  section {
-    background: #f5f5f5;
+  .scan-error {
+    margin: 0 0 1rem;
+    padding: 0.65rem 1rem;
+    background: color-mix(in srgb, var(--danger) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
     border-radius: 8px;
-    padding: 1rem 1.25rem;
-    margin-bottom: 1rem;
+    color: var(--danger);
+    font-size: 0.85rem;
   }
 
-  .section-header {
+  .header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 0.75rem;
+    margin-bottom: 1.5rem;
   }
 
-  ul {
-    list-style: none;
-    padding: 0;
+  h1 {
+    font-size: 1.4rem;
+    font-weight: 600;
     margin: 0;
   }
 
-  .device {
+  .devices {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .card-header {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.5rem 0;
-    border-top: 1px solid #e0e0e0;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .device-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .device-label {
+    font-weight: 600;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .optional {
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--muted);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.1rem 0.4rem;
   }
 
   .device-name {
-    flex: 1;
-    font-size: 0.95rem;
-  }
-
-  .device-kind {
     font-size: 0.8rem;
-    color: #999;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    color: var(--muted);
   }
 
-  .metric-grid {
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  .status-text {
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+
+  .hint {
+    margin: 0;
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+
+  .error {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--danger);
+  }
+
+  .metrics-preview {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
     display: flex;
     gap: 2rem;
-    margin-top: 0.75rem;
   }
 
   .metric {
     display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.2rem;
+    align-items: baseline;
+    gap: 0.3rem;
   }
 
   .value {
-    font-size: 2.5rem;
+    font-size: 1.6rem;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
-    line-height: 1;
   }
 
-  .label {
+  .unit {
     font-size: 0.8rem;
-    color: #999;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .empty {
-    color: #aaa;
-    font-size: 0.9rem;
-    margin: 0.5rem 0 0;
+    color: var(--muted);
   }
 
   button {
-    padding: 0.4rem 0.9rem;
-    border: 1px solid #d0d0d0;
-    border-radius: 6px;
-    background: #fff;
-    color: #222;
+    border-radius: 7px;
+    padding: 0.45rem 1rem;
     font-size: 0.85rem;
     cursor: pointer;
-    transition: background 0.15s;
-  }
-
-  button:hover:not(:disabled) {
-    background: #f0f0f0;
+    transition: opacity 0.15s;
   }
 
   button:disabled {
@@ -219,9 +333,24 @@
     cursor: default;
   }
 
-  .error {
-    color: #c00;
-    font-size: 0.9rem;
-    margin-top: 1rem;
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    align-self: flex-start;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    opacity: 0.88;
+  }
+
+  .btn-secondary {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  .btn-secondary:hover:not(:disabled) {
+    background: var(--bg);
   }
 </style>
