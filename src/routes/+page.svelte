@@ -5,36 +5,51 @@
 
   type DeviceInfo = { id: string; name: string; kind: 'Trainer' | 'Hrm' | null };
   type BleMetrics = { power_w: number | null; hr_bpm: number | null; cadence_rpm: number | null };
+  type BleError = { device: string; message: string };
 
   let devices = $state<DeviceInfo[]>([]);
   let scanning = $state(false);
   let metrics = $state<BleMetrics | null>(null);
+  let bleError = $state<string | null>(null);
 
   async function scanDevices() {
     scanning = true;
     try {
       devices = await invoke<DeviceInfo[]>('scan_devices');
+    } catch (e) {
+      bleError = e as string;
     } finally {
       scanning = false;
     }
   }
 
   async function connectDevice(device: DeviceInfo) {
-    if (device.kind === 'Trainer') {
-      await invoke('connect_trainer', { deviceId: device.id });
-    } else if (device.kind === 'Hrm') {
-      await invoke('connect_hrm', { deviceId: device.id });
+    try {
+      if (device.kind === 'Trainer') {
+        await invoke('connect_trainer', { deviceId: device.id });
+      } else if (device.kind === 'Hrm') {
+        await invoke('connect_hrm', { deviceId: device.id });
+      }
+    } catch (e) {
+      bleError = e as string;
     }
   }
 
   onMount(() => {
     scanDevices();
 
-    let unlisten: (() => void) | undefined;
+    let unlistenMetrics: (() => void) | undefined;
+    let unlistenError: (() => void) | undefined;
+
     listen('ble_metrics', (e) => {
       metrics = e.payload as BleMetrics;
-    }).then((fn) => { unlisten = fn; });
-    return () => unlisten?.();
+    }).then((fn) => { unlistenMetrics = fn; });
+
+    listen('ble_error', (e) => {
+      bleError = (e.payload as BleError).message;
+    }).then((fn) => { unlistenError = fn; });
+
+    return () => { unlistenMetrics?.(); unlistenError?.(); };
   });
 </script>
 
@@ -87,6 +102,10 @@
       <p class="empty">Waiting for data…</p>
     {/if}
   </section>
+
+  {#if bleError}
+    <p class="error">{bleError}</p>
+  {/if}
 </main>
 
 <style>
@@ -198,5 +217,11 @@
   button:disabled {
     opacity: 0.4;
     cursor: default;
+  }
+
+  .error {
+    color: #c00;
+    font-size: 0.9rem;
+    margin-top: 1rem;
   }
 </style>
