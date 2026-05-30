@@ -99,7 +99,7 @@
   </div>
 
   {#if scanError}
-    <p class="scan-error">{scanError}</p>
+    <p class="error-box scan-error">{scanError}</p>
   {/if}
 
   <div class="devices">
@@ -165,7 +165,7 @@
 
   <!-- Live preview -->
   {#if ble.metrics}
-    <div class="metrics-preview">
+    <div class="card metrics-preview">
       <div class="metric">
         <span class="value">{ble.metrics.power_w ?? '—'}</span>
         <span class="unit">W</span>
@@ -183,19 +183,7 @@
 </div>
 
 <style>
-  .page {
-    max-width: 520px;
-  }
-
-  .scan-error {
-    margin: 0 0 1rem;
-    padding: 0.65rem 1rem;
-    background: color-mix(in srgb, var(--danger) 10%, transparent);
-    border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
-    border-radius: 8px;
-    color: var(--danger);
-    font-size: 0.85rem;
-  }
+  .scan-error { margin: 0 0 1rem; }
 
   .header {
     display: flex;
@@ -218,10 +206,6 @@
   }
 
   .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 1rem 1.25rem;
     display: flex;
     flex-direction: column;
     gap: 0.6rem;
@@ -295,10 +279,6 @@
   }
 
   .metrics-preview {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 1rem 1.25rem;
     display: flex;
     gap: 2rem;
   }
@@ -320,37 +300,5 @@
     color: var(--muted);
   }
 
-  button {
-    border-radius: 7px;
-    padding: 0.45rem 1rem;
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: opacity 0.15s;
-  }
-
-  button:disabled {
-    opacity: 0.4;
-    cursor: default;
-  }
-
-  .btn-primary {
-    background: var(--accent);
-    color: #fff;
-    border: none;
-    align-self: flex-start;
-  }
-
-  .btn-primary:hover:not(:disabled) {
-    opacity: 0.88;
-  }
-
-  .btn-secondary {
-    background: var(--surface);
-    color: var(--text);
-    border: 1px solid var(--border);
-  }
-
-  .btn-secondary:hover:not(:disabled) {
-    background: var(--bg);
-  }
+  .btn-primary { align-self: flex-start; }
 </style>

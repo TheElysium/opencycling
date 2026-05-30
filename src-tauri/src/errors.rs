@@ -22,6 +22,8 @@ pub enum AppError {
     CharacteristicNotFound(String),
     #[error("Actor channel closed")]
     ChannelClosed,
+    #[error("Database error: {0}")]
+    DbError(String),
     #[error("{0}")]
     Other(String),
 }
