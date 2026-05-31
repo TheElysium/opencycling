@@ -280,6 +280,7 @@
 
   .metrics-preview {
     display: flex;
+    flex-direction: row;
     gap: 2rem;
   }
 

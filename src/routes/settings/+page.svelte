@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
   import { onMount } from 'svelte';
+  import { fade } from 'svelte/transition';
 
   type Settings = { ftp_w: number; max_hr_bpm: number; workout_path: string };
 
@@ -11,6 +12,7 @@
   let saving      = $state(false);
   let saved       = $state(false);
   let error       = $state<string | null>(null);
+  let savedTimer: ReturnType<typeof setTimeout> | null = null;
 
   onMount(async () => {
     try {
@@ -34,6 +36,8 @@
         settings: { ftp_w: ftp, max_hr_bpm: maxHr, workout_path: workoutPath }
       });
       saved = true;
+      if (savedTimer) clearTimeout(savedTimer);
+      savedTimer = setTimeout(() => saved = false, 2000);
     } catch (e) {
       error = e as string;
     } finally {
@@ -69,9 +73,9 @@
 
     <div class="actions">
       {#if saved}
-        <span class="saved-msg">Saved</span>
+        <span class="saved-msg" transition:fade={{ duration: 100 }}>Saved</span>
       {/if}
-      <button onclick={save} disabled={saving} class="btn-primary">
+      <button onclick={save} disabled={saving || ftp === null || maxHr === null || workoutPath === null} class="btn-primary">
         {saving ? 'Saving…' : 'Save'}
       </button>
     </div>

@@ -2,7 +2,6 @@ use crate::db::command::DbCommand;
 use crate::db::Settings;
 use crate::errors::AppError;
 use rusqlite::Connection;
-use std::string::ToString;
 use tokio::sync::mpsc::Receiver;
 use tracing::info;
 
@@ -22,10 +21,11 @@ impl DbActor {
     fn init_schema(&self) -> Result<(), AppError> {
         self.conn
             .execute_batch(r#"
+                PRAGMA foreign_keys = ON;
                 CREATE TABLE IF NOT EXISTS sessions(
                     id integer PRIMARY KEY,
-                    started_at date NOT NULL,
-                    ended_at date,
+                    started_at TEXT NOT NULL,
+                    ended_at TEXT,
                     workout_name text NOT NULL,
                     avg_power_w integer,
                     max_power_w integer,
@@ -35,7 +35,7 @@ impl DbActor {
                 );
                 CREATE TABLE IF NOT EXISTS session_metrics(
                      id integer PRIMARY KEY,
-                     session_id REFERENCES sessions(id),
+                     session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
                      t_offset_s integer,
                      power_w integer,
                      hr_bpm integer,

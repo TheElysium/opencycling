@@ -54,7 +54,14 @@ impl BleActor {
                             BleCommand::Scan { reply } => handle_scan(reply, &self.adapter).await,
                             BleCommand::ConnectTrainer { device_id, reply } => self.handle_connect_trainer(device_id, reply).await,
                             BleCommand::ConnectHrm { device_id, reply } => self.handle_connect_hrm(device_id, reply).await,
-                            BleCommand::SetTargetPower { watts } => self.last_target_w = Some(watts),
+                            BleCommand::SetTargetPower { watts } => {
+                                self.last_target_w = Some(watts);
+                                if let Some(trainer) = &self.trainer {
+                                    if let Err(e) = send_erg(trainer, watts).await {
+                                        error!("ERG set_target_power failed: {e}");
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -170,6 +177,7 @@ impl BleActor {
     async fn do_connect_trainer(&mut self, device_id: String) -> Result<(), AppError> {
         if let Some(handle) = self.trainer_task.take() {
             handle.abort();
+            self.trainer = None;
         }
         info!("connecting trainer: {device_id}");
         let trainer = self.connect_peripheral(device_id, INDOOR_BIKE_DATA).await?;
@@ -220,6 +228,7 @@ impl BleActor {
     async fn do_connect_hrm(&mut self, device_id: String) -> Result<(), AppError> {
         if let Some(handle) = self.hrm_task.take() {
             handle.abort();
+            self.hrm = None;
         }
         info!("connecting hrm: {device_id}");
         let hrm = self.connect_peripheral(device_id, HEART_RATE_MEAS).await?;
