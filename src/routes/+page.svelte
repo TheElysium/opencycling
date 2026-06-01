@@ -1,6 +1,8 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
   import { onMount } from 'svelte';
+  import { fade } from 'svelte/transition';
+  import { goto } from '$app/navigation';
   import { ble, type DeviceStatus } from '$lib/ble.svelte';
 
   type DeviceInfo = { id: string; name: string; kind: 'Trainer' | 'Hrm' | null };
@@ -180,6 +182,12 @@
       </div>
     </div>
   {/if}
+
+  {#if ble.trainerStatus === 'connected'}
+    <div class="cta" transition:fade={{ duration: 300 }}>
+      <button class="btn-primary" onclick={() => goto('/workouts')}>Go to Workouts →</button>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -302,4 +310,6 @@
   }
 
   .btn-primary { align-self: flex-start; }
+
+  .cta { margin-top: 1rem; }
 </style>
