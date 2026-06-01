@@ -21,7 +21,7 @@ export type WorkoutMetrics = {
 
 const ZONE_THRESHOLDS = [0.55, 0.75, 0.90, 1.05, 1.20];
 
-function zoneOf(pct: number): number {
+export function zoneOf(pct: number): number {
   for (let i = 0; i < ZONE_THRESHOLDS.length; i++) {
     if (pct < ZONE_THRESHOLDS[i]) return i + 1;
   }

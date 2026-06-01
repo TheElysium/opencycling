@@ -6,7 +6,7 @@
   import { workoutSelection, type WorkoutBlock } from '$lib/workout.svelte';
   import { ble } from '$lib/ble.svelte';
   import { blockDuration, totalDuration, formatDuration, displayWorkoutName, stripHtml } from '$lib/format';
-  import { computeWorkoutMetrics, workoutTypeColor } from '$lib/metrics';
+  import { computeWorkoutMetrics, workoutTypeColor, zoneOf } from '$lib/metrics';
   import { getSettings } from '$lib/settings';
 
   let ftp = $state(200);
@@ -28,9 +28,36 @@
     return `${Math.round(pct * 100)}% · ${Math.round(pct * ftp)}W`;
   }
 
-  type BlockRow = { kind: string; duration: string; power: string; cadence: string | null };
+  type BlockRow = { kind: string; duration: string; power: string; cadence: string | null; pill: string; pillTitle: string };
+
+  function pillFor(b: WorkoutBlock): { bg: string; title: string } {
+    if ('SteadyState' in b) {
+      const z = zoneOf(b.SteadyState.power_pct);
+      return { bg: `var(--z${z})`, title: `Zone ${z}` };
+    }
+    if ('Ramp' in b) {
+      const zS = zoneOf(b.Ramp.power_start_pct);
+      const zE = zoneOf(b.Ramp.power_end_pct);
+      if (zS === zE) return { bg: `var(--z${zS})`, title: `Zone ${zS}` };
+      return {
+        bg: `linear-gradient(to right, var(--z${zS}), var(--z${zE}))`,
+        title: `Zone ${zS} → ${zE}`,
+      };
+    }
+    const { on, off } = b.IntervalsT;
+    const onPct  = 'SteadyState' in on  ? on.SteadyState.power_pct  : 'Ramp' in on  ? on.Ramp.power_start_pct  : 0;
+    const offPct = 'SteadyState' in off ? off.SteadyState.power_pct : 'Ramp' in off ? off.Ramp.power_start_pct : 0;
+    const zOn = zoneOf(onPct);
+    const zOff = zoneOf(offPct);
+    if (zOn === zOff) return { bg: `var(--z${zOn})`, title: `Zone ${zOn}` };
+    return {
+      bg: `linear-gradient(to right, var(--z${zOn}) 50%, var(--z${zOff}) 50%)`,
+      title: `Zone ${zOn} on / Zone ${zOff} off`,
+    };
+  }
 
   function describeBlock(b: WorkoutBlock): BlockRow {
+    const p = pillFor(b);
     if ('SteadyState' in b) {
       const { duration_s, power_pct, cadence_rpm, label } = b.SteadyState;
       return {
@@ -38,6 +65,8 @@
         duration: formatDuration(duration_s),
         power: pwr(power_pct),
         cadence: cadence_rpm ? `${cadence_rpm} rpm` : null,
+        pill: p.bg,
+        pillTitle: p.title,
       };
     }
     if ('Ramp' in b) {
@@ -47,6 +76,8 @@
         duration: formatDuration(duration_s),
         power: `${Math.round(power_start_pct * 100)}→${Math.round(power_end_pct * 100)}% · ${Math.round(power_start_pct * ftp)}→${Math.round(power_end_pct * ftp)}W`,
         cadence: cadence_rpm ? `${cadence_rpm} rpm` : null,
+        pill: p.bg,
+        pillTitle: p.title,
       };
     }
     const { repeat, on, off } = b.IntervalsT;
@@ -57,6 +88,8 @@
       duration: `${formatDuration(blockDuration(on))} on · ${formatDuration(blockDuration(off))} off`,
       power: `${pwr(onPct)} on / ${pwr(offPct)} off`,
       cadence: null,
+      pill: p.bg,
+      pillTitle: p.title,
     };
   }
 
@@ -177,7 +210,10 @@
           <tbody>
             {#each blockRows as row}
               <tr>
-                <td class="col-kind">{row.kind}</td>
+                <td class="col-kind">
+                  <span class="zone-pill" style="background: {row.pill}" title={row.pillTitle} aria-label={row.pillTitle}></span>
+                  {row.kind}
+                </td>
                 <td class="col-dur">{row.duration}</td>
                 <td class="col-power">{row.power}</td>
                 <td class="col-cad">{row.cadence ?? ''}</td>
@@ -460,7 +496,17 @@
     font-weight: 600;
     white-space: nowrap;
     color: var(--text);
-    width: 4rem;
+    width: 6rem;
+  }
+
+  .zone-pill {
+    display: inline-block;
+    width: 1.35em;
+    height: 1.35em;
+    border-radius: 0.3em;
+    margin-right: 0.55em;
+    vertical-align: -0.2em;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
   }
 
   .col-dur {
