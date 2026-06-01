@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { invoke } from '@tauri-apps/api/core';
+  import { open } from '@tauri-apps/plugin-dialog';
   import { onMount } from 'svelte';
   import { fade } from 'svelte/transition';
-
-  type Settings = { ftp_w: number; max_hr_bpm: number; workout_path: string };
+  import { getSettings, updateSettings } from '$lib/settings';
+  import { toMessage } from '$lib/format';
 
   let ftp         = $state<number | null>(null);
   let maxHr       = $state<number | null>(null);
@@ -14,32 +14,36 @@
   let error       = $state<string | null>(null);
   let savedTimer: ReturnType<typeof setTimeout> | null = null;
 
+  async function browseFolder() {
+    const selected = await open({ directory: true, multiple: false });
+    if (typeof selected === 'string') workoutPath = selected;
+  }
+
   onMount(async () => {
     try {
-      const s = await invoke<Settings>('get_settings');
+      const s = await getSettings();
       ftp         = s.ftp_w;
       maxHr       = s.max_hr_bpm;
       workoutPath = s.workout_path;
     } catch (e) {
-      error = e as string;
+      error = toMessage(e);
     } finally {
       loading = false;
     }
   });
 
   async function save() {
+    if (ftp === null || maxHr === null || workoutPath === null) return;
     saving = true;
     error  = null;
     saved  = false;
     try {
-      await invoke('update_settings', {
-        settings: { ftp_w: ftp, max_hr_bpm: maxHr, workout_path: workoutPath }
-      });
+      await updateSettings({ ftp_w: ftp, max_hr_bpm: maxHr, workout_path: workoutPath });
       saved = true;
       if (savedTimer) clearTimeout(savedTimer);
       savedTimer = setTimeout(() => saved = false, 2000);
     } catch (e) {
-      error = e as string;
+      error = toMessage(e);
     } finally {
       saving = false;
     }
@@ -63,7 +67,10 @@
       </div>
       <div class="field">
         <label for="workout-path">Workout folder</label>
-        <input id="workout-path" type="text" bind:value={workoutPath} placeholder="/path/to/workouts" />
+        <div class="path-row">
+          <input id="workout-path" type="text" bind:value={workoutPath} placeholder="/path/to/workouts" />
+          <button type="button" class="btn-secondary browse-btn" onclick={browseFolder}>Browse</button>
+        </div>
       </div>
     </div>
 
@@ -123,6 +130,20 @@
     border-color: var(--accent);
   }
 
+  .path-row {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .path-row input {
+    flex: 1;
+  }
+
+  .browse-btn {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
   .actions {
     display: flex;
     align-items: center;
@@ -132,6 +153,6 @@
 
   .saved-msg {
     font-size: 0.85rem;
-    color: #22c55e;
+    color: var(--success);
   }
 </style>

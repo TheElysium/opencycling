@@ -1,9 +1,9 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { onMount } from 'svelte';
-  import { listen } from '@tauri-apps/api/event';
+  import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import { Plug, Dumbbell, History, Settings } from '@lucide/svelte';
-  import { ble } from '$lib/ble.svelte';
+  import { ble, type BleMetrics, type DeviceStatus } from '$lib/ble.svelte';
   import '../app.css';
 
   let { children } = $props();
@@ -17,34 +17,60 @@
 
   let showSidebar = $derived(page.url.pathname !== '/session');
 
-  onMount(() => {
-    const unlisteners: Array<() => void> = [];
+  function dotColor(s: DeviceStatus): string {
+    if (s === 'connected')   return 'var(--status-ok)';
+    if (s === 'connecting')  return 'var(--status-warn)';
+    if (s === 'error' || s === 'disconnected') return 'var(--status-error)';
+    if (s === 'detected')    return 'var(--status-info)';
+    return 'var(--status-idle)';
+  }
 
-    listen<{ power_w: number | null; hr_bpm: number | null; cadence_rpm: number | null }>('ble_metrics', (e) => {
+  const statusLabels: Record<DeviceStatus, string> = {
+    scanning:     'Scanning…',
+    not_found:    'Not found',
+    detected:     'Detected',
+    connecting:   'Connecting…',
+    connected:    'Connected',
+    disconnected: 'Disconnected',
+    error:        'Error',
+  };
+
+  let trainerDot = $derived(dotColor(ble.trainerStatus));
+  let hrmDot     = $derived(dotColor(ble.hrmStatus));
+
+  onMount(() => {
+    let cancelled = false;
+    const unlisteners: UnlistenFn[] = [];
+    const track = (u: UnlistenFn) => {
+      if (cancelled) u();
+      else unlisteners.push(u);
+    };
+
+    listen<BleMetrics>('ble_metrics', (e) => {
       ble.metrics = e.payload;
-    }).then(fn => unlisteners.push(fn));
+    }).then(track);
 
     listen<{ device: string; message: string }>('ble_error', (e) => {
       const { device, message } = e.payload;
-      if (device === 'trainer') {
-        ble.trainerError = message;
-      } else {
-        ble.hrmError = message;
-      }
-    }).then(fn => unlisteners.push(fn));
+      if (device === 'trainer') ble.trainerError = message;
+      else                       ble.hrmError = message;
+    }).then(track);
 
     listen<string>('ble_disconnected', (e) => {
       const device = e.payload;
       if (device === 'trainer') {
         ble.trainerStatus = 'disconnected';
-        ble.metrics = ble.metrics ? { ...ble.metrics, power_w: null, cadence_rpm: null } : null;
+        if (ble.metrics) ble.metrics = { ...ble.metrics, power_w: null, cadence_rpm: null };
       } else {
         ble.hrmStatus = 'disconnected';
-        ble.metrics = ble.metrics ? { ...ble.metrics, hr_bpm: null } : null;
+        if (ble.metrics) ble.metrics = { ...ble.metrics, hr_bpm: null };
       }
-    }).then(fn => unlisteners.push(fn));
+    }).then(track);
 
-    return () => unlisteners.forEach(fn => fn());
+    return () => {
+      cancelled = true;
+      unlisteners.forEach(fn => fn());
+    };
   });
 </script>
 
@@ -57,8 +83,14 @@
           {@const active = page.url.pathname === item.href}
           <li>
             <a href={item.href} class:active>
-              <item.icon size={18} />
-              <span>{item.label}</span>
+              <item.icon size={18} aria-hidden="true" />
+              <span class="label">{item.label}</span>
+              {#if item.href === '/'}
+                <span class="ble-dots" aria-label="BLE status">
+                  <span class="ble-dot" style="background: {trainerDot}" title="Trainer: {statusLabels[ble.trainerStatus]}"></span>
+                  <span class="ble-dot" style="background: {hrmDot}" title="HRM: {statusLabels[ble.hrmStatus]}"></span>
+                </span>
+              {/if}
             </a>
           </li>
         {/each}
@@ -127,6 +159,22 @@
     color: var(--accent);
     border-left-color: var(--accent);
     background: color-mix(in srgb, var(--accent) 8%, transparent);
+  }
+
+  .label {
+    flex: 1;
+  }
+
+  .ble-dots {
+    display: inline-flex;
+    gap: 3px;
+  }
+
+  .ble-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    display: inline-block;
   }
 
   .content {

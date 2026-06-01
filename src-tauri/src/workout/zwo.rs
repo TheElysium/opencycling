@@ -1,31 +1,7 @@
-use roxmltree::Node;
-use serde::Serialize;
 use crate::errors::AppError;
+use crate::workout::types::{ParsedWorkout, SportType, WorkoutBlock};
+use roxmltree::Node;
 
-#[derive(Debug, Serialize)]
-pub struct ParsedWorkout {
-    pub author: Option<String>,
-    pub name: Option<String>,
-    pub description: Option<String>,
-    pub sport_type: SportType,
-    pub workout_blocks: Vec<WorkoutBlock>
-}
-#[derive(Debug, Clone,Serialize)]
-pub enum WorkoutBlock {
-    SteadyState{duration_s: u32, power_pct: f32, cadence_rpm: Option<u16>, label: Option<String>},
-    Ramp{duration_s: u32, power_start_pct: f32, power_end_pct: f32, cadence_rpm: Option<u16>, label: Option<String>},
-    IntervalsT {
-        repeat: u16,
-        on: Box<WorkoutBlock>,
-        off: Box<WorkoutBlock>,
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Serialize)]
-pub enum SportType {
-    Bike,
-    Running,
-}
 pub(crate) fn parse_zwo(file_content: &str) -> Result<ParsedWorkout, AppError> {
     let doc = roxmltree::Document::parse(file_content)
         .map_err(|e| AppError::ZWOFileParseError(e.to_string()))?;
@@ -34,7 +10,8 @@ pub(crate) fn parse_zwo(file_content: &str) -> Result<ParsedWorkout, AppError> {
     let author = zwo_metadata_text(root, "author");
     let name = zwo_metadata_text(root, "name");
     let description = zwo_metadata_text(root, "description");
-    let sport_type = match root.children()
+    let sport_type = match root
+        .children()
         .find(|n| n.tag_name().name() == "sportType")
         .and_then(|n| n.text())
     {
@@ -44,31 +21,25 @@ pub(crate) fn parse_zwo(file_content: &str) -> Result<ParsedWorkout, AppError> {
         _ => return Err(AppError::ZWOFileParseError("unknown sport type".into())),
     };
 
-    let workout_blocks = root.children()
+    let workout_blocks = root
+        .children()
         .find(|n| n.tag_name().name() == "workout")
         .ok_or_else(|| AppError::ZWOFileParseError("missing workout block".to_string()))?;
 
-
     let mut parsed_blocks: Vec<WorkoutBlock> = Vec::new();
 
-   for block in  workout_blocks.children().filter(Node::is_element) {
-       match block.tag_name().name() {
-           "Warmup"=> {
-               parsed_blocks.push(ramp_to_workout_block(block)?);
-           }
-           "SteadyState"=>{
-               parsed_blocks.push(steady_state_to_workout_block(block)?)
-           }
-           "IntervalsT"=>{
-               parsed_blocks.push(intervals_t_to_workout_blocks(block)?)
-           }
-           "FreeRide"=>{}
-           "Cooldown"=>{
-               parsed_blocks.push(ramp_to_workout_block(block)?)
-           },
-           _ => {}
-       }
-   }
+    for block in workout_blocks.children().filter(Node::is_element) {
+        match block.tag_name().name() {
+            "Warmup" => {
+                parsed_blocks.push(ramp_to_workout_block(block)?);
+            }
+            "SteadyState" => parsed_blocks.push(steady_state_to_workout_block(block)?),
+            "IntervalsT" => parsed_blocks.push(intervals_t_to_workout_blocks(block)?),
+            "FreeRide" => {}
+            "Cooldown" => parsed_blocks.push(ramp_to_workout_block(block)?),
+            _ => {}
+        }
+    }
 
     Ok(ParsedWorkout {
         author,
@@ -87,10 +58,13 @@ fn zwo_metadata_text(node: Node, tag: &str) -> Option<String> {
 }
 
 fn intervals_t_to_workout_blocks(intervals_t_node: Node) -> Result<WorkoutBlock, AppError> {
-    let intervals_nbr = intervals_t_node.attribute("Repeat")
+    let intervals_nbr = intervals_t_node
+        .attribute("Repeat")
         .ok_or_else(|| AppError::ZWOFileParseError("missing interval repeat nbr".to_string()))?
         .parse::<u16>()
-        .map_err(|_| AppError::ZWOFileParseError("interval repeat nbr parsing error".to_string()))?;
+        .map_err(|_| {
+            AppError::ZWOFileParseError("interval repeat nbr parsing error".to_string())
+        })?;
 
     Ok(WorkoutBlock::IntervalsT {
         repeat: intervals_nbr,
@@ -135,7 +109,7 @@ fn steady_state_to_workout_block(steady_state_block: Node) -> Result<WorkoutBloc
 }
 
 fn ramp_to_workout_block(warmup_node: Node) -> Result<WorkoutBlock, AppError> {
-    Ok(WorkoutBlock::Ramp{
+    Ok(WorkoutBlock::Ramp {
         duration_s: read_duration(warmup_node, "Duration")?,
         power_start_pct: read_power(warmup_node, "PowerLow")?,
         power_end_pct: read_power(warmup_node, "PowerHigh")?,
@@ -146,21 +120,26 @@ fn ramp_to_workout_block(warmup_node: Node) -> Result<WorkoutBlock, AppError> {
 
 fn read_duration(node: Node, attribute_name: &str) -> Result<u32, AppError> {
     node.attribute(attribute_name)
-        .ok_or_else(|| AppError::ZWOFileParseError(format!("workout_block missing {attribute_name}")))?
+        .ok_or_else(|| {
+            AppError::ZWOFileParseError(format!("workout_block missing {attribute_name}"))
+        })?
         .parse::<u32>()
         .map_err(|e| AppError::ZWOFileParseError(format!("invalid {attribute_name}: {e}")))
 }
 
 fn read_power(node: Node, attribute_name: &str) -> Result<f32, AppError> {
     node.attribute(attribute_name)
-        .ok_or_else(|| AppError::ZWOFileParseError(format!("workout_block missing {attribute_name}")))?
+        .ok_or_else(|| {
+            AppError::ZWOFileParseError(format!("workout_block missing {attribute_name}"))
+        })?
         .parse::<f32>()
         .map_err(|e| AppError::ZWOFileParseError(format!("invalid {attribute_name}: {e}")))
 }
 
 fn read_cadence(node: Node, attribute_name: &str) -> Result<Option<u16>, AppError> {
     match node.attribute(attribute_name) {
-        Some(s) => s.parse::<u16>()
+        Some(s) => s
+            .parse::<u16>()
             .map_err(|e| AppError::ZWOFileParseError(format!("invalid {attribute_name}: {e}")))
             .map(Some),
         None => Ok(None),
@@ -172,10 +151,10 @@ fn read_label(node: Node) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-    use crate::errors::AppError::ZWOFileParseError;
-    use crate::workout::zwo::SportType::Bike;
     use super::*;
+    use crate::errors::AppError::ZWOFileParseError;
+    use crate::workout::types::SportType::Bike;
+    use std::fs;
 
     const ALL_BLOCK_TYPES_PATH: &str = "tests/fixtures/all_block_types.zwo";
     const THRESHOLD_3X3_PATH: &str = "tests/fixtures/threshold_3x3.zwo";
@@ -186,11 +165,14 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_zwo_given_valid_zwo_return_() -> Result<(), AppError>{
+    fn test_parse_zwo_given_valid_zwo_return_() -> Result<(), AppError> {
         let parsed_workout = parse_fixture(ALL_BLOCK_TYPES_PATH)?;
         assert_eq!(parsed_workout.author, Some("OpenCycling".to_string()));
         assert_eq!(parsed_workout.name, Some("Test Workout".to_string()));
-        assert_eq!(parsed_workout.description, Some("A test workout covering all block types".to_string()));
+        assert_eq!(
+            parsed_workout.description,
+            Some("A test workout covering all block types".to_string())
+        );
         assert_eq!(parsed_workout.sport_type, Bike);
         assert_eq!(parsed_workout.workout_blocks.len(), 4);
 
@@ -206,7 +188,11 @@ mod tests {
         let xml = r#"<workout_file><sportType>bike</sportType><workout><SteadyState Duration="300" Power="0.85"/></workout></workout_file>"#;
         let workout = parse_zwo(xml)?;
         match &workout.workout_blocks[0] {
-            WorkoutBlock::SteadyState { duration_s, power_pct, .. } => {
+            WorkoutBlock::SteadyState {
+                duration_s,
+                power_pct,
+                ..
+            } => {
                 assert_eq!(*duration_s, 300);
                 assert!((power_pct - 0.85).abs() < 0.001);
             }
@@ -220,7 +206,12 @@ mod tests {
         let xml = r#"<workout_file><sportType>bike</sportType><workout><Warmup Duration="600" PowerLow="0.40" PowerHigh="0.75"/></workout></workout_file>"#;
         let workout = parse_zwo(xml)?;
         match &workout.workout_blocks[0] {
-            WorkoutBlock::Ramp { duration_s, power_start_pct, power_end_pct, .. } => {
+            WorkoutBlock::Ramp {
+                duration_s,
+                power_start_pct,
+                power_end_pct,
+                ..
+            } => {
                 assert_eq!(*duration_s, 600);
                 assert!((power_start_pct - 0.40).abs() < 0.001);
                 assert!((power_end_pct - 0.75).abs() < 0.001);
@@ -239,14 +230,22 @@ mod tests {
             WorkoutBlock::IntervalsT { repeat, on, off } => {
                 assert_eq!(*repeat, 2);
                 match on.as_ref() {
-                    WorkoutBlock::SteadyState { duration_s, power_pct, .. } => {
+                    WorkoutBlock::SteadyState {
+                        duration_s,
+                        power_pct,
+                        ..
+                    } => {
                         assert_eq!(*duration_s, 180);
                         assert!((power_pct - 1.10).abs() < 0.001);
                     }
                     _ => panic!("Expected SteadyState for ON block"),
                 }
                 match off.as_ref() {
-                    WorkoutBlock::SteadyState { duration_s, power_pct, .. } => {
+                    WorkoutBlock::SteadyState {
+                        duration_s,
+                        power_pct,
+                        ..
+                    } => {
                         assert_eq!(*duration_s, 120);
                         assert!((power_pct - 0.55).abs() < 0.001);
                     }
@@ -265,31 +264,49 @@ mod tests {
 
     #[test]
     fn test_parse_missing_sport_type_returns_error() {
-        assert!(matches!(parse_fixture("tests/fixtures/errors/missing_sport_type.zwo"), Err(ZWOFileParseError(_))));
+        assert!(matches!(
+            parse_fixture("tests/fixtures/errors/missing_sport_type.zwo"),
+            Err(ZWOFileParseError(_))
+        ));
     }
 
     #[test]
     fn test_parse_unknown_sport_type_returns_error() {
-        assert!(matches!(parse_fixture("tests/fixtures/errors/unknown_sport_type.zwo"), Err(ZWOFileParseError(_))));
+        assert!(matches!(
+            parse_fixture("tests/fixtures/errors/unknown_sport_type.zwo"),
+            Err(ZWOFileParseError(_))
+        ));
     }
 
     #[test]
     fn test_parse_missing_workout_section_returns_error() {
-        assert!(matches!(parse_fixture("tests/fixtures/errors/missing_workout_section.zwo"), Err(ZWOFileParseError(_))));
+        assert!(matches!(
+            parse_fixture("tests/fixtures/errors/missing_workout_section.zwo"),
+            Err(ZWOFileParseError(_))
+        ));
     }
 
     #[test]
     fn test_parse_steady_state_missing_power_returns_error() {
-        assert!(matches!(parse_fixture("tests/fixtures/errors/steady_state_missing_power.zwo"), Err(ZWOFileParseError(_))));
+        assert!(matches!(
+            parse_fixture("tests/fixtures/errors/steady_state_missing_power.zwo"),
+            Err(ZWOFileParseError(_))
+        ));
     }
 
     #[test]
     fn test_parse_intervals_missing_repeat_returns_error() {
-        assert!(matches!(parse_fixture("tests/fixtures/errors/intervals_missing_repeat.zwo"), Err(ZWOFileParseError(_))));
+        assert!(matches!(
+            parse_fixture("tests/fixtures/errors/intervals_missing_repeat.zwo"),
+            Err(ZWOFileParseError(_))
+        ));
     }
 
     #[test]
     fn test_parse_invalid_duration_returns_error() {
-        assert!(matches!(parse_fixture("tests/fixtures/errors/invalid_duration.zwo"), Err(ZWOFileParseError(_))));
+        assert!(matches!(
+            parse_fixture("tests/fixtures/errors/invalid_duration.zwo"),
+            Err(ZWOFileParseError(_))
+        ));
     }
 }

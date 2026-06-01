@@ -1,11 +1,27 @@
 :root {
   --bg:      #f8f9fa;
   --surface: #ffffff;
+  --surface-dark: #1e293b;
   --border:  #e2e8f0;
   --text:    #1a202c;
   --muted:   #718096;
   --accent:  #3b82f6;
   --danger:  #ef4444;
+  --success: #22c55e;
+  --warning: #f59e0b;
+
+  --status-ok:    var(--success);
+  --status-warn:  var(--warning);
+  --status-error: var(--danger);
+  --status-idle:  #94a3b8;
+  --status-info:  var(--accent);
+
+  --z1: #94a3b8;
+  --z2: #60a5fa;
+  --z3: #4ade80;
+  --z4: #facc15;
+  --z5: #fb923c;
+  --z6: #f87171;
 
   --sidebar-w: 180px;
 }
@@ -14,12 +30,27 @@
   box-sizing: border-box;
 }
 
+html {
+  font-size: 15px;
+}
+
+@media (min-width: 1400px) {
+  html { font-size: 16px; }
+}
+
+@media (min-width: 1800px) {
+  html { font-size: 18px; }
+}
+
+@media (min-width: 2400px) {
+  html { font-size: 20px; }
+}
+
 body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
   font-family: system-ui, -apple-system, sans-serif;
-  font-size: 15px;
   line-height: 1.5;
 }
 
@@ -28,8 +59,44 @@ a {
   text-decoration: none;
 }
 
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 .page {
-  max-width: 520px;
+  max-width: 560px;
+}
+
+.page-wide {
+  max-width: 900px;
+}
+
+.workout-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 720px) {
+  .workout-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (min-width: 1000px) {
+  .workout-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (min-width: 1400px) {
+  .workout-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+@media (min-width: 1800px) {
+  .workout-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+
+@media (min-width: 2200px) {
+  .workout-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 }
 
 .card {
@@ -55,6 +122,7 @@ button {
   cursor: pointer;
   transition: opacity 0.15s;
   border: none;
+  font-family: inherit;
 }
 
 button:disabled {
@@ -78,5 +146,16 @@ button:disabled {
 }
 
 .btn-secondary:hover:not(:disabled) {
+  background: var(--bg);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--muted);
+  padding: 0.3rem 0.6rem;
+}
+
+.btn-ghost:hover:not(:disabled) {
+  color: var(--text);
   background: var(--bg);
 }

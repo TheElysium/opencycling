@@ -1,7 +1,7 @@
 use crate::ble::{BleActorHandle, DeviceInfo};
 use crate::db::{DbActorHandle, Settings};
 use crate::errors::AppError;
-use crate::workout::{parse_zwo, ParsedWorkout};
+use crate::workout::{list_workouts, parse_zwo, ParsedWorkout};
 use tauri::Manager;
 use tracing::metadata::LevelFilter;
 use tracing_subscriber::EnvFilter;
@@ -63,6 +63,11 @@ async fn update_settings(
     state.update_settings(settings).await
 }
 
+#[tauri::command]
+fn list_workouts_cmd(folder: String) -> Result<Vec<ParsedWorkout>, AppError> {
+    list_workouts(&folder)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tracing_subscriber::fmt()
@@ -75,8 +80,10 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             load_workout,
+            list_workouts_cmd,
             scan_devices,
             connect_trainer,
             connect_hrm,

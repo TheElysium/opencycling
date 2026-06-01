@@ -6,6 +6,8 @@ pub enum AppError {
     ParseError(String),
     #[error(".ZWO file parse error: {0}")]
     ZWOFileParseError(String),
+    #[error(".ZWO file read error: {0}")]
+    ZWOFileReadError(String),
     #[error("FTMS packet parse error: {0}")]
     FTMSPacketParseError(String),
     #[error("HRS packet parse error: {0}")]

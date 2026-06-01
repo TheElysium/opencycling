@@ -3,7 +3,11 @@
     "allow": [
       "Skill(writing-plans)",
       "Bash(cargo clippy *)",
-      "Bash(cargo check *)"
+      "Bash(cargo check *)",
+      "Skill(ralph-loop:ralph-loop)",
+      "Bash(pnpm check *)",
+      "Bash(findstr /r \"width\\\\|max-width\\\\|grid\\\\|flex\\\\|media\\\\|breakpoint\\\\|sidebar\" src/app.css)",
+      "Bash(bash \"C:/Users/lukas/.claude/plugins/cache/claude-plugins-official/superpowers/5.1.0/skills/brainstorming/scripts/start-server.sh\" --project-dir \"C:/Users/lukas/Documents/Projets/opencycling\")"
     ]
   }
 }

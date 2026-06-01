@@ -1,0 +1,85 @@
+<h2>Comportement de la sidebar aux petites fenêtres</h2>
+<p class="subtitle">Quelle approche veux-tu pour la navigation quand la fenêtre est petite ?</p>
+
+<div class="options">
+
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Taille minimale forcée</h3>
+      <p>La fenêtre a un <strong>minimum de 800px</strong> — en dessous, Tauri bloque le redimensionnement. La sidebar reste toujours visible. Aucune logique responsive à gérer.</p>
+      <div style="margin-top:12px; display:flex; gap:8px; align-items:stretch; height:80px; border:1px solid #ccc; border-radius:6px; overflow:hidden; font-size:11px;">
+        <div style="width:52px; background:#e2e8f0; display:flex; flex-direction:column; padding:6px 4px; gap:4px;">
+          <div style="background:#94a3b8; border-radius:3px; height:6px;"></div>
+          <div style="background:#94a3b8; border-radius:3px; height:6px;"></div>
+          <div style="background:#94a3b8; border-radius:3px; height:6px;"></div>
+          <div style="background:#3b82f6; border-radius:3px; height:6px;"></div>
+        </div>
+        <div style="flex:1; padding:8px; background:#f8f9fa;">
+          <div style="background:#e2e8f0; border-radius:4px; height:12px; margin-bottom:6px; width:60%;"></div>
+          <div style="background:#e2e8f0; border-radius:4px; height:8px; margin-bottom:4px;"></div>
+          <div style="background:#e2e8f0; border-radius:4px; height:8px; width:80%;"></div>
+        </div>
+      </div>
+      <p style="margin-top:8px; font-size:0.82em; color:#888;">Simple à implémenter. L'app reste une app desktop classique.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Sidebar icônes en dessous de ~750px</h3>
+      <p>Sous un certain seuil, la sidebar se réduit à <strong>icônes seules</strong> (sans labels). Plus de place pour le contenu, navigation reste accessible.</p>
+      <div style="margin-top:12px; display:flex; gap:4px;">
+        <!-- Large -->
+        <div style="flex:1; display:flex; gap:4px; height:80px; border:1px solid #ccc; border-radius:6px; overflow:hidden; font-size:10px;">
+          <div style="width:50px; background:#e2e8f0; display:flex; flex-direction:column; padding:6px 4px; gap:4px; align-items:flex-start;">
+            <div style="background:#94a3b8; border-radius:2px; height:5px; width:80%;"></div>
+            <div style="background:#94a3b8; border-radius:2px; height:5px; width:80%;"></div>
+            <div style="background:#3b82f6; border-radius:2px; height:5px; width:80%;"></div>
+          </div>
+          <div style="flex:1; padding:6px; background:#f8f9fa;">
+            <div style="background:#e2e8f0; border-radius:3px; height:8px; margin-bottom:4px;"></div>
+            <div style="background:#e2e8f0; border-radius:3px; height:5px; width:70%;"></div>
+          </div>
+        </div>
+        <div style="color:#888; align-self:center; font-size:18px;">→</div>
+        <!-- Small (icon only) -->
+        <div style="flex:1; display:flex; gap:4px; height:80px; border:1px solid #ccc; border-radius:6px; overflow:hidden; font-size:10px;">
+          <div style="width:26px; background:#e2e8f0; display:flex; flex-direction:column; padding:6px 4px; gap:5px; align-items:center;">
+            <div style="background:#94a3b8; border-radius:50%; width:10px; height:10px;"></div>
+            <div style="background:#94a3b8; border-radius:50%; width:10px; height:10px;"></div>
+            <div style="background:#3b82f6; border-radius:50%; width:10px; height:10px;"></div>
+          </div>
+          <div style="flex:1; padding:6px; background:#f8f9fa;">
+            <div style="background:#e2e8f0; border-radius:3px; height:8px; margin-bottom:4px;"></div>
+            <div style="background:#e2e8f0; border-radius:3px; height:5px; width:70%;"></div>
+          </div>
+        </div>
+      </div>
+      <p style="margin-top:8px; font-size:0.82em; color:#888;">Bon compromis desktop. Quelques lignes de CSS + variable CSS pour la largeur.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Sidebar cachée + bottom nav en dessous de ~650px</h3>
+      <p>La sidebar disparaît complètement et une <strong>barre de navigation en bas</strong> prend le relais. Style "app mobile" pour les très petites fenêtres.</p>
+      <div style="margin-top:12px; height:80px; border:1px solid #ccc; border-radius:6px; overflow:hidden; display:flex; flex-direction:column; font-size:10px;">
+        <div style="flex:1; padding:8px; background:#f8f9fa;">
+          <div style="background:#e2e8f0; border-radius:3px; height:8px; margin-bottom:4px; width:50%;"></div>
+          <div style="background:#e2e8f0; border-radius:3px; height:5px;"></div>
+        </div>
+        <div style="height:22px; background:#e2e8f0; display:flex; align-items:center; justify-content:space-around; padding:0 8px;">
+          <div style="background:#94a3b8; border-radius:50%; width:10px; height:10px;"></div>
+          <div style="background:#94a3b8; border-radius:50%; width:10px; height:10px;"></div>
+          <div style="background:#3b82f6; border-radius:50%; width:10px; height:10px;"></div>
+          <div style="background:#94a3b8; border-radius:50%; width:10px; height:10px;"></div>
+        </div>
+      </div>
+      <p style="margin-top:8px; font-size:0.82em; color:#888;">Complexité plus élevée. Pertinent si l'app doit tourner sur tablette.</p>
+    </div>
+  </div>
+
+</div>
