@@ -287,6 +287,9 @@ async fn handle_scan(reply: Sender<Result<Vec<DeviceInfo>, AppError>>, adapter: 
 
 async fn do_scan(adapter: &Adapter) -> Result<Vec<DeviceInfo>, AppError> {
     info!("BLE scan started");
+    // stop_scan() first flushes the Windows BLE cache so stale (powered-off)
+    // devices from a previous scan no longer appear in peripherals().
+    let _ = adapter.stop_scan().await;
     adapter
         .start_scan(ScanFilter::default())
         .await
