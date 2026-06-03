@@ -5,11 +5,28 @@
   import WorkoutChart from '$lib/components/WorkoutChart.svelte';
   import { workoutSelection, type WorkoutBlock } from '$lib/workout.svelte';
   import { ble } from '$lib/ble.svelte';
-  import { blockDuration, totalDuration, formatDuration, displayWorkoutName, stripHtml } from '$lib/format';
+  import { blockDuration, totalDuration, formatDuration, displayWorkoutName, stripHtml, toMessage } from '$lib/format';
   import { computeWorkoutMetrics, workoutTypeColor, zoneOf } from '$lib/metrics';
   import { getSettings } from '$lib/settings';
+  import { session } from '$lib/session.svelte';
 
   let ftp = $state(200);
+  let starting = $state(false);
+  let startError = $state<string | null>(null);
+
+  async function startRide() {
+    if (!w) return;
+    starting = true;
+    startError = null;
+    try {
+      await session.start(w, ftp);
+      await goto('/session');
+    } catch (e) {
+      startError = toMessage(e);
+    } finally {
+      starting = false;
+    }
+  }
 
   onMount(async () => {
     if (!workoutSelection.workout) {
@@ -189,9 +206,14 @@
 
     <div class="cta-row">
       {#if ble.trainerStatus === 'connected'}
-        <button class="btn-start" onclick={() => goto('/session')}>Start Ride</button>
+        <button class="btn-start" onclick={startRide} disabled={starting}>
+          {starting ? 'Starting…' : 'Start Ride'}
+        </button>
       {:else}
         <button class="btn-start" onclick={() => goto('/')}>Connect Trainer</button>
+      {/if}
+      {#if startError}
+        <span class="error-box">{startError}</span>
       {/if}
     </div>
 

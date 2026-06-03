@@ -274,6 +274,7 @@ impl BleActor {
             cadence_rpm: self.last_cadence_rpm,
         };
         let _ = self.app_handle.emit("ble_metrics", &ble_metric);
+        let _ = self.metrics_tx.try_send(ble_metric);
     }
 }
 

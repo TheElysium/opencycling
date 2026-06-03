@@ -18,6 +18,21 @@ class BleState {
   metrics       = $state<BleMetrics | null>(null);
   trainerError  = $state<string | null>(null);
   hrmError      = $state<string | null>(null);
+
+  markDisconnected(kind: DeviceKind): void {
+    if (kind === 'Trainer') {
+      this.trainerStatus = 'disconnected';
+      if (this.metrics) this.metrics = { ...this.metrics, power_w: null, cadence_rpm: null };
+    } else {
+      this.hrmStatus = 'disconnected';
+      if (this.metrics) this.metrics = { ...this.metrics, hr_bpm: null };
+    }
+  }
+
+  setError(kind: DeviceKind, message: string): void {
+    if (kind === 'Trainer') this.trainerError = message;
+    else                    this.hrmError = message;
+  }
 }
 
 export const ble = new BleState();

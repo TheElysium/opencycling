@@ -1,6 +1,6 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ParsedWorkout {
     pub author: Option<String>,
     pub name: Option<String>,
@@ -8,7 +8,7 @@ pub struct ParsedWorkout {
     pub sport_type: SportType,
     pub workout_blocks: Vec<WorkoutBlock>,
 }
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum WorkoutBlock {
     SteadyState {
         duration_s: u32,
@@ -42,7 +42,7 @@ impl WorkoutBlock {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SportType {
     Bike,
     Running,

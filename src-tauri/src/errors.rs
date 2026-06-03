@@ -26,6 +26,8 @@ pub enum AppError {
     ChannelClosed,
     #[error("Database error: {0}")]
     DbError(String),
+    #[error("Session already active")]
+    SessionAlreadyActive,
     #[error("{0}")]
     Other(String),
 }

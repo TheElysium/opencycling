@@ -1,6 +1,7 @@
-use crate::ble::{BleActorHandle, DeviceInfo};
+use crate::ble::{BleActorHandle, BleMetrics, DeviceInfo};
 use crate::db::{DbActorHandle, Settings};
 use crate::errors::AppError;
+use crate::session::{SessionActorHandle, SessionSnapshot};
 use crate::workout::{list_workouts, parse_zwo, ParsedWorkout};
 use tauri::Manager;
 use tracing::metadata::LevelFilter;
@@ -9,6 +10,7 @@ use tracing_subscriber::EnvFilter;
 mod ble;
 mod db;
 mod errors;
+mod session;
 mod workout;
 
 const DB_FILE: &str = "opencycling.db";
@@ -68,6 +70,42 @@ fn list_workouts_cmd(folder: String) -> Result<Vec<ParsedWorkout>, AppError> {
     list_workouts(&folder)
 }
 
+#[tauri::command]
+async fn start_session(
+    state: tauri::State<'_, SessionActorHandle>,
+    workout: ParsedWorkout,
+    ftp_w: u16,
+) -> Result<(), AppError> {
+    state.start(workout, ftp_w).await
+}
+
+#[tauri::command]
+async fn pause_session(state: tauri::State<'_, SessionActorHandle>) -> Result<(), AppError> {
+    state.pause().await
+}
+
+#[tauri::command]
+async fn resume_session(state: tauri::State<'_, SessionActorHandle>) -> Result<(), AppError> {
+    state.resume().await
+}
+
+#[tauri::command]
+async fn stop_session(state: tauri::State<'_, SessionActorHandle>) -> Result<(), AppError> {
+    state.stop().await
+}
+
+#[tauri::command]
+async fn skip_block(state: tauri::State<'_, SessionActorHandle>) -> Result<(), AppError> {
+    state.skip().await
+}
+
+#[tauri::command]
+async fn get_session_snapshot(
+    state: tauri::State<'_, SessionActorHandle>,
+) -> Result<Option<SessionSnapshot>, AppError> {
+    state.snapshot().await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tracing_subscriber::fmt()
@@ -89,13 +127,28 @@ pub fn run() {
             connect_hrm,
             set_target_power,
             get_settings,
-            update_settings
+            update_settings,
+            start_session,
+            pause_session,
+            resume_session,
+            stop_session,
+            skip_block,
+            get_session_snapshot
         ])
         .setup(|app| {
-            let ble_handle =
-                tauri::async_runtime::block_on(BleActorHandle::spawn(app.handle().clone()))
-                    .expect("BLE init failed");
+            let (ble_metrics_tx, ble_metrics_rx) = tokio::sync::mpsc::channel::<BleMetrics>(8);
+            let ble_handle = tauri::async_runtime::block_on(BleActorHandle::spawn(
+                app.handle().clone(),
+                ble_metrics_tx,
+            ))
+            .expect("BLE init failed");
+            let session_handle = tauri::async_runtime::block_on(SessionActorHandle::spawn(
+                app.handle().clone(),
+                ble_handle.clone(),
+                ble_metrics_rx,
+            ));
             app.manage(ble_handle);
+            app.manage(session_handle);
             let app_data_dir = app.path().app_data_dir().expect("no app data dir");
             std::fs::create_dir_all(&app_data_dir).expect("failed to create app data dir");
             let db_path = app_data_dir.join(DB_FILE).to_string_lossy().to_string();

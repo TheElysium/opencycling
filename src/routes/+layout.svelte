@@ -4,6 +4,7 @@
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import { Plug, Dumbbell, History, Settings } from '@lucide/svelte';
   import { ble, type BleMetrics, type DeviceStatus } from '$lib/ble.svelte';
+  import { session, type SessionMetrics } from '$lib/session.svelte';
   import '../app.css';
 
   let { children } = $props();
@@ -51,20 +52,15 @@
     }).then(track);
 
     listen<{ device: string; message: string }>('ble_error', (e) => {
-      const { device, message } = e.payload;
-      if (device === 'trainer') ble.trainerError = message;
-      else                       ble.hrmError = message;
+      ble.setError(e.payload.device === 'trainer' ? 'Trainer' : 'Hrm', e.payload.message);
+    }).then(track);
+
+    listen<SessionMetrics>('session_metrics', (e) => {
+      session.metrics = e.payload;
     }).then(track);
 
     listen<string>('ble_disconnected', (e) => {
-      const device = e.payload;
-      if (device === 'trainer') {
-        ble.trainerStatus = 'disconnected';
-        if (ble.metrics) ble.metrics = { ...ble.metrics, power_w: null, cadence_rpm: null };
-      } else {
-        ble.hrmStatus = 'disconnected';
-        if (ble.metrics) ble.metrics = { ...ble.metrics, hr_bpm: null };
-      }
+      ble.markDisconnected(e.payload === 'trainer' ? 'Trainer' : 'Hrm');
     }).then(track);
 
     return () => {
@@ -74,7 +70,7 @@
   });
 </script>
 
-<div class="shell" class:with-sidebar={showSidebar}>
+<div class="shell" class:with-sidebar={showSidebar} class:fullscreen={!showSidebar}>
   {#if showSidebar}
     <nav class="sidebar">
       <div class="logo">OpenCycling</div>
@@ -180,5 +176,16 @@
   .content {
     padding: 2rem;
     min-height: 100vh;
+  }
+
+  .shell.fullscreen {
+    height: 100vh;
+    overflow: hidden;
+  }
+  .shell.fullscreen .content {
+    padding: 0;
+    height: 100vh;
+    min-height: 0;
+    overflow: hidden;
   }
 </style>

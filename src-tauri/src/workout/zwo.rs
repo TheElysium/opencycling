@@ -31,12 +31,12 @@ pub(crate) fn parse_zwo(file_content: &str) -> Result<ParsedWorkout, AppError> {
     for block in workout_blocks.children().filter(Node::is_element) {
         match block.tag_name().name() {
             "Warmup" => {
-                parsed_blocks.push(ramp_to_workout_block(block)?);
+                parsed_blocks.push(ramp_to_workout_block(block, Some("Warmup"))?);
             }
             "SteadyState" => parsed_blocks.push(steady_state_to_workout_block(block)?),
             "IntervalsT" => parsed_blocks.push(intervals_t_to_workout_blocks(block)?),
             "FreeRide" => {}
-            "Cooldown" => parsed_blocks.push(ramp_to_workout_block(block)?),
+            "Cooldown" => parsed_blocks.push(ramp_to_workout_block(block, Some("Cooldown"))?),
             _ => {}
         }
     }
@@ -108,13 +108,16 @@ fn steady_state_to_workout_block(steady_state_block: Node) -> Result<WorkoutBloc
     })
 }
 
-fn ramp_to_workout_block(warmup_node: Node) -> Result<WorkoutBlock, AppError> {
+fn ramp_to_workout_block(
+    node: Node,
+    default_label: Option<&str>,
+) -> Result<WorkoutBlock, AppError> {
     Ok(WorkoutBlock::Ramp {
-        duration_s: read_duration(warmup_node, "Duration")?,
-        power_start_pct: read_power(warmup_node, "PowerLow")?,
-        power_end_pct: read_power(warmup_node, "PowerHigh")?,
-        cadence_rpm: read_cadence(warmup_node, "Cadence")?,
-        label: read_label(warmup_node),
+        duration_s: read_duration(node, "Duration")?,
+        power_start_pct: read_power(node, "PowerLow")?,
+        power_end_pct: read_power(node, "PowerHigh")?,
+        cadence_rpm: read_cadence(node, "Cadence")?,
+        label: read_label(node).or_else(|| default_label.map(str::to_string)),
     })
 }
 

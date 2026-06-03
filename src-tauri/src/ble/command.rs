@@ -1,4 +1,4 @@
-use crate::ble::types::{BleActor, BleCommand, DeviceInfo, ParsedNotifications};
+use crate::ble::types::{BleActor, BleCommand, BleMetrics, DeviceInfo, ParsedNotifications};
 use crate::errors::AppError;
 use btleplug::api::Manager as _;
 use btleplug::platform::Manager;
@@ -9,12 +9,16 @@ use tokio::sync::oneshot;
 
 // Public handle to the BleActor: only exposes the mpsc Sender so callers
 // cannot access actor internals. Cheap to clone; safe to share across threads.
+#[derive(Clone)]
 pub struct BleActorHandle {
     sender: Sender<BleCommand>,
 }
 
 impl BleActorHandle {
-    pub async fn spawn(app_handle: AppHandle) -> Result<Self, AppError> {
+    pub async fn spawn(
+        app_handle: AppHandle,
+        metrics_tx: Sender<BleMetrics>,
+    ) -> Result<Self, AppError> {
         let manager = Manager::new()
             .await
             .map_err(|err| AppError::BLEScanError(err.to_string()))?;
@@ -48,6 +52,7 @@ impl BleActorHandle {
             last_cadence_rpm: None,
             app_handle,
             last_hr_bpm: None,
+            metrics_tx,
         };
 
         spawn(ble_actor.run());

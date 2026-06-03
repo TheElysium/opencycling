@@ -19,7 +19,7 @@ pub enum DeviceKind {
     Hrm,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct BleMetrics {
     pub power_w: Option<i16>,
     pub hr_bpm: Option<u16>,
@@ -73,6 +73,7 @@ pub struct BleActor {
     pub last_power_w: Option<i16>,  // actual power measured by trainer (incoming notification)
     pub last_cadence_rpm: Option<u16>,
     pub last_hr_bpm: Option<u16>,
+    pub metrics_tx: Sender<BleMetrics>, // fan-out to SessionActor every second
 }
 
 // Internal message type used on the notif channel (spawned task → actor).
