@@ -1,4 +1,5 @@
 use crate::ble::{BleActorHandle, BleMetrics};
+use crate::db::DbActorHandle;
 use crate::errors::AppError;
 use crate::session::types::{SessionActor, SessionCommand, SessionSnapshot};
 use crate::workout::ParsedWorkout;
@@ -16,6 +17,7 @@ impl SessionActorHandle {
         app_handle: AppHandle,
         ble_handle: BleActorHandle,
         ble_metrics_rx: Receiver<BleMetrics>,
+        db_handle: DbActorHandle,
     ) -> Self {
         let (cmd_tx, cmd_rx) = mpsc::channel::<SessionCommand>(16);
         let actor = SessionActor {
@@ -28,6 +30,9 @@ impl SessionActorHandle {
             last_power_w: None,
             last_hr_bpm: None,
             last_cadence_rpm: None,
+            db_handle,
+            current_session_id: None,
+            last_session_id: None,
         };
         tokio::spawn(actor.run());
         Self { sender: cmd_tx }

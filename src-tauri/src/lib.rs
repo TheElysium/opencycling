@@ -1,5 +1,5 @@
 use crate::ble::{BleActorHandle, BleMetrics, DeviceInfo};
-use crate::db::{DbActorHandle, Settings};
+use crate::db::{DbActorHandle, SessionCard, SessionDetail, Settings};
 use crate::errors::AppError;
 use crate::session::{SessionActorHandle, SessionSnapshot};
 use crate::workout::{list_workouts, parse_zwo, ParsedWorkout};
@@ -8,10 +8,11 @@ use tracing::metadata::LevelFilter;
 use tracing_subscriber::EnvFilter;
 
 mod ble;
-mod db;
-mod errors;
+pub mod db;
+pub mod errors;
+mod metrics;
 mod session;
-mod workout;
+pub mod workout;
 
 const DB_FILE: &str = "opencycling.db";
 
@@ -106,6 +107,26 @@ async fn get_session_snapshot(
     state.snapshot().await
 }
 
+#[tauri::command]
+async fn list_sessions(
+    state: tauri::State<'_, DbActorHandle>,
+) -> Result<Vec<SessionCard>, AppError> {
+    state.list_sessions().await
+}
+
+#[tauri::command]
+async fn get_session(
+    state: tauri::State<'_, DbActorHandle>,
+    id: i64,
+) -> Result<SessionDetail, AppError> {
+    state.get_session(id).await
+}
+
+#[tauri::command]
+async fn delete_session(state: tauri::State<'_, DbActorHandle>, id: i64) -> Result<(), AppError> {
+    state.delete_session(id).await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tracing_subscriber::fmt()
@@ -133,7 +154,10 @@ pub fn run() {
             resume_session,
             stop_session,
             skip_block,
-            get_session_snapshot
+            get_session_snapshot,
+            list_sessions,
+            get_session,
+            delete_session
         ])
         .setup(|app| {
             let (ble_metrics_tx, ble_metrics_rx) = tokio::sync::mpsc::channel::<BleMetrics>(8);
@@ -142,18 +166,19 @@ pub fn run() {
                 ble_metrics_tx,
             ))
             .expect("BLE init failed");
-            let session_handle = tauri::async_runtime::block_on(SessionActorHandle::spawn(
-                app.handle().clone(),
-                ble_handle.clone(),
-                ble_metrics_rx,
-            ));
-            app.manage(ble_handle);
-            app.manage(session_handle);
             let app_data_dir = app.path().app_data_dir().expect("no app data dir");
             std::fs::create_dir_all(&app_data_dir).expect("failed to create app data dir");
             let db_path = app_data_dir.join(DB_FILE).to_string_lossy().to_string();
             let db_handle = tauri::async_runtime::block_on(DbActorHandle::spawn(db_path))
                 .expect("DB init failed");
+            let session_handle = tauri::async_runtime::block_on(SessionActorHandle::spawn(
+                app.handle().clone(),
+                ble_handle.clone(),
+                ble_metrics_rx,
+                db_handle.clone(),
+            ));
+            app.manage(ble_handle);
+            app.manage(session_handle);
             app.manage(db_handle);
             Ok(())
         })

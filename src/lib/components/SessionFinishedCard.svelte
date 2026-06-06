@@ -1,11 +1,15 @@
 <script lang="ts">
+  import { CircleCheck } from '@lucide/svelte';
   import { formatClock } from '$lib/session.svelte';
 
   let { total_active_s }: { total_active_s: number } = $props();
 </script>
 
 <div class="card finished">
-  <div class="finished-label">Workout complete</div>
+  <div class="finished-label">
+    <CircleCheck size={14} strokeWidth={2.5} />
+    Workout complete
+  </div>
   <div class="finished-time">{formatClock(total_active_s)}</div>
   <div class="finished-sub">total active time</div>
 </div>
@@ -16,10 +20,13 @@
     place-items: center;
     text-align: center;
     border-left: 6px solid var(--success);
-    background: color-mix(in srgb, var(--success) 10%, var(--surface));
+    background: #f0fdf4;
     padding: 1.25rem;
   }
   .finished-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.08em;

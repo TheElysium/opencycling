@@ -1,9 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { ArrowLeft, HelpCircle } from '@lucide/svelte';
-  import WorkoutChart from '$lib/components/WorkoutChart.svelte';
-  import { workoutSelection, type WorkoutBlock } from '$lib/workout.svelte';
+  import { ArrowLeft, HelpCircle, Flame, Target, Zap, Battery, RotateCw } from '@lucide/svelte';
+  import WorkoutPreview from '$lib/components/WorkoutPreview.svelte';
+  import MetricsStrip, { type MetricTile } from '$lib/components/MetricsStrip.svelte';
+  import { workoutSelection, flattenWorkout, type WorkoutBlock } from '$lib/workout.svelte';
   import { ble } from '$lib/ble.svelte';
   import { blockDuration, totalDuration, formatDuration, displayWorkoutName, stripHtml, toMessage } from '$lib/format';
   import { computeWorkoutMetrics, workoutTypeColor, zoneOf } from '$lib/metrics';
@@ -100,11 +101,17 @@
     const { repeat, on, off } = b.IntervalsT;
     const onPct  = 'SteadyState' in on  ? on.SteadyState.power_pct  : 'Ramp' in on  ? on.Ramp.power_start_pct  : 0;
     const offPct = 'SteadyState' in off ? off.SteadyState.power_pct : 'Ramp' in off ? off.Ramp.power_start_pct : 0;
+    const onCad  = 'SteadyState' in on  ? on.SteadyState.cadence_rpm  : 'Ramp' in on  ? on.Ramp.cadence_rpm  : null;
+    const offCad = 'SteadyState' in off ? off.SteadyState.cadence_rpm : 'Ramp' in off ? off.Ramp.cadence_rpm : null;
+    let cadence: string | null = null;
+    if (onCad != null && offCad != null) cadence = `${onCad} rpm on / ${offCad} rpm off`;
+    else if (onCad != null) cadence = `${onCad} rpm on`;
+    else if (offCad != null) cadence = `${offCad} rpm off`;
     return {
       kind: `${repeat}×`,
       duration: `${formatDuration(blockDuration(on))} on · ${formatDuration(blockDuration(off))} off`,
       power: `${pwr(onPct)} on / ${pwr(offPct)} off`,
-      cadence: null,
+      cadence,
       pill: p.bg,
       pillTitle: p.title,
     };
@@ -113,6 +120,28 @@
   let w         = $derived(workoutSelection.workout);
   let blockRows = $derived(w ? w.workout_blocks.map(describeBlock) : []);
   let metrics   = $derived(w ? computeWorkoutMetrics(w.workout_blocks, ftp) : null);
+
+  // Duration-weighted avg cadence across blocks that specify one. null if none specified.
+  let avgCadence = $derived.by<number | null>(() => {
+    if (!w) return null;
+    let num = 0;
+    let den = 0;
+    for (const f of flattenWorkout(w.workout_blocks, ftp)) {
+      if (f.cadence_rpm != null) {
+        num += f.cadence_rpm * f.duration_s;
+        den += f.duration_s;
+      }
+    }
+    return den > 0 ? Math.round(num / den) : null;
+  });
+
+  let metricTiles = $derived<MetricTile[]>(metrics ? [
+    { icon: Zap,     label: 'Avg Power',   value: Math.round(metrics.np_pct * ftp), unit: 'W',                            secondary: { label: 'NP'  }, title: 'Normalized Power — physiological average' },
+    { icon: RotateCw,label: 'Avg Cadence', value: avgCadence ?? '—',                unit: avgCadence != null ? 'rpm' : undefined },
+    { icon: Flame,   label: 'Stress',      value: Math.round(metrics.tss),                                                secondary: { label: 'TSS' }, title: 'Training Stress Score — 100 ≈ 1h at FTP' },
+    { icon: Target,  label: 'Intensity',   value: metrics.if_.toFixed(2),                                                 secondary: { label: 'IF'  }, title: 'Intensity Factor — average intensity (1.0 = FTP)' },
+    { icon: Battery, label: 'Work',        value: Math.round(metrics.kj),           unit: 'kJ',                           secondary: { label: 'kJ'  }, title: 'Total energy produced' },
+  ] : []);
 
   let helpOpen = $state(false);
 
@@ -151,57 +180,39 @@
     </header>
 
     {#if metrics && metrics.tss > 0}
-      <div class="metrics-strip">
-        <div class="metric-cell" title="Training Stress Score — 100 ≈ 1h at FTP">
-          <span class="metric-value">{Math.round(metrics.tss)}</span>
-          <span class="metric-label">Stress</span>
-          <span class="metric-acro">TSS</span>
-        </div>
-        <div class="metric-cell" title="Intensity Factor — average intensity (1.0 = FTP)">
-          <span class="metric-value">{metrics.if_.toFixed(2)}</span>
-          <span class="metric-label">Intensity</span>
-          <span class="metric-acro">IF</span>
-        </div>
-        <div class="metric-cell" title="Normalized Power — physiological average">
-          <span class="metric-value">{Math.round(metrics.np_pct * ftp)}<span class="metric-unit">W</span></span>
-          <span class="metric-label">Avg Power</span>
-          <span class="metric-acro">NP</span>
-        </div>
-        <div class="metric-cell" title="Total energy produced">
-          <span class="metric-value">{Math.round(metrics.kj)}<span class="metric-unit">kJ</span></span>
-          <span class="metric-label">Work</span>
-          <span class="metric-acro">kJ</span>
-        </div>
-        <div class="metrics-help">
-          <button
-            type="button"
-            class="help-btn"
-            aria-label="What do these metrics mean?"
-            aria-expanded={helpOpen}
-            onclick={() => helpOpen = !helpOpen}
-          >
-            <HelpCircle size={16} />
-          </button>
-          {#if helpOpen}
-            <div class="help-popover" role="dialog">
-              <dl>
-                <dt>Stress <span class="acro">TSS</span></dt>
-                <dd>Total cost of the session. 100 = exactly 1h at your FTP. Lets you compare workout difficulty.</dd>
-                <dt>Intensity <span class="acro">IF</span></dt>
-                <dd>Average intensity relative to FTP. 0.65 = recovery, 0.85 = tempo, 1.0 = threshold, &gt;1.05 = VO2max.</dd>
-                <dt>Avg Power <span class="acro">NP</span></dt>
-                <dd>Normalized Power — physiologically-weighted average. Smooths spikes to reflect the real cost on the body.</dd>
-                <dt>Work <span class="acro">kJ</span></dt>
-                <dd>Total energy produced. Good calorie proxy (1 kJ ≈ 1 kcal in cycling).</dd>
-              </dl>
-            </div>
-          {/if}
-        </div>
-      </div>
+      <MetricsStrip tiles={metricTiles}>
+        {#snippet trailing()}
+          <div class="metrics-help">
+            <button
+              type="button"
+              class="help-btn"
+              aria-label="What do these metrics mean?"
+              aria-expanded={helpOpen}
+              onclick={() => helpOpen = !helpOpen}
+            >
+              <HelpCircle size={16} />
+            </button>
+            {#if helpOpen}
+              <div class="help-popover" role="dialog">
+                <dl>
+                  <dt>Stress <span class="acro">TSS</span></dt>
+                  <dd>Total cost of the session. 100 = exactly 1h at your FTP. Lets you compare workout difficulty.</dd>
+                  <dt>Intensity <span class="acro">IF</span></dt>
+                  <dd>Average intensity relative to FTP. 0.65 = recovery, 0.85 = tempo, 1.0 = threshold, &gt;1.05 = VO2max.</dd>
+                  <dt>Avg Power <span class="acro">NP</span></dt>
+                  <dd>Normalized Power — physiologically-weighted average. Smooths spikes to reflect the real cost on the body.</dd>
+                  <dt>Work <span class="acro">kJ</span></dt>
+                  <dd>Total energy produced. Good calorie proxy (1 kJ ≈ 1 kcal in cycling).</dd>
+                </dl>
+              </div>
+            {/if}
+          </div>
+        {/snippet}
+      </MetricsStrip>
     {/if}
 
     <div class="chart-section">
-      <WorkoutChart blocks={w.workout_blocks} height={200} showFtpLine={true} showZones={true} ftpWatts={ftp} />
+      <WorkoutPreview blocks={flattenWorkout(w.workout_blocks, ftp)} ftpWatts={ftp} />
     </div>
 
     <div class="cta-row">
@@ -323,59 +334,8 @@
     white-space: pre-line;
   }
 
-  .metrics-strip {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr) auto;
-    gap: 0.5rem;
-    align-items: start;
-    margin-bottom: 1.25rem;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 0.85rem 1rem;
-  }
-
-  .metric-cell {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.15rem;
-    cursor: help;
-  }
-
-  .metric-value {
-    font-size: 1.4rem;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    color: var(--text);
-    line-height: 1;
-  }
-
-  .metric-unit {
-    font-size: 0.7rem;
-    font-weight: 500;
-    color: var(--muted);
-    margin-left: 0.1rem;
-  }
-
-  .metric-label {
-    font-size: 0.72rem;
-    color: var(--text);
-    font-weight: 600;
-    margin-top: 0.1rem;
-  }
-
-  .metric-acro {
-    font-size: 0.62rem;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    font-weight: 600;
-  }
-
   .metrics-help {
     position: relative;
-    align-self: start;
   }
 
   .help-btn {
@@ -542,6 +502,5 @@
   .col-cad {
     white-space: nowrap;
     color: var(--muted);
-    text-align: right;
   }
 </style>

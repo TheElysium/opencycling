@@ -1,7 +1,9 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { ParsedWorkout } from './workout.svelte';
+import type { ParsedWorkout, FlatBlock } from './workout.svelte';
 
-export type SessionStateKind = 'Started' | 'Running' | 'Paused' | 'Finished';
+export type { FlatBlock };
+
+export type SessionStateKind = 'WaitingForRider' | 'Running' | 'Paused' | 'Finished';
 
 export type SessionMetrics = {
   state: SessionStateKind;
@@ -16,14 +18,7 @@ export type SessionMetrics = {
   cadence_rpm: number | null;
   ftp_w: number;
   blocks_total: number;
-};
-
-export type FlatBlock = {
-  duration_s: number;
-  power_start_w: number;
-  power_end_w: number;
-  cadence_rpm: number | null;
-  label: string;
+  session_id: number | null;
 };
 
 export type SessionSnapshot = {

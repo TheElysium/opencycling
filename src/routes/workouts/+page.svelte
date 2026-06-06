@@ -3,8 +3,8 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { Search, X } from '@lucide/svelte';
-  import WorkoutChart from '$lib/components/WorkoutChart.svelte';
-  import { workoutSelection, type ParsedWorkout } from '$lib/workout.svelte';
+  import WorkoutThumb from '$lib/components/WorkoutThumb.svelte';
+  import { workoutSelection, flattenWorkout, type ParsedWorkout } from '$lib/workout.svelte';
   import { formatDuration, totalDuration, displayWorkoutName, toMessage } from '$lib/format';
   import { computeWorkoutMetrics, workoutTypeColor } from '$lib/metrics';
   import { getSettings } from '$lib/settings';
@@ -91,7 +91,7 @@
         {@const m = computeWorkoutMetrics(w.workout_blocks, ftp)}
         <button class="workout-card" onclick={() => select(w)}>
           <div class="card-chart">
-            <WorkoutChart blocks={w.workout_blocks} height={72} />
+            <WorkoutThumb blocks={flattenWorkout(w.workout_blocks, ftp)} ftpWatts={ftp} />
           </div>
           <div class="card-info">
             {#if m.tss > 0}

@@ -1,8 +1,9 @@
+use crate::db::Metric;
 use crate::errors::AppError;
 use crate::session::state::TICK_S;
 use crate::session::types::{
-    FlatBlock, Session, SessionActor, SessionCommand, SessionMetrics, SessionSnapshot,
-    StartedState, StateKind,
+    FlatBlock, Session, SessionActor, SessionCommand, SessionMetrics, SessionSnapshot, StateKind,
+    WaitingForRiderState,
 };
 use crate::workout::{ParsedWorkout, WorkoutBlock};
 use tauri::Emitter;
@@ -26,6 +27,10 @@ impl SessionActor {
                     self.last_power_w = ble.power_w;
                     self.last_cadence_rpm = ble.cadence_rpm;
                     self.last_hr_bpm = ble.hr_bpm;
+                    if let Some(session) = self.session.as_mut() {
+                        session.last_power_w = ble.power_w;
+                        session.last_cadence_rpm = ble.cadence_rpm;
+                    }
                 }
             }
         }
@@ -58,14 +63,18 @@ impl SessionActor {
                     current_block_idx: 0,
                     current_block_elapsed_s: 0,
                     last_target_w: None,
+                    last_cadence_rpm: None,
+                    last_power_w: None,
                     workout_name,
                     workout_author,
                     workout_description,
                 });
-                self.state = Some(Box::new(StartedState));
+                self.state = Some(Box::new(WaitingForRiderState));
                 self.last_power_w = None;
                 self.last_hr_bpm = None;
                 self.last_cadence_rpm = None;
+                self.current_session_id = None;
+                self.last_session_id = None;
                 let _ = reply.send(Ok(()));
                 self.emit_metrics();
             }
@@ -85,6 +94,7 @@ impl SessionActor {
                 if let Some(state) = self.state.take() {
                     self.state = Some(state.stop());
                 }
+                self.finalize_db_session().await;
                 self.emit_metrics();
             }
             SessionCommand::Skip => {
@@ -115,11 +125,51 @@ impl SessionActor {
 
         self.state = Some(new_state);
 
-        if kind == StateKind::Running {
-            if let Some(target) = target_w {
-                if let Err(e) = self.ble_handle.set_target_power(target as i16).await {
-                    tracing::error!("set_target_power failed: {e}");
+        match kind {
+            StateKind::WaitingForRider => {}
+            StateKind::Running => {
+                if self.current_session_id.is_none() {
+                    let session = self.session.as_ref().expect("session exists in Running");
+                    let workout_name = session
+                        .workout_name
+                        .clone()
+                        .unwrap_or_else(|| "Untitled workout".to_string());
+                    let started_at = chrono::Utc::now().to_rfc3339();
+                    let ftp_w_used = session.ftp_w;
+                    let flat_blocks_json = serde_json::to_string(&session.blocks)
+                        .expect("FlatBlock is plain Serialize, cannot fail");
+                    match self
+                        .db_handle
+                        .insert_session(workout_name, started_at, ftp_w_used, flat_blocks_json)
+                        .await
+                    {
+                        Ok(id) => self.current_session_id = Some(id),
+                        Err(e) => tracing::error!("insert_session failed: {e}"),
+                    }
                 }
+                if let Some(session_id) = self.current_session_id {
+                    let session = self.session.as_ref().expect("session exists in Running");
+                    self.db_handle
+                        .insert_metric(
+                            session_id,
+                            Metric {
+                                t_offset_s: session.total_active_s,
+                                power_w: self.last_power_w.map(|p| p.max(0) as u16),
+                                hr_bpm: self.last_hr_bpm,
+                                cadence_rpm: self.last_cadence_rpm,
+                            },
+                        )
+                        .await;
+                }
+                if let Some(target) = target_w {
+                    if let Err(e) = self.ble_handle.set_target_power(target as i16).await {
+                        tracing::error!("set_target_power failed: {e}");
+                    }
+                }
+            }
+            StateKind::Paused => {}
+            StateKind::Finished => {
+                self.finalize_db_session().await;
             }
         }
 
@@ -146,6 +196,7 @@ impl SessionActor {
             cadence_rpm: self.last_cadence_rpm,
             ftp_w: session.ftp_w,
             blocks_total: session.blocks.len() as u32,
+            session_id: self.current_session_id.or(self.last_session_id),
         })
     }
 
@@ -165,6 +216,20 @@ impl SessionActor {
             workout_description: session.workout_description.clone(),
             metrics: self.build_metrics(),
         })
+    }
+
+    async fn finalize_db_session(&mut self) {
+        let Some(session_id) = self.current_session_id.take() else {
+            return;
+        };
+        let Some(session) = self.session.as_ref() else {
+            return;
+        };
+        let ended_at = chrono::Utc::now().to_rfc3339();
+        self.db_handle
+            .finalize_session(session_id, ended_at, session.total_active_s)
+            .await;
+        self.last_session_id = Some(session_id);
     }
 }
 

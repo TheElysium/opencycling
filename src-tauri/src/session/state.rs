@@ -1,15 +1,25 @@
 use crate::session::types::{
-    FinishedState, PausedState, RunningState, Session, StartedState, State, StateKind,
+    FinishedState, PausedState, RunningState, Session, State, StateKind, WaitingForRiderState,
 };
 
 pub const TICK_S: u32 = 1;
+const CADENCE_START: u16 = 30;
+const POWER_START: i16 = 30;
 
-impl State for StartedState {
+impl State for WaitingForRiderState {
     fn kind(&self) -> StateKind {
-        StateKind::Started
+        StateKind::WaitingForRider
     }
-    fn tick(self: Box<Self>, _session: &mut Session) -> Box<dyn State> {
-        Box::new(RunningState)
+    fn tick(self: Box<Self>, session: &mut Session) -> Box<dyn State> {
+        let pedaling = session
+            .last_cadence_rpm
+            .map_or(false, |c| c >= CADENCE_START)
+            || session.last_power_w.map_or(false, |p| p >= POWER_START);
+        if pedaling {
+            Box::new(RunningState)
+        } else {
+            self
+        }
     }
     fn pause(self: Box<Self>) -> Box<dyn State> {
         self
@@ -144,6 +154,8 @@ mod tests {
             current_block_idx: 0,
             current_block_elapsed_s: 0,
             last_target_w: None,
+            last_cadence_rpm: None,
+            last_power_w: None,
             workout_name: None,
             workout_author: None,
             workout_description: None,
@@ -288,9 +300,17 @@ mod tests {
     // --- Minimal anchoring of the transition table ---
 
     #[test]
-    fn started_tick_becomes_running() {
+    fn waiting_tick_stays_waiting_when_not_pedaling() {
         let mut s = session_with(vec![steady(60, 150)]);
-        let st: Box<dyn State> = Box::new(StartedState);
+        let st: Box<dyn State> = Box::new(WaitingForRiderState);
+        assert_eq!(st.tick(&mut s).kind(), StateKind::WaitingForRider);
+    }
+
+    #[test]
+    fn waiting_tick_becomes_running_when_pedaling() {
+        let mut s = session_with(vec![steady(60, 150)]);
+        s.last_cadence_rpm = Some(50);
+        let st: Box<dyn State> = Box::new(WaitingForRiderState);
         assert_eq!(st.tick(&mut s).kind(), StateKind::Running);
     }
 
@@ -300,7 +320,7 @@ mod tests {
         assert_eq!(st.stop().kind(), StateKind::Finished);
         let st: Box<dyn State> = Box::new(PausedState);
         assert_eq!(st.stop().kind(), StateKind::Finished);
-        let st: Box<dyn State> = Box::new(StartedState);
+        let st: Box<dyn State> = Box::new(WaitingForRiderState);
         assert_eq!(st.stop().kind(), StateKind::Finished);
     }
 }

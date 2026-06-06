@@ -1,9 +1,6 @@
 <script lang="ts">
-  import type { WorkoutBlock } from '$lib/workout.svelte';
-
-  type FlatSteady = { duration_s: number; power_pct: number; is_ramp: false };
-  type FlatRamp   = { duration_s: number; power_start_pct: number; power_end_pct: number; is_ramp: true };
-  type FlatBlock  = FlatSteady | FlatRamp;
+  import type { FlatBlock } from '$lib/workout.svelte';
+  import type { MetricSample } from '$lib/db';
 
   type ZoneSlice = { color: string; label: string; pct: number };
   type TimeMark  = { t: number; label: string };
@@ -12,7 +9,7 @@
   // leaving headroom on top for the max-power label.
   const POWER_SCALE = 85;
   const FTP_Y_PCT   = 100 - 1.0 * POWER_SCALE; // = 15
-  const POWER_CAP   = 99; // clamp very high power so bars stay visible
+  const POWER_CAP   = 99;
 
   const ZONES = [
     { max: 0.55, color: 'var(--z1)', label: 'Z1' },
@@ -27,7 +24,6 @@
     return ZONES.find(z => pct < z.max) ?? ZONES[ZONES.length - 1];
   }
 
-  // Unique prefix so multiple charts on the same page don't collide on gradient IDs.
   const uid = Math.random().toString(36).slice(2, 9);
 
   type GradStop = { offset: number; color: string };
@@ -46,34 +42,55 @@
       }
     }
     crossings.sort((a, b) => a.t - b.t);
-
     stops.push({ offset: 0, color: zone(pStart).color });
-    for (const c of crossings) {
-      stops.push({ offset: c.t * 100, color: c.color });
-    }
+    for (const c of crossings) stops.push({ offset: c.t * 100, color: c.color });
     stops.push({ offset: 100, color: zone(pEnd).color });
     return stops;
   }
 
-  let { blocks, height = 80, currentPos = null, showFtpLine = false, showZones = false, ftpWatts = 0 }:
-    { blocks: WorkoutBlock[]; height?: number; currentPos?: number | null; showFtpLine?: boolean; showZones?: boolean; ftpWatts?: number } = $props();
+  let {
+    blocks,
+    height = 80,
+    currentPos = null,
+    showFtpLine = false,
+    showZones = false,
+    ftpWatts,
+    actualMetrics = null,
+    showToggles = false,
+    showTimeAxis = false,
+    maxHr = 0,
+    cadenceWindow = [60, 120] as [number, number],
+  }: {
+    blocks: FlatBlock[];
+    height?: number;
+    currentPos?: number | null;
+    showFtpLine?: boolean;
+    showZones?: boolean;
+    /** Athlete FTP in watts. Required: bars/zones are computed as power_w / ftpWatts. */
+    ftpWatts: number;
+    actualMetrics?: MetricSample[] | null;
+    showToggles?: boolean;
+    showTimeAxis?: boolean;
+    /** Athlete max HR — drives the HR overlay window. 0 falls back to 80-200. */
+    maxHr?: number;
+    /** Cadence window [min, max] for the cadence overlay. */
+    cadenceWindow?: [number, number];
+  } = $props();
 
-  function flatten(bs: WorkoutBlock[]): FlatBlock[] {
-    const result: FlatBlock[] = [];
-    for (const b of bs) {
-      if ('SteadyState' in b) {
-        result.push({ duration_s: b.SteadyState.duration_s, power_pct: b.SteadyState.power_pct, is_ramp: false });
-      } else if ('Ramp' in b) {
-        result.push({ duration_s: b.Ramp.duration_s, power_start_pct: b.Ramp.power_start_pct, power_end_pct: b.Ramp.power_end_pct, is_ramp: true });
-      } else if ('IntervalsT' in b) {
-        const { repeat, on, off } = b.IntervalsT;
-        for (let i = 0; i < repeat; i++) {
-          result.push(...flatten([on]), ...flatten([off]));
-        }
-      }
-    }
-    return result;
-  }
+  // Derived HR window: bottom ~ 40 % of max HR up to max HR. Falls back to
+  // 80-200 when maxHr isn't provided so old call sites still render.
+  let hrLo = $derived(maxHr > 0 ? Math.round(maxHr * 0.4) : 80);
+  let hrHi = $derived(maxHr > 0 ? maxHr : 200);
+  let cadLo = $derived(cadenceWindow[0]);
+  let cadHi = $derived(cadenceWindow[1]);
+
+  // Layers visibility (used when showToggles=true). Defaults: show what we have.
+  let visible = $state({ target: true, power: true, hr: true, cad: false });
+
+  // %FTP helpers — blocks store watts, the chart's zone/scale logic works in %FTP.
+  function pStart(b: FlatBlock): number { return ftpWatts > 0 ? b.power_start_w / ftpWatts : 0; }
+  function pEnd(b: FlatBlock): number   { return ftpWatts > 0 ? b.power_end_w   / ftpWatts : 0; }
+  function isRamp(b: FlatBlock): boolean { return b.power_start_w !== b.power_end_w; }
 
   function computeZones(flat: FlatBlock[]): ZoneSlice[] {
     const total = flat.reduce((s, b) => s + b.duration_s, 0);
@@ -81,7 +98,7 @@
     const acc: Record<string, number> = {};
     for (const z of ZONES) acc[z.label] = 0;
     for (const b of flat) {
-      const pct = b.is_ramp ? (b.power_start_pct + b.power_end_pct) / 2 : b.power_pct;
+      const pct = isRamp(b) ? (pStart(b) + pEnd(b)) / 2 : pStart(b);
       acc[zone(pct).label] += b.duration_s;
     }
     return ZONES
@@ -101,26 +118,40 @@
     return marks;
   }
 
-  function computePowerGridlines(ftp: number, maxPct: number): number[] {
-    if (ftp <= 0) return [];
-    const maxW = maxPct * ftp;
-    const step = maxW > 400 ? 100 : maxW > 200 ? 50 : 25;
-    const out: number[] = [];
-    for (let w = step; w <= maxW + step; w += step) out.push(w);
-    return out;
+  function formatHMS(s: number): string {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = Math.floor(s % 60);
+    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+    return `${m}:${String(sec).padStart(2, '0')}`;
   }
 
-  let flat        = $derived(flatten(blocks));
+  let flat        = $derived(blocks);
   let totalDur    = $derived(flat.reduce((s, b) => s + b.duration_s, 0));
   let zones       = $derived(showZones ? computeZones(flat) : []);
-  let timeMarks   = $derived(showZones ? computeTimeMarks(totalDur) : []);
-  let maxPct = $derived(flat.reduce((m, b) => {
-    const p = b.is_ramp ? Math.max(b.power_start_pct, b.power_end_pct) : b.power_pct;
+  let showTime    = $derived(showZones || showTimeAxis);
+  let timeMarks   = $derived(showTime ? computeTimeMarks(totalDur) : []);
+
+  let plannedMaxPct = $derived(flat.reduce((m, b) => {
+    const p = isRamp(b) ? Math.max(pStart(b), pEnd(b)) : pStart(b);
     return Math.max(m, p);
   }, 0));
+
+  let actualMaxPct = $derived.by(() => {
+    if (!actualMetrics || ftpWatts <= 0) return 0;
+    let m = 0;
+    for (const s of actualMetrics) {
+      if (s.power_w != null && s.power_w > m) m = s.power_w;
+    }
+    return m / ftpWatts;
+  });
+
+  let maxPct      = $derived(Math.max(plannedMaxPct, actualMaxPct));
   let maxY        = $derived(100 - Math.min(maxPct * POWER_SCALE, POWER_CAP));
   let maxLabelTop = $derived(Math.round(height * (maxY / 100)));
   let ftpLabelTop = $derived(Math.round(height * (FTP_Y_PCT / 100)));
+  let maxWatts    = $derived(ftpWatts > 0 ? Math.round(maxPct * ftpWatts) : 0);
+
   let xPositions  = $derived.by(() => {
     const positions: number[] = [];
     let x = 0;
@@ -130,11 +161,66 @@
     }
     return positions;
   });
-  let gridlines = $derived(showFtpLine ? computePowerGridlines(ftpWatts, maxPct) : []);
 
-  function blockPoints(b: FlatRamp, x: number): string {
-    const hStart = Math.min(b.power_start_pct * POWER_SCALE, POWER_CAP);
-    const hEnd   = Math.min(b.power_end_pct   * POWER_SCALE, POWER_CAP);
+  // Y mapping helpers (viewBox 0..100, top=0). HR/cadence share the power band
+  // mapped linearly to bpm/rpm windows — these are only used to *position the
+  // line on screen*, no axis is drawn.
+  function yOfPowerW(w: number): number {
+    if (ftpWatts <= 0) return 100;
+    return 100 - Math.min((w / ftpWatts) * POWER_SCALE, POWER_CAP);
+  }
+  function yOfHr(bpm: number): number {
+    // Window driven by athlete max HR (hrLo..hrHi); falls back to 80-200.
+    const span = Math.max(1, hrHi - hrLo);
+    return 100 - Math.max(0, Math.min(1, (bpm - hrLo) / span)) * 100;
+  }
+  function yOfCad(rpm: number): number {
+    const span = Math.max(1, cadHi - cadLo);
+    return 100 - Math.max(0, Math.min(1, (rpm - cadLo) / span)) * 100;
+  }
+
+  function buildLine(samples: MetricSample[], gy: (s: MetricSample) => number | null): string {
+    const pts: [number, number][] = [];
+    for (const s of samples) {
+      const y = gy(s);
+      if (y == null) continue;
+      pts.push([s.t_offset_s, y]);
+    }
+    if (pts.length === 0) return '';
+    return pts.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(2)}`).join(' ');
+  }
+
+  function buildArea(samples: MetricSample[]): string {
+    let first: number | null = null;
+    let last: number | null = null;
+    const pts: [number, number][] = [];
+    for (const s of samples) {
+      if (s.power_w == null) continue;
+      const y = yOfPowerW(s.power_w);
+      if (first == null) first = s.t_offset_s;
+      last = s.t_offset_s;
+      pts.push([s.t_offset_s, y]);
+    }
+    if (pts.length === 0 || first == null || last == null) return '';
+    const line = pts.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(2)}`).join(' ');
+    return `${line} L${last.toFixed(1)},100 L${first.toFixed(1)},100 Z`;
+  }
+
+  let powerLine = $derived(actualMetrics ? buildLine(actualMetrics, s => s.power_w == null ? null : yOfPowerW(s.power_w)) : '');
+  let powerArea = $derived(actualMetrics ? buildArea(actualMetrics) : '');
+  let hrLine    = $derived(actualMetrics ? buildLine(actualMetrics, s => s.hr_bpm == null ? null : yOfHr(s.hr_bpm)) : '');
+  let cadLine   = $derived(actualMetrics ? buildLine(actualMetrics, s => s.cadence_rpm == null ? null : yOfCad(s.cadence_rpm)) : '');
+
+  let vTarget = $derived(showToggles ? visible.target : true);
+  let vPower  = $derived(showToggles ? visible.power  : true);
+  let vHr     = $derived(showToggles ? visible.hr     : true);
+  let vCad    = $derived(showToggles ? visible.cad    : true);
+
+  let targetOpacity = $derived(actualMetrics ? 0.55 : 1);
+
+  function blockPoints(b: FlatBlock, x: number): string {
+    const hStart = Math.min(pStart(b) * POWER_SCALE, POWER_CAP);
+    const hEnd   = Math.min(pEnd(b)   * POWER_SCALE, POWER_CAP);
     const w      = b.duration_s;
     return [
       `${x},100`,
@@ -143,10 +229,68 @@
       `${x},${100 - hStart}`,
     ].join(' ');
   }
+
+  function toggle(layer: 'target'|'power'|'hr'|'cad') {
+    visible = { ...visible, [layer]: !visible[layer] };
+  }
+
+  // ---------- Hover tooltip ----------
+  let hoverIdx = $state<number | null>(null);
+
+  function onMove(e: MouseEvent) {
+    if (!actualMetrics || actualMetrics.length === 0 || totalDur <= 0) return;
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const t = (x / rect.width) * totalDur;
+    // Binary search for the sample whose t_offset_s is closest to t.
+    let lo = 0, hi = actualMetrics.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (actualMetrics[mid].t_offset_s < t) lo = mid + 1;
+      else hi = mid;
+    }
+    // Pick the closer of (lo) and (lo - 1).
+    if (lo > 0 && Math.abs(actualMetrics[lo - 1].t_offset_s - t) < Math.abs(actualMetrics[lo].t_offset_s - t)) {
+      lo = lo - 1;
+    }
+    hoverIdx = lo;
+  }
+
+  function onLeave() {
+    hoverIdx = null;
+  }
+
+  let hoverSample = $derived(hoverIdx != null && actualMetrics ? actualMetrics[hoverIdx] : null);
+  let hoverLeftPct = $derived(hoverSample ? (hoverSample.t_offset_s / totalDur) * 100 : 0);
+  // Flip tooltip to the left of the cursor in the right third of the chart.
+  let hoverFlip = $derived(hoverLeftPct > 66);
 </script>
 
 {#if totalDur > 0}
-  <div class="chart-wrap" style="height: {height}px;">
+  {#if showToggles}
+    <div class="toggles">
+      <button class="toggle-btn" class:on={vTarget} onclick={() => toggle('target')}>
+        <span class="swatch swatch-target"></span>Workout
+      </button>
+      <button class="toggle-btn" class:on={vPower} onclick={() => toggle('power')}>
+        <span class="swatch swatch-power"></span>Power
+      </button>
+      <button class="toggle-btn" class:on={vHr} onclick={() => toggle('hr')}>
+        <span class="swatch swatch-hr"></span>HR
+      </button>
+      <button class="toggle-btn" class:on={vCad} onclick={() => toggle('cad')}>
+        <span class="swatch swatch-cad"></span>Cadence
+      </button>
+    </div>
+  {/if}
+
+  <div
+    class="chart-wrap"
+    style="height: {height}px;"
+    role={actualMetrics ? 'figure' : undefined}
+    onmousemove={actualMetrics ? onMove : undefined}
+    onmouseleave={actualMetrics ? onLeave : undefined}
+  >
     <svg
       viewBox="0 0 {totalDur} 100"
       preserveAspectRatio="none"
@@ -157,71 +301,67 @@
     >
       <defs>
         {#each flat as b, i}
-          {#if b.is_ramp}
+          {#if isRamp(b)}
             <linearGradient id="ramp-{uid}-{i}" x1="0" x2="1" y1="0" y2="0">
-              {#each rampGradientStops(b.power_start_pct, b.power_end_pct) as s}
+              {#each rampGradientStops(pStart(b), pEnd(b)) as s}
                 <stop offset="{s.offset}%" stop-color={s.color} />
               {/each}
             </linearGradient>
           {/if}
         {/each}
+        <linearGradient id="powerFill-{uid}" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stop-color="#e2e8f0" stop-opacity="0.55"/>
+          <stop offset="100%" stop-color="#e2e8f0" stop-opacity="0.05"/>
+        </linearGradient>
       </defs>
 
-      {#if showFtpLine}
-        {#each gridlines as w}
-          {@const y = 100 - Math.min((w / ftpWatts) * POWER_SCALE, POWER_CAP)}
-          <line
-            x1="0" x2={totalDur} y1={y} y2={y}
-            stroke="rgba(255,255,255,0.08)"
-            stroke-width="1"
-            vector-effect="non-scaling-stroke"
-          />
+      {#if showFtpLine && ftpWatts > 0}
+        {@const step = maxWatts > 400 ? 100 : maxWatts > 200 ? 50 : 25}
+        {#each Array.from({ length: Math.floor(maxWatts / step) }, (_, i) => (i + 1) * step) as w}
+          {@const y = yOfPowerW(w)}
+          <line x1="0" x2={totalDur} y1={y} y2={y} stroke="rgba(255,255,255,0.08)" stroke-width="1" vector-effect="non-scaling-stroke" />
         {/each}
       {/if}
 
-      {#each flat as b, i}
-        {@const x = xPositions[i]}
-        {#if b.is_ramp}
-          <polygon
-            points={blockPoints(b, x)}
-            fill="url(#ramp-{uid}-{i})"
-            stroke="var(--chart-gap, var(--bg))"
-            stroke-width="1"
-            vector-effect="non-scaling-stroke"
-          />
-        {:else}
-          {@const h = Math.min(b.power_pct * POWER_SCALE, POWER_CAP)}
-          <rect
-            x={x}
-            y={100 - h}
-            width={b.duration_s}
-            height={h}
-            fill={zone(b.power_pct).color}
-            stroke="var(--chart-gap, var(--bg))"
-            stroke-width="1"
-            vector-effect="non-scaling-stroke"
-          />
-        {/if}
-      {/each}
+      {#if vTarget}
+        <g opacity={targetOpacity}>
+          {#each flat as b, i}
+            {@const x = xPositions[i]}
+            {#if isRamp(b)}
+              <polygon points={blockPoints(b, x)} fill="url(#ramp-{uid}-{i})" stroke="var(--chart-gap, var(--bg))" stroke-width="1" vector-effect="non-scaling-stroke" />
+            {:else}
+              {@const p = pStart(b)}
+              {@const h = Math.min(p * POWER_SCALE, POWER_CAP)}
+              <rect x={x} y={100 - h} width={b.duration_s} height={h} fill={zone(p).color} stroke="var(--chart-gap, var(--bg))" stroke-width="1" vector-effect="non-scaling-stroke" />
+            {/if}
+          {/each}
+        </g>
+      {/if}
 
       {#if showFtpLine}
-        <line
-          x1="0" x2={totalDur} y1={FTP_Y_PCT} y2={FTP_Y_PCT}
-          stroke="rgba(255,255,255,0.5)"
-          stroke-width="1.5"
-          vector-effect="non-scaling-stroke"
-        />
-        <line
-          x1="0" x2={totalDur} y1={maxY} y2={maxY}
-          stroke="rgba(255,255,255,0.3)"
-          stroke-width="1"
-          stroke-dasharray="4 3"
-          vector-effect="non-scaling-stroke"
-        />
+        <line x1="0" x2={totalDur} y1={FTP_Y_PCT} y2={FTP_Y_PCT} stroke="rgba(255,255,255,0.5)" stroke-width="1.5" vector-effect="non-scaling-stroke" />
+        <line x1="0" x2={totalDur} y1={maxY} y2={maxY} stroke="rgba(255,255,255,0.3)" stroke-width="1" stroke-dasharray="4 3" vector-effect="non-scaling-stroke" />
+      {/if}
+
+      {#if vPower && powerArea}
+        <path d={powerArea} fill="url(#powerFill-{uid})" />
+        <path d={powerLine} fill="none" stroke="#ffffff" stroke-width="2" vector-effect="non-scaling-stroke" />
+      {/if}
+
+      {#if vHr && hrLine}
+        <path d={hrLine} fill="none" stroke="#f87171" stroke-width="1.8" opacity="0.95" vector-effect="non-scaling-stroke" />
+      {/if}
+
+      {#if vCad && cadLine}
+        <path d={cadLine} fill="none" stroke="#22c55e" stroke-width="1.6" opacity="0.9" stroke-dasharray="4 3" vector-effect="non-scaling-stroke" />
       {/if}
 
       {#if currentPos !== null}
-        <line x1={currentPos} x2={currentPos} y1="0" y2="100" stroke="white" stroke-width="2" />
+        <line x1={currentPos} x2={currentPos} y1="0" y2="100" stroke="white" stroke-width="2" vector-effect="non-scaling-stroke" />
+      {/if}
+
+      {#if hoverSample}
+        <line x1={hoverSample.t_offset_s} x2={hoverSample.t_offset_s} y1="0" y2="100" stroke="white" stroke-width="1" stroke-dasharray="2 3" opacity="0.55" vector-effect="non-scaling-stroke" />
       {/if}
     </svg>
 
@@ -230,32 +370,43 @@
         {ftpWatts > 0 ? `FTP ${ftpWatts}W` : 'FTP'}
       </span>
       {#if ftpWatts > 0}
-        <span class="ftp-tag ftp-right" style="top: {maxLabelTop}px;">
-          {Math.round(maxPct * ftpWatts)}W
-        </span>
+        <span class="ftp-tag ftp-right" style="top: {maxLabelTop}px;">{maxWatts}W</span>
       {/if}
+    {/if}
+
+    {#if hoverSample}
+      <div class="hover-tip" class:flip={hoverFlip} style="left: {hoverLeftPct}%;">
+        <div class="hover-time">{formatHMS(hoverSample.t_offset_s)}</div>
+        {#if hoverSample.power_w != null}
+          <div class="hover-row"><span class="hover-dot dot-power"></span><span class="hover-val">{hoverSample.power_w}</span><span class="hover-unit">W</span></div>
+        {/if}
+        {#if hoverSample.hr_bpm != null}
+          <div class="hover-row"><span class="hover-dot dot-hr"></span><span class="hover-val">{hoverSample.hr_bpm}</span><span class="hover-unit">bpm</span></div>
+        {/if}
+        {#if hoverSample.cadence_rpm != null}
+          <div class="hover-row"><span class="hover-dot dot-cad"></span><span class="hover-val">{hoverSample.cadence_rpm}</span><span class="hover-unit">rpm</span></div>
+        {/if}
+      </div>
     {/if}
   </div>
 
-  {#if showZones}
-    {#if timeMarks.length > 0}
-      <div class="time-axis">
-        {#each timeMarks as m}
-          <span class="time-mark" style="left: {(m.t / totalDur) * 100}%;">{m.label}</span>
-        {/each}
-      </div>
-    {/if}
+  {#if showTime && timeMarks.length > 0}
+    <div class="time-axis">
+      {#each timeMarks as m}
+        <span class="time-mark" style="left: {(m.t / totalDur) * 100}%;">{m.label}</span>
+      {/each}
+    </div>
+  {/if}
 
-    {#if zones.length > 0}
-      <div class="zone-badges">
-        {#each zones as z}
-          <div class="zone-badge">
-            <span class="zone-circle" style="background: {z.color};">{z.label}</span>
-            <span class="zone-badge-pct">{Math.round(z.pct * 100)}%</span>
-          </div>
-        {/each}
-      </div>
-    {/if}
+  {#if showZones && zones.length > 0}
+    <div class="zone-badges">
+      {#each zones as z}
+        <div class="zone-badge">
+          <span class="zone-circle" style="background: {z.color};">{z.label}</span>
+          <span class="zone-badge-pct">{Math.round(z.pct * 100)}%</span>
+        </div>
+      {/each}
+    </div>
   {/if}
 {/if}
 
@@ -280,12 +431,63 @@
   .ftp-left { left: 0; }
   .ftp-right { right: 0; }
 
+  /* Hover tooltip */
+  .hover-tip {
+    position: absolute;
+    top: 0.5rem;
+    transform: translateX(0.6rem);
+    background: rgba(15, 23, 42, 0.95);
+    color: #e2e8f0;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.75rem;
+    line-height: 1.3;
+    pointer-events: none;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    min-width: 90px;
+    z-index: 2;
+  }
+  .hover-tip.flip {
+    transform: translateX(calc(-100% - 0.6rem));
+  }
+  .hover-time {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: #94a3b8;
+    margin-bottom: 0.25rem;
+    font-size: 0.7rem;
+  }
+  .hover-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .hover-val {
+    font-weight: 700;
+    color: #fff;
+    margin-left: auto;
+  }
+  .hover-unit {
+    font-size: 0.65rem;
+    color: #94a3b8;
+  }
+  .hover-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .dot-power { background: #e2e8f0; }
+  .dot-hr    { background: #f87171; }
+  .dot-cad   { background: #22c55e; }
+
   .time-axis {
     position: relative;
     height: 18px;
     margin-top: 2px;
   }
-
   .time-mark {
     position: absolute;
     transform: translateX(-50%);
@@ -301,29 +503,50 @@
     flex-wrap: wrap;
     justify-content: center;
   }
-
-  .zone-badge {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-  }
-
+  .zone-badge { display: flex; align-items: center; gap: 0.4rem; }
   .zone-circle {
-    width: 28px;
-    height: 28px;
+    width: 28px; height: 28px;
     border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.65rem;
-    font-weight: 800;
-    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.65rem; font-weight: 800; color: #fff;
     flex-shrink: 0;
   }
+  .zone-badge-pct { font-size: 0.82rem; font-weight: 600; color: var(--muted); }
 
-  .zone-badge-pct {
-    font-size: 0.82rem;
-    font-weight: 600;
-    color: var(--muted);
+  /* Toggle bar */
+  .toggles {
+    display: flex;
+    gap: 0.4rem;
+    justify-content: flex-end;
+    margin-bottom: 0.7rem;
   }
+  .toggle-btn {
+    background: transparent;
+    border: 1px solid var(--border, #334155);
+    color: var(--muted, #94a3b8);
+    border-radius: 6px;
+    padding: 0.3rem 0.65rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    cursor: pointer;
+  }
+  .toggle-btn.on {
+    color: var(--text, #fff);
+    background: color-mix(in srgb, var(--text, #fff) 8%, transparent);
+    border-color: color-mix(in srgb, var(--text, #fff) 22%, transparent);
+  }
+  .toggle-btn .swatch {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    background: #475569;
+  }
+  .toggle-btn .swatch-target { width: 14px; height: 8px; border-radius: 2px; }
+  .toggle-btn.on .swatch-target { background: linear-gradient(90deg,#60a5fa 0 33%,#4ade80 33% 66%,#f87171 66% 100%); }
+  .toggle-btn.on .swatch-power  { background: #e2e8f0; }
+  .toggle-btn.on .swatch-hr     { background: #f87171; }
+  .toggle-btn.on .swatch-cad    { background: #22c55e; }
 </style>

@@ -62,7 +62,7 @@ function flattenToSeconds(blocks: WorkoutBlock[]): number[] {
   return out;
 }
 
-function classify(series: number[], if_: number): WorkoutType {
+export function classify(series: number[], if_: number): WorkoutType {
   const total = series.length;
   if (total === 0 || if_ < 0.55) return 'Recovery';
 

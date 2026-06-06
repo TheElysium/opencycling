@@ -1,7 +1,8 @@
 use crate::ble::{BleActorHandle, BleMetrics};
+use crate::db::DbActorHandle;
 use crate::errors::AppError;
 use crate::workout::ParsedWorkout;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 use tokio::sync::{mpsc, oneshot};
 
@@ -14,6 +15,8 @@ pub struct Session {
     pub current_block_idx: usize,
     pub current_block_elapsed_s: u32,
     pub last_target_w: Option<u16>,
+    pub last_cadence_rpm: Option<u16>,
+    pub last_power_w: Option<i16>,
     pub workout_name: Option<String>,
     pub workout_author: Option<String>,
     pub workout_description: Option<String>,
@@ -55,7 +58,7 @@ impl Session {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FlatBlock {
     pub duration_s: u32,
     pub power_start_w: u16,
@@ -66,7 +69,7 @@ pub struct FlatBlock {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum StateKind {
-    Started,
+    WaitingForRider,
     Running,
     Paused,
     Finished,
@@ -81,7 +84,7 @@ pub trait State: Send + 'static {
     fn skip(self: Box<Self>, session: &mut Session) -> Box<dyn State>;
 }
 
-pub struct StartedState;
+pub struct WaitingForRiderState;
 pub struct RunningState;
 pub struct PausedState;
 pub struct FinishedState;
@@ -115,6 +118,7 @@ pub struct SessionMetrics {
     pub cadence_rpm: Option<u16>,
     pub ftp_w: u16,
     pub blocks_total: u32,
+    pub session_id: Option<i64>,
 }
 
 #[derive(Serialize)]
@@ -137,4 +141,7 @@ pub struct SessionActor {
     pub last_power_w: Option<i16>,
     pub last_hr_bpm: Option<u16>,
     pub last_cadence_rpm: Option<u16>,
+    pub db_handle: DbActorHandle,
+    pub current_session_id: Option<i64>,
+    pub last_session_id: Option<i64>,
 }

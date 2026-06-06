@@ -1,4 +1,5 @@
 use crate::db::actor::DbActor;
+use crate::db::types::{Metric, SessionCard, SessionDetail};
 use crate::db::Settings;
 use crate::errors::AppError;
 use tokio::sync::mpsc::{channel, Sender};
@@ -12,15 +13,45 @@ pub enum DbCommand {
         reply: oneshot::Sender<Result<(), AppError>>,
         settings: Settings,
     },
+    InsertSession {
+        workout_name: String,
+        started_at: String,
+        ftp_w_used: u16,
+        flat_blocks_json: String,
+        reply: oneshot::Sender<Result<i64, AppError>>,
+    },
+    InsertMetric {
+        session_id: i64,
+        metric: Metric,
+    },
+    FinalizeSession {
+        session_id: i64,
+        ended_at: String,
+        duration_s: u32,
+    },
+    ListSessions {
+        reply: oneshot::Sender<Result<Vec<SessionCard>, AppError>>,
+    },
+    GetSession {
+        id: i64,
+        reply: oneshot::Sender<Result<SessionDetail, AppError>>,
+    },
+    DeleteSession {
+        id: i64,
+        reply: oneshot::Sender<Result<(), AppError>>,
+    },
 }
 
+#[derive(Clone)]
 pub struct DbActorHandle {
     sender: Sender<DbCommand>,
 }
 
 impl DbActorHandle {
     pub async fn spawn(db_path: String) -> Result<DbActorHandle, AppError> {
-        let (cmd_tx, cmd_rx) = channel::<DbCommand>(32);
+        // Sized for ~1 Hz metric writes + occasional UI reads; backpressure via
+        // send().await is preferred over silent try_send drops.
+        let (cmd_tx, cmd_rx) = channel::<DbCommand>(256);
         let db_actor = DbActor::new(cmd_rx, db_path)?;
         tokio::spawn(db_actor.run());
         Ok(DbActorHandle { sender: cmd_tx })
@@ -42,6 +73,78 @@ impl DbActorHandle {
                 reply: tx,
                 settings,
             })
+            .await
+            .map_err(|e| AppError::DbError(e.to_string()))?;
+        rx.await.map_err(|e| AppError::DbError(e.to_string()))?
+    }
+
+    pub async fn insert_session(
+        &self,
+        workout_name: String,
+        started_at: String,
+        ftp_w_used: u16,
+        flat_blocks_json: String,
+    ) -> Result<i64, AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::InsertSession {
+                workout_name,
+                started_at,
+                ftp_w_used,
+                flat_blocks_json,
+                reply: tx,
+            })
+            .await
+            .map_err(|e| AppError::DbError(e.to_string()))?;
+        rx.await.map_err(|e| AppError::DbError(e.to_string()))?
+    }
+
+    pub async fn insert_metric(&self, session_id: i64, metric: Metric) {
+        if let Err(e) = self
+            .sender
+            .send(DbCommand::InsertMetric { session_id, metric })
+            .await
+        {
+            tracing::error!("insert_metric send failed: {e}");
+        }
+    }
+
+    pub async fn finalize_session(&self, session_id: i64, ended_at: String, duration_s: u32) {
+        if let Err(e) = self
+            .sender
+            .send(DbCommand::FinalizeSession {
+                session_id,
+                ended_at,
+                duration_s,
+            })
+            .await
+        {
+            tracing::error!("finalize_session send failed: {e}");
+        }
+    }
+
+    pub async fn list_sessions(&self) -> Result<Vec<SessionCard>, AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::ListSessions { reply: tx })
+            .await
+            .map_err(|e| AppError::DbError(e.to_string()))?;
+        rx.await.map_err(|e| AppError::DbError(e.to_string()))?
+    }
+
+    pub async fn get_session(&self, id: i64) -> Result<SessionDetail, AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::GetSession { id, reply: tx })
+            .await
+            .map_err(|e| AppError::DbError(e.to_string()))?;
+        rx.await.map_err(|e| AppError::DbError(e.to_string()))?
+    }
+
+    pub async fn delete_session(&self, id: i64) -> Result<(), AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::DeleteSession { id, reply: tx })
             .await
             .map_err(|e| AppError::DbError(e.to_string()))?;
         rx.await.map_err(|e| AppError::DbError(e.to_string()))?

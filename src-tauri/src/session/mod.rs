@@ -4,4 +4,4 @@ mod state;
 mod types;
 
 pub use command::SessionActorHandle;
-pub use types::SessionSnapshot;
+pub use types::{FlatBlock, SessionSnapshot};

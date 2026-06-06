@@ -1,0 +1,601 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>History — preview</title>
+<style>
+  :root {
+    --bg:#f8f9fa; --surface:#ffffff; --surface-dark:#1e293b;
+    --border:#e2e8f0; --text:#1a202c; --muted:#718096;
+    --accent:#3b82f6; --danger:#ef4444; --success:#22c55e; --warning:#f59e0b;
+    --z1:#94a3b8; --z2:#60a5fa; --z3:#4ade80; --z4:#facc15; --z5:#fb923c; --z6:#f87171;
+  }
+  *,*::before,*::after { box-sizing:border-box; }
+  html { font-size:15px; }
+  body {
+    margin:0; background:var(--bg); color:var(--text);
+    font-family: system-ui, -apple-system, sans-serif; line-height:1.5;
+  }
+
+  /* faux app shell */
+  .shell { display:flex; min-height:100vh; }
+  .sidebar {
+    width:180px; background:var(--surface); border-right:1px solid var(--border);
+    padding:1rem; display:flex; flex-direction:column; gap:0.25rem;
+  }
+  .brand { font-weight:700; font-size:0.95rem; padding:0.5rem; margin-bottom:0.5rem; }
+  .nav-item {
+    padding:0.55rem 0.7rem; border-radius:6px; color:var(--muted);
+    font-size:0.88rem; cursor:default;
+  }
+  .nav-item.active { background:color-mix(in srgb, var(--accent) 12%, transparent); color:var(--accent); font-weight:600; }
+  .main { flex:1; padding:1.5rem 2rem; max-width:1400px; }
+
+  h1 { font-size:1.4rem; font-weight:600; margin:0 0 1.25rem; }
+  h2.list-section {
+    font-size:0.78rem; font-weight:700; letter-spacing:0.06em;
+    text-transform:uppercase; color:var(--muted);
+    margin:1.5rem 0 0.6rem; padding-bottom:0.4rem;
+    border-bottom:1px solid var(--border);
+    display:flex; justify-content:space-between; align-items:baseline;
+  }
+  h2.list-section .agg { font-size:0.72rem; font-weight:500; color:var(--muted); text-transform:none; letter-spacing:0; }
+
+  .session-list { display:flex; flex-direction:column; gap:0.6rem; }
+
+  .session-card {
+    display:grid;
+    grid-template-columns: 50px 1fr auto;
+    gap:1rem; align-items:center;
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:10px; padding:0.85rem 1.1rem;
+    cursor:pointer; transition:border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+    text-align:left; font:inherit; color:inherit; width:100%;
+  }
+  .session-card:hover {
+    border-color:var(--accent);
+    box-shadow:0 4px 12px rgba(0,0,0,0.06);
+    transform:translateY(-1px);
+  }
+  .day-block {
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:var(--bg); border-radius:8px; padding:0.4rem 0.3rem; min-width:50px;
+  }
+  .day-num { font-size:1.15rem; font-weight:700; line-height:1; }
+  .day-weekday { font-size:0.65rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; margin-top:0.15rem; }
+  .session-mid { min-width:0; }
+  .session-top { display:flex; align-items:center; gap:0.55rem; margin-bottom:0.3rem; flex-wrap:wrap; }
+  .type-badge {
+    display:inline-flex; align-items:center; gap:0.3rem;
+    font-size:0.65rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em;
+    border-radius:4px; padding:0.12rem 0.45rem;
+  }
+  .type-badge .dot { width:6px; height:6px; border-radius:50%; }
+  .badge-endurance { color:var(--z3); background:color-mix(in srgb, var(--z3) 15%, transparent); }
+  .badge-endurance .dot { background:var(--z3); }
+  .badge-tempo { color:var(--z4); background:color-mix(in srgb, var(--z4) 15%, transparent); }
+  .badge-tempo .dot { background:var(--z4); }
+  .badge-threshold { color:var(--z5); background:color-mix(in srgb, var(--z5) 15%, transparent); }
+  .badge-threshold .dot { background:var(--z5); }
+  .badge-recovery { color:var(--z1); background:color-mix(in srgb, var(--z1) 22%, transparent); }
+  .badge-recovery .dot { background:var(--z1); }
+  .session-name { font-weight:600; font-size:0.95rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .session-meta { display:flex; flex-wrap:wrap; gap:0.4rem; font-size:0.78rem; color:var(--muted); align-items:center; }
+  .session-meta .sep { opacity:0.5; }
+
+  .session-metrics { display:flex; gap:1.1rem; align-items:center; }
+  .metric { display:flex; flex-direction:column; align-items:flex-end; min-width:54px; }
+  .metric-top { display:flex; align-items:center; gap:0.3rem; }
+  .metric-top svg { color:var(--muted); }
+  .metric-val { font-weight:700; font-size:1rem; line-height:1.1; }
+  .metric-lbl { font-size:0.62rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); margin-top:0.15rem; }
+
+  /* legend / toggles on detail chart */
+  .chart-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:0.7rem; }
+  .chart-head h3 { margin:0; }
+  .toggles { display:flex; gap:0.4rem; }
+  .toggle-btn {
+    background:var(--bg); border:1px solid var(--border); color:var(--muted);
+    border-radius:6px; padding:0.3rem 0.65rem; font-size:0.72rem; font-weight:600;
+    display:inline-flex; align-items:center; gap:0.35rem; cursor:pointer;
+  }
+  .toggle-btn .swatch { width:8px; height:8px; border-radius:50%; }
+  .toggle-btn.on { color:var(--text); background:var(--surface); border-color:var(--text); }
+  .toggle-btn.on.target  .swatch { background:#94a3b8; }
+  .toggle-btn.on.power   .swatch { background:#3b82f6; }
+  .toggle-btn.on.hr      .swatch { background:#ef4444; }
+  .toggle-btn.on.cad     .swatch { background:#22c55e; }
+
+  /* Detail page — aligned with /workouts/detail DA */
+  .detail { max-width:1100px; }
+  .back-btn { background:none; border:none; color:var(--muted); padding:0; margin-bottom:0.5rem; cursor:pointer; display:inline-flex; }
+  .back-btn:hover { color:var(--text); }
+  .hero { margin-bottom:1.25rem; }
+  .hero h1 { font-size:2rem; font-weight:800; letter-spacing:-0.01em; margin:0 0 0.35rem; }
+  .hero .meta { font-size:0.9rem; color:var(--muted); margin:0 0 0.5rem; display:flex; gap:0.4rem; align-items:center; }
+  .hero .meta-sep { opacity:0.6; }
+
+  .metrics-strip {
+    display:grid; grid-template-columns:1.4fr 1.1fr 1.1fr 0.9fr 0.9fr; gap:0.6rem;
+    background:var(--surface); border:1px solid var(--border); border-radius:10px;
+    padding:1rem 1.2rem; margin-bottom:1.25rem;
+  }
+  .metric-tile {
+    display:flex; flex-direction:column; gap:0.25rem;
+    padding:0 0.75rem;
+    border-left:1px solid var(--border);
+  }
+  .metric-tile:first-child { border-left:none; padding-left:0; }
+  .metric-family { font-size:0.62rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); display:inline-flex; align-items:center; gap:0.4rem; }
+  .metric-family svg { color:var(--muted); }
+  .metric-primary { font-size:1.9rem; font-weight:800; line-height:1; font-variant-numeric:tabular-nums; color:var(--text); letter-spacing:-0.01em; }
+  .metric-primary .metric-unit { font-size:0.78rem; font-weight:600; color:var(--muted); margin-left:0.15rem; letter-spacing:0; }
+  .metric-secondary { font-size:0.78rem; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .metric-secondary strong { color:var(--text); font-weight:700; }
+
+  .btn-delete {
+    background:transparent; color:var(--danger);
+    border:1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+    border-radius:7px; padding:0.55rem 1.4rem; font-size:0.85rem; font-weight:600; cursor:pointer;
+  }
+  .btn-delete:hover { background:color-mix(in srgb, var(--danger) 10%, transparent); }
+  .danger-zone { display:flex; justify-content:flex-end; margin-top:2rem; padding-top:1.25rem; border-top:1px solid var(--border); }
+
+  .chart-section {
+    background:var(--surface-dark); border-radius:10px;
+    padding:1.25rem 1rem 1rem; margin-bottom:1.25rem;
+    color:#e2e8f0;
+  }
+  .section-title {
+    font-size:0.85rem; font-weight:600; color:var(--muted);
+    text-transform:uppercase; letter-spacing:0.06em;
+    margin:0 0 0.5rem;
+  }
+
+  .card {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:10px; padding:1rem 1.25rem;
+  }
+  .zone-card { margin-bottom:1.5rem; }
+  .zone-row { display:flex; height:22px; border-radius:5px; overflow:hidden; margin-bottom:0.85rem; }
+  .zone-seg { display:flex; align-items:center; justify-content:center; color:#fff; font-size:0.7rem; font-weight:600; }
+  .zone-badges { display:flex; gap:0.85rem; flex-wrap:wrap; justify-content:center; }
+  .zone-badge { display:flex; align-items:center; gap:0.4rem; }
+  .zone-circle {
+    width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-size:0.65rem; font-weight:800; color:#fff;
+  }
+  .zone-badge-pct { font-size:0.82rem; font-weight:600; color:var(--muted); }
+
+  .panel {
+    background:var(--surface); border:1px solid var(--border); border-radius:10px;
+    padding:1rem 1.2rem; margin-bottom:1.25rem;
+  }
+  .panel h3 { margin:0 0 0.7rem; font-size:0.78rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); }
+  .panel-dark { background:var(--surface-dark); border-color:#334155; color:#e2e8f0; padding:1.25rem 1.5rem 1rem; }
+  .toggle-btn.dark { background:transparent; border-color:#334155; color:#94a3b8; }
+  .toggle-btn.dark.on { color:#fff; background:#334155; border-color:#475569; }
+  .toggle-btn.dark.on.target .swatch { background:linear-gradient(90deg,#60a5fa 0 33%,#4ade80 33% 66%,#f87171 66% 100%); width:14px; height:8px; border-radius:2px; }
+  .toggle-btn.dark.on.power  .swatch { background:#e2e8f0; }
+  .toggle-btn.dark.on.hr     .swatch { background:#f87171; }
+  .toggle-btn.dark.on.cad    .swatch { background:#22c55e; }
+  .zone-legend-pills { display:flex; gap:0.6rem; justify-content:center; margin-top:0.8rem; flex-wrap:wrap; }
+  .zone-pill {
+    display:inline-flex; align-items:center; gap:0.45rem;
+    background:#334155; padding:0.25rem 0.6rem 0.25rem 0.25rem; border-radius:999px;
+    font-size:0.72rem; color:#cbd5e1; font-weight:600;
+  }
+  .zone-pill .zlab {
+    display:inline-flex; align-items:center; justify-content:center;
+    width:22px; height:22px; border-radius:50%; color:#0f172a; font-size:0.65rem; font-weight:800;
+  }
+
+  .power-chart { width:100%; height:200px; }
+
+  .zone-row { display:flex; height:22px; border-radius:5px; overflow:hidden; margin-bottom:0.5rem; }
+  .zone-seg { display:flex; align-items:center; justify-content:center; color:#fff; font-size:0.7rem; font-weight:600; }
+  .zone-legend { display:flex; gap:0.9rem; flex-wrap:wrap; font-size:0.72rem; color:var(--muted); }
+  .zone-legend .swatch { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:0.3rem; vertical-align:middle; }
+
+  .label { display:block; font-size:1.2rem; color:var(--muted); margin:2rem 0 0.5rem; letter-spacing:0.02em; }
+</style>
+</head>
+<body>
+
+<span class="label">/history — list view</span>
+
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">OpenCycling</div>
+    <div class="nav-item">Connection</div>
+    <div class="nav-item">Workouts</div>
+    <div class="nav-item active">History</div>
+    <div class="nav-item">Settings</div>
+  </aside>
+
+  <main class="main">
+    <h1>History <span style="font-size:0.8rem; color:var(--muted); font-weight:500;">28 sessions</span></h1>
+
+    <h2 class="list-section">
+      This week
+      <span class="agg">3 sessions · 2h 45min · 218 TSS</span>
+    </h2>
+    <div class="session-list">
+
+      <button class="session-card">
+        <div class="day-block">
+          <div class="day-num">06</div>
+          <div class="day-weekday">Fri</div>
+        </div>
+        <div class="session-mid">
+          <div class="session-top">
+            <span class="type-badge badge-threshold"><span class="dot"></span>Threshold</span>
+            <span class="session-name">SST (Short) — 60 min</span>
+          </div>
+          <div class="session-meta">
+            <span>07:42</span>
+            <span class="sep">·</span>
+            <span>1h 00min</span>
+            <span class="sep">·</span>
+            <span>92 TSS</span>
+          </div>
+        </div>
+        <div class="session-metrics">
+          <div class="metric"><div class="metric-top"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><span class="metric-val">213</span></div><div class="metric-lbl">Avg W</div></div>
+          <div class="metric"><div class="metric-top"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="metric-val">156</span></div><div class="metric-lbl">Avg HR</div></div>
+          <div class="metric"><div class="metric-top"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/><line x1="12" y1="3" x2="12" y2="6"/></svg><span class="metric-val">88</span></div><div class="metric-lbl">Avg rpm</div></div>
+        </div>
+      </button>
+
+      <button class="session-card">
+        <div class="day-block">
+          <div class="day-num">04</div>
+          <div class="day-weekday">Wed</div>
+        </div>
+        <div class="session-mid">
+          <div class="session-top">
+            <span class="type-badge badge-tempo"><span class="dot"></span>Tempo</span>
+            <span class="session-name">Tempo 3×12'</span>
+          </div>
+          <div class="session-meta">
+            <span>18:11</span>
+            <span class="sep">·</span>
+            <span>55 min</span>
+            <span class="sep">·</span>
+            <span>71 TSS</span>
+          </div>
+        </div>
+        <div class="session-metrics">
+          <div class="metric"><div class="metric-top"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><span class="metric-val">186</span></div><div class="metric-lbl">Avg W</div></div>
+          <div class="metric"><div class="metric-top"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="metric-val">148</span></div><div class="metric-lbl">Avg HR</div></div>
+          <div class="metric"><div class="metric-top"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/><line x1="12" y1="3" x2="12" y2="6"/></svg><span class="metric-val">92</span></div><div class="metric-lbl">Avg rpm</div></div>
+        </div>
+      </button>
+
+      <button class="session-card">
+        <div class="day-block">
+          <div class="day-num">02</div>
+          <div class="day-weekday">Mon</div>
+        </div>
+        <div class="session-mid">
+          <div class="session-top">
+            <span class="type-badge badge-recovery"><span class="dot"></span>Recovery</span>
+            <span class="session-name">Easy spin</span>
+          </div>
+          <div class="session-meta">
+            <span>07:20</span>
+            <span class="sep">·</span>
+            <span>50 min</span>
+            <span class="sep">·</span>
+            <span>55 TSS</span>
+          </div>
+        </div>
+        <div class="session-metrics">
+          <div class="metric"><div class="metric-top"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><span class="metric-val">132</span></div><div class="metric-lbl">Avg W</div></div>
+          <div class="metric"><div class="metric-top"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="metric-val">128</span></div><div class="metric-lbl">Avg HR</div></div>
+          <div class="metric"><div class="metric-top"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/><line x1="12" y1="3" x2="12" y2="6"/></svg><span class="metric-val">82</span></div><div class="metric-lbl">Avg rpm</div></div>
+        </div>
+      </button>
+    </div>
+
+    <h2 class="list-section">
+      Last week
+      <span class="agg">4 sessions · 4h 02min · 312 TSS</span>
+    </h2>
+    <div class="session-list">
+
+      <button class="session-card">
+        <div class="day-block">
+          <div class="day-num">30</div>
+          <div class="day-weekday">Sat</div>
+        </div>
+        <div class="session-mid">
+          <div class="session-top">
+            <span class="type-badge badge-endurance"><span class="dot"></span>Endurance</span>
+            <span class="session-name">Z2 Endurance — 90 min</span>
+          </div>
+          <div class="session-meta">
+            <span>09:05</span>
+            <span class="sep">·</span>
+            <span>1h 30min</span>
+            <span class="sep">·</span>
+            <span>105 TSS</span>
+          </div>
+        </div>
+        <div class="session-metrics">
+          <div class="metric"><div class="metric-top"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><span class="metric-val">168</span></div><div class="metric-lbl">Avg W</div></div>
+          <div class="metric"><div class="metric-top"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="metric-val">141</span></div><div class="metric-lbl">Avg HR</div></div>
+          <div class="metric"><div class="metric-top"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/><line x1="12" y1="3" x2="12" y2="6"/></svg><span class="metric-val">85</span></div><div class="metric-lbl">Avg rpm</div></div>
+        </div>
+      </button>
+
+      <button class="session-card">
+        <div class="day-block">
+          <div class="day-num">28</div>
+          <div class="day-weekday">Thu</div>
+        </div>
+        <div class="session-mid">
+          <div class="session-top">
+            <span class="type-badge badge-threshold"><span class="dot"></span>Threshold</span>
+            <span class="session-name">VO2 4×4'</span>
+          </div>
+          <div class="session-meta">
+            <span>18:30</span>
+            <span class="sep">·</span>
+            <span>52 min</span>
+            <span class="sep">·</span>
+            <span>78 TSS</span>
+          </div>
+        </div>
+        <div class="session-metrics">
+          <div class="metric"><div class="metric-top"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><span class="metric-val">221</span></div><div class="metric-lbl">Avg W</div></div>
+          <div class="metric"><div class="metric-top"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="metric-val">162</span></div><div class="metric-lbl">Avg HR</div></div>
+          <div class="metric"><div class="metric-top"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/><line x1="12" y1="3" x2="12" y2="6"/></svg><span class="metric-val">96</span></div><div class="metric-lbl">Avg rpm</div></div>
+        </div>
+      </button>
+    </div>
+
+    <h2 class="list-section">
+      May 2026
+      <span class="agg">12 sessions · 11h 24min · 850 TSS</span>
+    </h2>
+    <div class="session-list">
+      <button class="session-card">
+        <div class="day-block">
+          <div class="day-num">26</div>
+          <div class="day-weekday">Tue</div>
+        </div>
+        <div class="session-mid">
+          <div class="session-top">
+            <span class="type-badge badge-tempo"><span class="dot"></span>Tempo</span>
+            <span class="session-name">Sweet Spot 2×20'</span>
+          </div>
+          <div class="session-meta">
+            <span>07:48</span>
+            <span class="sep">·</span>
+            <span>1h 05min</span>
+            <span class="sep">·</span>
+            <span>88 TSS</span>
+          </div>
+        </div>
+        <div class="session-metrics">
+          <div class="metric"><div class="metric-top"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><span class="metric-val">198</span></div><div class="metric-lbl">Avg W</div></div>
+          <div class="metric"><div class="metric-top"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="metric-val">152</span></div><div class="metric-lbl">Avg HR</div></div>
+          <div class="metric"><div class="metric-top"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/><line x1="12" y1="3" x2="12" y2="6"/></svg><span class="metric-val">90</span></div><div class="metric-lbl">Avg rpm</div></div>
+        </div>
+      </button>
+    </div>
+  </main>
+</div>
+
+
+<span class="label">/history/[id] — detail view</span>
+
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">OpenCycling</div>
+    <div class="nav-item">Connection</div>
+    <div class="nav-item">Workouts</div>
+    <div class="nav-item active">History</div>
+    <div class="nav-item">Settings</div>
+  </aside>
+
+  <main class="main">
+    <div class="detail">
+    <button class="back-btn" aria-label="Back">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+    </button>
+
+    <header class="hero">
+      <span class="type-badge badge-threshold" style="margin-bottom:0.5rem;"><span class="dot"></span>Threshold</span>
+      <h1>SST (Short) — 60 min</h1>
+      <p class="meta">
+        <span>Friday 06 Jun 2026</span>
+        <span class="meta-sep">·</span>
+        <span>07:42</span>
+        <span class="meta-sep">·</span>
+        <span>1h 00min</span>
+      </p>
+    </header>
+
+    <div class="metrics-strip">
+      <div class="metric-tile">
+        <span class="metric-family"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Avg Power</span>
+        <span class="metric-primary">213<span class="metric-unit">W</span></span>
+        <span class="metric-secondary">Max <strong>298 W</strong></span>
+      </div>
+      <div class="metric-tile">
+        <span class="metric-family"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg>Avg Heart rate</span>
+        <span class="metric-primary">156<span class="metric-unit">bpm</span></span>
+        <span class="metric-secondary">Max <strong>178</strong></span>
+      </div>
+      <div class="metric-tile">
+        <span class="metric-family"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/><line x1="12" y1="3" x2="12" y2="6"/></svg>Avg Cadence</span>
+        <span class="metric-primary">88<span class="metric-unit">rpm</span></span>
+        <span class="metric-secondary">Max <strong>112</strong></span>
+      </div>
+      <div class="metric-tile">
+        <span class="metric-family"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>Stress</span>
+        <span class="metric-primary">92</span>
+        <span class="metric-secondary">TSS</span>
+      </div>
+      <div class="metric-tile">
+        <span class="metric-family"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>Intensity</span>
+        <span class="metric-primary">0.89</span>
+        <span class="metric-secondary">IF</span>
+      </div>
+    </div>
+
+    <div class="chart-section">
+      <div class="chart-head">
+        <div class="toggles">
+          <button class="toggle-btn dark on target" data-layer="target"><span class="swatch"></span>Workout</button>
+          <button class="toggle-btn dark on power"  data-layer="power"><span class="swatch"></span>Power</button>
+          <button class="toggle-btn dark on hr"     data-layer="hr"><span class="swatch"></span>HR</button>
+          <button class="toggle-btn dark cad"       data-layer="cad"><span class="swatch" style="background:#94a3b8"></span>Cadence</button>
+        </div>
+      </div>
+      <!-- Chart area: x in [60, 1180], y in [20, 260] ; total svg 1240x320 -->
+      <svg viewBox="0 0 1240 320" class="power-chart" style="height:340px; width:100%; display:block;" preserveAspectRatio="none">
+        <!-- Y axis labels (W left) -->
+        <g font-size="11" fill="#94a3b8" font-family="system-ui">
+          <text x="54" y="24"  text-anchor="end">300</text>
+          <text x="54" y="104" text-anchor="end">200</text>
+          <text x="54" y="184" text-anchor="end">100</text>
+          <text x="54" y="264" text-anchor="end">0</text>
+
+          <text x="1186" y="24"  text-anchor="start" fill="#f87171">200</text>
+          <text x="1186" y="104" text-anchor="start" fill="#f87171">160</text>
+          <text x="1186" y="184" text-anchor="start" fill="#f87171">120</text>
+          <text x="1186" y="264" text-anchor="start" fill="#f87171">80</text>
+
+          <text x="60"   y="292" text-anchor="middle">0:00</text>
+          <text x="284"  y="292" text-anchor="middle">15:00</text>
+          <text x="508"  y="292" text-anchor="middle">30:00</text>
+          <text x="732"  y="292" text-anchor="middle">45:00</text>
+          <text x="956"  y="292" text-anchor="middle">60:00</text>
+          <text x="1180" y="292" text-anchor="middle">75:00</text>
+
+          <text x="32" y="144" text-anchor="middle" transform="rotate(-90, 32, 144)" fill="#cbd5e1">Watts</text>
+          <text x="1216" y="144" text-anchor="middle" transform="rotate(90, 1216, 144)" fill="#f87171">bpm</text>
+        </g>
+
+        <!-- Gridlines -->
+        <g stroke="#334155" stroke-dasharray="2 3">
+          <line x1="60" x2="1180" y1="24"  y2="24"/>
+          <line x1="60" x2="1180" y1="104" y2="104"/>
+          <line x1="60" x2="1180" y1="184" y2="184"/>
+        </g>
+        <line x1="60" x2="1180" y1="264" y2="264" stroke="#64748b"/>
+
+        <!-- FTP line at 220W -> y = 264 - 220*(240/300) = 264 - 176 = 88 -->
+        <line x1="60" x2="1180" y1="88" y2="88" stroke="#cbd5e1" stroke-dasharray="4 3" stroke-width="1"/>
+        <text x="64" y="84" fill="#cbd5e1" font-size="11" font-family="system-ui" font-weight="600">FTP 220W</text>
+
+        <!-- Max power tag at right -->
+        <text x="1176" y="20" fill="#cbd5e1" font-size="11" font-family="system-ui" font-weight="600" text-anchor="end">Max 298W</text>
+
+        <defs>
+          <linearGradient id="powerFill" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stop-color="#e2e8f0" stop-opacity="0.55"/>
+            <stop offset="100%" stop-color="#e2e8f0" stop-opacity="0.05"/>
+          </linearGradient>
+        </defs>
+
+        <!-- WORKOUT TARGET BARS (muted, in background as a reference silhouette) -->
+        <g opacity="0.62" data-layer="target">
+          <path d="M60,200 L210,144 L210,264 L60,264 Z" fill="#60a5fa"/>
+          <rect x="210" y="88"  width="180" height="176" fill="#4ade80"/>
+          <rect x="390" y="184" width="45"  height="80"  fill="#94a3b8"/>
+          <rect x="435" y="88"  width="180" height="176" fill="#4ade80"/>
+          <rect x="615" y="184" width="45"  height="80"  fill="#94a3b8"/>
+          <rect x="660" y="40"  width="60"  height="224" fill="#f87171"/>
+          <rect x="720" y="184" width="40"  height="80"  fill="#94a3b8"/>
+          <rect x="760" y="40"  width="60"  height="224" fill="#f87171"/>
+          <rect x="820" y="184" width="40"  height="80"  fill="#94a3b8"/>
+          <rect x="860" y="40"  width="60"  height="224" fill="#f87171"/>
+          <rect x="920" y="184" width="40"  height="80"  fill="#94a3b8"/>
+          <rect x="960" y="40"  width="60"  height="224" fill="#f87171"/>
+          <path d="M1020,200 L1180,256 L1180,264 L1020,264 Z" fill="#60a5fa"/>
+        </g>
+
+        <!-- ACTUAL POWER as filled area + bright line on top -->
+        <g data-layer="power">
+          <path d="M60,210 L120,180 L210,148 L240,90 L320,88 L390,92 L390,186 L420,188 L435,184 L470,90 L540,86 L615,92 L615,186 L660,184 L660,42 L690,44 L720,180 L760,42 L790,46 L820,180 L860,42 L890,44 L920,180 L960,42 L990,46 L1020,196 L1100,228 L1180,256 L1180,264 L60,264 Z"
+                fill="url(#powerFill)"/>
+          <path d="M60,210 L120,180 L210,148 L240,90 L320,88 L390,92 L390,186 L420,188 L435,184 L470,90 L540,86 L615,92 L615,186 L660,184 L660,42 L690,44 L720,180 L760,42 L790,46 L820,180 L860,42 L890,44 L920,180 L960,42 L990,46 L1020,196 L1100,228 L1180,256"
+                fill="none" stroke="#ffffff" stroke-width="2"/>
+        </g>
+
+        <!-- HR curve (right axis) -->
+        <g data-layer="hr">
+          <path d="M60,250 L150,228 L260,170 L370,130 L480,108 L580,94 L680,70 L780,58 L880,52 L980,50 L1080,90 L1180,130"
+                fill="none" stroke="#f87171" stroke-width="1.8" opacity="0.95"/>
+        </g>
+
+        <!-- Cadence (hidden by default) - right axis range 60-120 rpm mapped same as bpm -->
+        <g data-layer="cad" style="display:none;">
+          <path d="M60,240 L150,200 L260,150 L370,120 L480,118 L580,116 L680,90 L780,86 L880,84 L980,82 L1080,110 L1180,150"
+                fill="none" stroke="#22c55e" stroke-width="1.6" opacity="0.9" stroke-dasharray="4 3"/>
+        </g>
+      </svg>
+    </div>
+
+    <h2 class="section-title">Power zones</h2>
+    <div class="card zone-card">
+      <div class="zone-row">
+        <div class="zone-seg" style="background:var(--z1); width:8%;">8%</div>
+        <div class="zone-seg" style="background:var(--z2); width:12%;">12%</div>
+        <div class="zone-seg" style="background:var(--z3); width:14%;">14%</div>
+        <div class="zone-seg" style="background:var(--z4); width:18%;">18%</div>
+        <div class="zone-seg" style="background:var(--z5); width:42%;">42%</div>
+        <div class="zone-seg" style="background:var(--z6); width:6%;">6%</div>
+      </div>
+      <div class="zone-badges">
+        <div class="zone-badge"><span class="zone-circle" style="background:var(--z1)">Z1</span><span class="zone-badge-pct">8%</span></div>
+        <div class="zone-badge"><span class="zone-circle" style="background:var(--z2)">Z2</span><span class="zone-badge-pct">12%</span></div>
+        <div class="zone-badge"><span class="zone-circle" style="background:var(--z3)">Z3</span><span class="zone-badge-pct">14%</span></div>
+        <div class="zone-badge"><span class="zone-circle" style="background:var(--z4)">Z4</span><span class="zone-badge-pct">18%</span></div>
+        <div class="zone-badge"><span class="zone-circle" style="background:var(--z5)">Z5</span><span class="zone-badge-pct">42%</span></div>
+        <div class="zone-badge"><span class="zone-circle" style="background:var(--z6)">Z6</span><span class="zone-badge-pct">6%</span></div>
+      </div>
+    </div>
+
+    <h2 class="section-title">Heart rate zones</h2>
+    <div class="card zone-card">
+      <div class="zone-row">
+        <div class="zone-seg" style="background:var(--z1); width:6%;">6%</div>
+        <div class="zone-seg" style="background:var(--z2); width:14%;">14%</div>
+        <div class="zone-seg" style="background:var(--z3); width:22%;">22%</div>
+        <div class="zone-seg" style="background:var(--z4); width:48%;">48%</div>
+        <div class="zone-seg" style="background:var(--z5); width:10%;">10%</div>
+      </div>
+      <div class="zone-badges">
+        <div class="zone-badge"><span class="zone-circle" style="background:var(--z1)">Z1</span><span class="zone-badge-pct">6%</span></div>
+        <div class="zone-badge"><span class="zone-circle" style="background:var(--z2)">Z2</span><span class="zone-badge-pct">14%</span></div>
+        <div class="zone-badge"><span class="zone-circle" style="background:var(--z3)">Z3</span><span class="zone-badge-pct">22%</span></div>
+        <div class="zone-badge"><span class="zone-circle" style="background:var(--z4)">Z4</span><span class="zone-badge-pct">48%</span></div>
+        <div class="zone-badge"><span class="zone-circle" style="background:var(--z5)">Z5</span><span class="zone-badge-pct">10%</span></div>
+      </div>
+    </div>
+
+    <div class="danger-zone">
+      <button class="btn-delete">Delete session</button>
+    </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  document.querySelectorAll('.toggle-btn[data-layer]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const layer = btn.dataset.layer;
+      const isOn = btn.classList.toggle('on');
+      document.querySelectorAll(`[data-layer="${layer}"]:not(.toggle-btn)`).forEach(el => {
+        el.style.display = isOn ? '' : 'none';
+      });
+    });
+  });
+</script>
+</body>
+</html>
