@@ -5,6 +5,7 @@
   import { Pause, Play, Square, ArrowLeft, ArrowRight, RotateCw, Heart } from '@lucide/svelte';
   import { confirm } from '@tauri-apps/plugin-dialog';
   import { session, type SessionMetrics } from '$lib/session.svelte';
+  import { beepShort, beepLong, beepLow } from '$lib/audio';
   import { toMessage } from '$lib/format';
   import { type SessionDetail } from '$lib/db';
   import { getSettings } from '$lib/settings';
@@ -33,6 +34,29 @@
   let isPaused   = $derived(m?.state === 'Paused');
   let isFinished = $derived(m?.state === 'Finished');
   let isActive   = $derived(m != null && !isFinished);
+
+  let prevState: SessionMetrics['state'] | null = null;
+  let prevBlockIdx: number | null = null;
+  let prevBlockRemaining: number | null = null;
+
+  $effect(() => {
+    if (!m) return;
+    const curBlock = session.flat_blocks[m.current_block_idx];
+    const remaining = curBlock ? curBlock.duration_s - m.current_block_elapsed_s : null;
+
+    if (prevState !== null && prevState !== 'Running' && m.state === 'Running') beepLow();
+    if (prevState !== null && prevState !== 'Finished' && m.state === 'Finished') beepLow();
+    if (m.state === 'Running' && prevBlockIdx !== null && prevBlockIdx !== m.current_block_idx) beepLong();
+    if (
+      m.state === 'Running' &&
+      remaining !== null && remaining >= 1 && remaining <= 3 &&
+      remaining !== prevBlockRemaining
+    ) beepShort();
+
+    prevState = m.state;
+    prevBlockIdx = m.current_block_idx;
+    prevBlockRemaining = remaining;
+  });
 
   $effect(() => {
     if (isFinished && m?.session_id != null && detail == null) {
