@@ -1,4 +1,4 @@
-use crate::ble::ftms::parse_indoor_bike_data;
+use crate::ble::ftms::{build_set_target_power_command, parse_indoor_bike_data};
 use crate::ble::hrs::parse_heart_rate_measurement;
 use crate::ble::types::DeviceKind::Trainer;
 use crate::ble::types::{
@@ -396,9 +396,7 @@ async fn send_erg(trainer: &platform::Peripheral, watts: i16) -> Result<(), AppE
             )
         })?;
 
-    let watts_le = watts.to_le_bytes();
-    let payload = [0x05, watts_le[0], watts_le[1]];
-
+    let payload = build_set_target_power_command(watts);
     trainer
         .write(&control_point, &payload, WriteType::WithResponse)
         .await
