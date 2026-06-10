@@ -1,7 +1,7 @@
 <h1 align="center">OpenCycling</h1>
 <!-- Screenshot: app overview / hero shot -->
 <p align="center">
-  <img src="docs/screenshots/hero.svg" alt="OpenCycling overview" width="800">
+  <img src="docs/screenshots/hero.svg" alt="OpenCycling overview">
 </p>
 A lightweight, open-source desktop application for **structured indoor cycling workouts in ERG mode**. OpenCycling connects to a smart trainer over Bluetooth, runs Zwift `.zwo` workouts by setting the target power automatically, and lets you review each session afterwards. Everything runs offline, with no account and no subscription.
 
@@ -42,30 +42,49 @@ OpenCycling speaks the standard BLE **FTMS** (trainers) and **HRS** (heart rate)
 
 <!-- Replace each placeholder below with a real capture in docs/screenshots/ -->
 
-**Connection**
-
+### Connection
 <!-- Screenshot: device connection page -->
-![Connection page](docs/screenshots/connection.png)
+<p align="center">
+  <img src="docs/screenshots/connection.png" alt="Connection page">
+</p>
 
-**Workout library and detail**
+### Workout library and detail
 
 <!-- Screenshot: workouts list + a workout detail with the block chart -->
-![Workouts](docs/screenshots/workouts.png)
+<p align="center">
+  <img src="docs/screenshots/workouts.png" alt="Workout library">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/workout-details.png" alt="Workout detail">
+</p>
+
+
 
 **Live session**
 
 <!-- Screenshot: active session view with tiles + timeline -->
-![Live session](docs/screenshots/session.png)
+<p align="center">
+  <img src="docs/screenshots/session.png" alt="Live session">
+</p>
 
 **Session summary / history**
 
 <!-- Screenshot: a past session detail with power graph + zone bars -->
-![Session detail](docs/screenshots/history.png)
+<p align="center">
+  <img src="docs/screenshots/history-list.png" alt="Sessions">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/history.png" alt="Session detail">
+</p>
 
 **Settings**
 
 <!-- Screenshot: settings page (workout folder, FTP, max HR) -->
-![Settings](docs/screenshots/settings.png)
+<p align="center">
+  <img src="docs/screenshots/settings.png" alt="Settings">
+</p>
 
 ## 🚀 Getting Started
 

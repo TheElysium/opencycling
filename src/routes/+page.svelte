@@ -103,9 +103,6 @@
   let bothNotFound = $derived(
     ble.trainerStatus === 'not_found' && ble.hrmStatus === 'not_found' && !scanning
   );
-  let showLiveMetrics = $derived(
-    ble.trainerStatus === 'connected' || ble.hrmStatus === 'connected'
-  );
   let anyConnected = $derived(
     ble.trainerStatus === 'connected' || ble.hrmStatus === 'connected'
   );
@@ -222,7 +219,7 @@
     </div>
   {/if}
 
-  {#if showLiveMetrics && ble.metrics}
+  {#if anyConnected && ble.metrics}
     <div class="metrics-card" transition:fade={{ duration: 200 }}>
       <div class="metric">
         <Activity size={14} class="metric-icon" />
