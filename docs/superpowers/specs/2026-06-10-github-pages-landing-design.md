@@ -116,6 +116,9 @@ surfaced. No action required, but keep the landing assets in a clear subfolder.
   multi-column feature/screenshot grids), mirroring the app's breakpoints where
   sensible.
 - All page copy in **English** (project docs convention).
+- **Source of truth for all factual copy = the code + `README.md`.** Do NOT use
+  `docs/prd.md` — it is outdated. Verify feature claims, supported `.zwo` blocks,
+  and device compatibility against the actual code and README before writing them.
 - No analytics, no external trackers, no web fonts that phone home (use system
   fonts) — consistent with the app's privacy/offline ethos.
 
