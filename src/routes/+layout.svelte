@@ -73,10 +73,15 @@
 <div class="shell" class:with-sidebar={showSidebar} class:fullscreen={!showSidebar}>
   {#if showSidebar}
     <nav class="sidebar">
-      <div class="logo">OpenCycling</div>
+      <div class="logo">
+        <img src="/logo-source.svg" alt="" class="logo-icon" />
+        <span>OpenCycling</span>
+      </div>
       <ul>
         {#each navItems as item}
-          {@const active = page.url.pathname === item.href}
+          {@const active = item.href === '/'
+            ? page.url.pathname === '/'
+            : page.url.pathname === item.href || page.url.pathname.startsWith(item.href + '/')}
           <li>
             <a href={item.href} class:active>
               <item.icon size={18} aria-hidden="true" />
@@ -121,12 +126,22 @@
   }
 
   .logo {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
     font-size: 0.85rem;
     font-weight: 700;
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--accent);
     padding: 0 1.25rem 1.5rem;
+  }
+
+  .logo-icon {
+    width: 22px;
+    height: 22px;
+    display: block;
+    flex-shrink: 0;
   }
 
   ul {

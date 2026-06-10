@@ -2,11 +2,11 @@
   import { invoke } from '@tauri-apps/api/core';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { Search, X } from '@lucide/svelte';
+  import { Search, X, ArrowUp, ArrowDown } from '@lucide/svelte';
   import WorkoutThumb from '$lib/components/WorkoutThumb.svelte';
   import { workoutSelection, flattenWorkout, type ParsedWorkout } from '$lib/workout.svelte';
   import { formatDuration, totalDuration, displayWorkoutName, toMessage } from '$lib/format';
-  import { computeWorkoutMetrics, workoutTypeColor } from '$lib/metrics';
+  import { computeWorkoutMetrics, workoutTypeColor, type WorkoutType } from '$lib/metrics';
   import { getSettings } from '$lib/settings';
 
   let workoutPath = $state('');
@@ -16,13 +16,69 @@
   let error       = $state<string | null>(null);
   let query       = $state('');
 
-  let filteredWorkouts = $derived(
-    query.trim()
-      ? workouts.filter(w =>
-          displayWorkoutName(w.name).toLowerCase().includes(query.trim().toLowerCase())
-        )
-      : workouts
+  type SortField = 'name' | 'zone' | 'duration';
+  let sortField = $state<SortField>('name');
+  let sortDir   = $state<'asc' | 'desc'>('asc');
+
+  const sortOptions: { field: SortField; label: string }[] = [
+    { field: 'name',     label: 'Name'     },
+    { field: 'zone',     label: 'Zone'     },
+    { field: 'duration', label: 'Duration' },
+  ];
+
+  // Zone order by ascending intensity — drives the "Zone" sort.
+  const ZONE_ORDER: Record<WorkoutType, number> = {
+    Recovery:     0,
+    Endurance:    1,
+    Tempo:        2,
+    'Sweet Spot': 3,
+    Threshold:    4,
+    VO2max:       5,
+    Anaerobic:    6,
+  };
+
+  function setSort(field: SortField) {
+    if (sortField === field) {
+      sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      sortField = field;
+      // Sensible default direction per field.
+      sortDir = field === 'name' ? 'asc' : 'desc';
+    }
+  }
+
+  // Precompute metrics and display name once so filtering, sorting, and the
+  // grid all share the same values instead of recomputing per render.
+  let decorated = $derived(
+    workouts.map(w => ({
+      w,
+      m: computeWorkoutMetrics(w.workout_blocks, ftp),
+      name: displayWorkoutName(w.name),
+    }))
   );
+
+  let filteredWorkouts = $derived.by(() => {
+    const q = query.trim().toLowerCase();
+    const list = q
+      ? decorated.filter(d => d.name.toLowerCase().includes(q))
+      : decorated.slice();
+
+    const dir = sortDir === 'asc' ? 1 : -1;
+    list.sort((a, b) => {
+      let cmp: number;
+      if (sortField === 'zone') {
+        cmp = ZONE_ORDER[a.m.type] - ZONE_ORDER[b.m.type];
+        // Tie-break within a zone by intensity for a stable, intuitive order.
+        if (cmp === 0) cmp = a.m.if_ - b.m.if_;
+      } else if (sortField === 'duration') {
+        cmp = a.m.duration_s - b.m.duration_s;
+      } else {
+        cmp = a.name.localeCompare(b.name);
+      }
+      return cmp * dir;
+    });
+    return list;
+  });
 
   onMount(async () => {
     try {
@@ -46,14 +102,35 @@
 </script>
 
 <div>
-  <div class="header">
-    <h1>
-      Workouts
-      {#if !loading && workouts.length > 0}
-        <span class="count">{filteredWorkouts.length}{#if query && filteredWorkouts.length !== workouts.length} / {workouts.length}{/if}</span>
-      {/if}
-    </h1>
+  <h1>
+    Workouts
     {#if !loading && workouts.length > 0}
+      <span class="count">{filteredWorkouts.length}{#if query && filteredWorkouts.length !== workouts.length} / {workouts.length}{/if}</span>
+    {/if}
+  </h1>
+
+  {#if !loading && workouts.length > 0}
+    <div class="toolbar">
+      <div class="sort">
+        <span class="sort-label">Sort</span>
+        {#each sortOptions as opt}
+          <button
+            class="sort-btn"
+            class:active={sortField === opt.field}
+            onclick={() => setSort(opt.field)}
+            aria-label="Sort by {opt.label}"
+          >
+            {opt.label}
+            {#if sortField === opt.field}
+              {#if sortDir === 'asc'}
+                <ArrowUp size={13} aria-hidden="true" />
+              {:else}
+                <ArrowDown size={13} aria-hidden="true" />
+              {/if}
+            {/if}
+          </button>
+        {/each}
+      </div>
       <div class="search">
         <Search size={14} aria-hidden="true" />
         <input
@@ -68,8 +145,8 @@
           </button>
         {/if}
       </div>
-    {/if}
-  </div>
+    </div>
+  {/if}
 
   {#if loading}
     <div class="workout-grid">
@@ -87,8 +164,7 @@
     <p class="muted">No workouts match "<strong>{query}</strong>".</p>
   {:else}
     <div class="workout-grid">
-      {#each filteredWorkouts as w}
-        {@const m = computeWorkoutMetrics(w.workout_blocks, ftp)}
+      {#each filteredWorkouts as { w, m, name }}
         <button class="workout-card" onclick={() => select(w)}>
           <div class="card-chart">
             <WorkoutThumb blocks={flattenWorkout(w.workout_blocks, ftp)} ftpWatts={ftp} />
@@ -99,7 +175,7 @@
                 <span class="type-dot"></span>{m.type}
               </span>
             {/if}
-            <span class="name">{displayWorkoutName(w.name)}</span>
+            <span class="name">{name}</span>
             <div class="card-meta">
               <span>{formatDuration(totalDuration(w.workout_blocks))}</span>
               {#if m.tss > 0}
@@ -117,19 +193,10 @@
 </div>
 
 <style>
-  .header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    margin-bottom: 1.25rem;
-    flex-wrap: wrap;
-  }
-
   h1 {
     font-size: 1.4rem;
     font-weight: 600;
-    margin: 0;
+    margin: 0 0 1.25rem;
     display: flex;
     align-items: baseline;
     gap: 0.5rem;
@@ -139,6 +206,58 @@
     font-size: 0.8rem;
     font-weight: 500;
     color: var(--muted);
+  }
+
+  .toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+  }
+
+  .sort {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.2rem;
+  }
+
+  .sort-label {
+    font-size: 0.75rem;
+    color: var(--muted);
+    padding: 0 0.4rem 0 0.35rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .sort-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    background: none;
+    border: none;
+    color: var(--muted);
+    font: inherit;
+    font-size: 0.82rem;
+    padding: 0.3rem 0.55rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+  }
+
+  .sort-btn:hover {
+    color: var(--text);
+    background: var(--bg);
+  }
+
+  .sort-btn.active {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
   }
 
   .search {
