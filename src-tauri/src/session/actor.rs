@@ -75,22 +75,33 @@ impl SessionActor {
                 self.last_cadence_rpm = None;
                 self.current_session_id = None;
                 self.last_session_id = None;
+                if let Some(s) = self.session.as_ref() {
+                    info!(
+                        workout = s.workout_name.as_deref().unwrap_or("Untitled"),
+                        ftp_w = s.ftp_w,
+                        blocks = s.blocks.len(),
+                        "session created, waiting for rider"
+                    );
+                }
                 let _ = reply.send(Ok(()));
                 self.emit_metrics();
             }
             SessionCommand::Pause => {
+                info!("pause requested");
                 if let Some(state) = self.state.take() {
                     self.state = Some(state.pause())
                 }
                 self.emit_metrics();
             }
             SessionCommand::Resume => {
+                info!("resume requested");
                 if let Some(state) = self.state.take() {
                     self.state = Some(state.resume())
                 }
                 self.emit_metrics();
             }
             SessionCommand::Stop => {
+                info!("stop requested");
                 if let Some(state) = self.state.take() {
                     self.state = Some(state.stop());
                 }
@@ -98,6 +109,7 @@ impl SessionActor {
                 self.emit_metrics();
             }
             SessionCommand::Skip => {
+                info!("skip requested");
                 if let (Some(state), Some(session)) = (self.state.take(), self.session.as_mut()) {
                     self.state = Some(state.skip(session))
                 }
@@ -119,11 +131,28 @@ impl SessionActor {
             return;
         };
 
+        let prev_kind = state.kind();
+        let prev_block_idx = session.current_block_idx;
+
         let new_state = state.tick(session);
         let kind = new_state.kind();
         let target_w = session.last_target_w;
+        let block_idx = session.current_block_idx;
 
         self.state = Some(new_state);
+
+        if kind != prev_kind {
+            info!(from = ?prev_kind, to = ?kind, "state transition");
+        }
+        if kind == StateKind::Running && block_idx != prev_block_idx {
+            let label = self
+                .session
+                .as_ref()
+                .and_then(|s| s.blocks.get(block_idx))
+                .map(|b| b.label.as_str())
+                .unwrap_or("");
+            info!(block_idx, label, target_w = ?target_w, "advanced to block");
+        }
 
         match kind {
             StateKind::WaitingForRider => {}
@@ -143,7 +172,10 @@ impl SessionActor {
                         .insert_session(workout_name, started_at, ftp_w_used, flat_blocks_json)
                         .await
                     {
-                        Ok(id) => self.current_session_id = Some(id),
+                        Ok(id) => {
+                            info!(session_id = id, "rider started, recording session");
+                            self.current_session_id = Some(id);
+                        }
                         Err(e) => tracing::error!("insert_session failed: {e}"),
                     }
                 }
@@ -226,9 +258,11 @@ impl SessionActor {
             return;
         };
         let ended_at = chrono::Utc::now().to_rfc3339();
+        let active_s = session.total_active_s;
         self.db_handle
-            .finalize_session(session_id, ended_at, session.total_active_s)
+            .finalize_session(session_id, ended_at, active_s)
             .await;
+        info!(session_id, active_s, "session finalized");
         self.last_session_id = Some(session_id);
     }
 }

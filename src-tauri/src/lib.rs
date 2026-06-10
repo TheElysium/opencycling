@@ -5,7 +5,8 @@ use crate::session::{SessionActorHandle, SessionSnapshot};
 use crate::workout::{list_workouts, parse_zwo, ParsedWorkout};
 use tauri::Manager;
 use tracing::metadata::LevelFilter;
-use tracing_subscriber::EnvFilter;
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::{fmt, EnvFilter};
 
 mod ble;
 pub mod db;
@@ -129,14 +130,6 @@ async fn delete_session(state: tauri::State<'_, DbActorHandle>, id: i64) -> Resu
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::builder()
-                .with_default_directive(LevelFilter::INFO.into())
-                .from_env_lossy(),
-        )
-        .init();
-
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -160,6 +153,22 @@ pub fn run() {
             delete_session
         ])
         .setup(|app| {
+            let log_dir = app.path().app_log_dir().expect("no app log dir");
+            std::fs::create_dir_all(&log_dir).expect("failed to create log dir");
+            let stamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
+            let file_appender =
+                tracing_appender::rolling::never(&log_dir, format!("opencycling_{stamp}.log"));
+            tracing_subscriber::registry()
+                .with(
+                    EnvFilter::builder()
+                        .with_default_directive(LevelFilter::INFO.into())
+                        .from_env_lossy(),
+                )
+                .with(fmt::layer())
+                .with(fmt::layer().with_ansi(false).with_writer(file_appender))
+                .init();
+            tracing::info!("logging to {}", log_dir.display());
+
             let (ble_metrics_tx, ble_metrics_rx) = tokio::sync::mpsc::channel::<BleMetrics>(8);
             let ble_handle = tauri::async_runtime::block_on(BleActorHandle::spawn(
                 app.handle().clone(),

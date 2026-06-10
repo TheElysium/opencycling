@@ -29,6 +29,7 @@ futures = "0.3.32"
 thiserror = "2.0.18"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
+tracing-appender = "0.2"
 roxmltree = "0.21"
 btleplug = "0.12.0"
 uuid = { version = "1.23.1", features = ["v4"] }
