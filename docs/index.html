@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenCycling — Structured ERG workouts for your smart trainer</title>
+  <link rel="icon" type="image/svg+xml" href="logo-source.svg">
+  <meta name="description" content="A lightweight, open-source desktop app that runs structured .zwo workouts in ERG mode. Fully offline, no account, no subscription.">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="OpenCycling — Structured ERG workouts. Your trainer, your data.">
+  <meta property="og:description" content="Run .zwo workouts in ERG mode over Bluetooth. Fully offline, open-source, no subscription.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://theelysium.github.io/opencycling/">
+
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f8f9fa;
+      --surface: #ffffff;
+      --surface-dark: #1e293b;
+      --border: #e2e8f0;
+      --text: #1a202c;
+      --muted: #718096;
+      --accent: #3b82f6;
+      --danger: #ef4444;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --z1: #94a3b8;
+      --z2: #60a5fa;
+      --z3: #4ade80;
+      --z4: #facc15;
+      --z5: #fb923c;
+      --z6: #f87171;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, sans-serif;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: inherit; text-decoration: none; }
+
+    :focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 0 1.5rem; }
+
+    /* ---- Buttons ---- */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      border-radius: 7px;
+      padding: 0.7rem 1.2rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.15s, background 0.15s;
+      font-family: inherit;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { opacity: 0.88; }
+    .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { background: var(--bg); }
+    .btn svg, .nav-cta svg { width: 1.5em; height: 1.5em; flex-shrink: 0; fill: currentColor; }
+    .btn img, .nav-cta img { width: 1.5em; height: 1.5em; flex-shrink: 0; }
+    .btn-primary img { filter: brightness(0) invert(1); }
+
+    /* ---- Nav ---- */
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: color-mix(in srgb, var(--bg) 85%, transparent);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+    }
+    .brand { display: flex; align-items: center; gap: 0.55rem; }
+    .brand .logo { width: 28px; height: 28px; border-radius: 6px; display: block; }
+    .brand .name {
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      color: var(--accent);
+      font-size: 1.05rem;
+    }
+    .nav-links { display: flex; align-items: center; gap: 1.6rem; }
+    .nav-links a { font-size: 0.9rem; color: var(--muted); }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 7px; padding: 0.4rem 0.8rem; color: var(--text) !important;
+      font-size: 0.85rem;
+    }
+    @media (max-width: 720px) { .nav-links a:not(.nav-cta) { display: none; } }
+
+    /* ---- Hero ---- */
+    .hero { padding: 5rem 0 4rem; }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1fr 0.85fr;
+      gap: 3rem;
+      align-items: center;
+    }
+    .pill {
+      display: inline-block;
+      background: color-mix(in srgb, var(--accent) 10%, transparent);
+      color: var(--accent);
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+      margin-bottom: 1.1rem;
+    }
+    .hero h1 {
+      font-size: 2.8rem;
+      line-height: 1.1;
+      font-weight: 800;
+      margin: 0 0 1rem;
+      letter-spacing: -0.01em;
+    }
+    .hero p.lead { font-size: 1.1rem; color: var(--muted); margin: 0 0 1.6rem; max-width: 30rem; }
+    .hero code {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.05rem 0.35rem;
+      font-size: 0.9em;
+    }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 0.7rem; }
+    .hero-note { margin-top: 0.9rem; font-size: 0.8rem; color: var(--muted); }
+
+    @media (max-width: 880px) {
+      .hero { padding: 3rem 0; }
+      .hero-grid { grid-template-columns: 1fr; gap: 2.5rem; }
+      .hero h1 { font-size: 2.2rem; }
+    }
+
+    /* ---- Workout card (mirrors the app) ---- */
+    .wcard {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+      box-shadow: 0 8px 30px -12px rgba(30, 41, 59, 0.18);
+    }
+    .wchart {
+      background: var(--surface-dark);
+      border-radius: 8px;
+      height: 150px;
+      display: flex;
+      align-items: flex-end;
+      gap: 3px;
+      padding: 12px;
+    }
+    .wchart > div { border-radius: 2px; }
+    .wbadge {
+      display: inline-block;
+      background: color-mix(in srgb, var(--success) 14%, transparent);
+      color: #16a34a;
+      font-size: 0.66rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+      margin-top: 0.85rem;
+    }
+    .wtitle { font-weight: 700; font-size: 0.95rem; margin-top: 0.55rem; }
+    .wmeta { font-size: 0.82rem; color: var(--muted); margin-top: 0.15rem; }
+
+    /* ---- Sections ---- */
+    section { padding: 3.5rem 0; }
+    .section-head { text-align: center; max-width: 38rem; margin: 0 auto 2.5rem; }
+    .section-head h2 { font-size: 1.9rem; font-weight: 800; margin: 0 0 0.6rem; letter-spacing: -0.01em; }
+    .section-head p { color: var(--muted); margin: 0; font-size: 1.02rem; }
+    .label {
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    /* ---- What it is ---- */
+    .pitch {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 2.5rem;
+      text-align: center;
+      max-width: 46rem;
+      margin: 0 auto;
+    }
+    .pitch h2 { font-size: 1.7rem; font-weight: 800; margin: 0.6rem 0 0.9rem; }
+    .pitch p { color: var(--muted); font-size: 1.05rem; margin: 0 0 1rem; }
+    .pitch .scope {
+      display: inline-block;
+      margin-top: 0.5rem;
+      font-size: 0.85rem;
+      color: var(--text);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 0.4rem 0.9rem;
+    }
+
+    /* ---- Features ---- */
+    .features { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.1rem; }
+    @media (max-width: 720px) { .features { grid-template-columns: 1fr; } }
+    .feature {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem;
+    }
+    .feature .icon {
+      width: 40px; height: 40px; border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem; margin-bottom: 0.9rem;
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+    }
+    .feature h3 { margin: 0 0 0.4rem; font-size: 1.1rem; }
+    .feature p { margin: 0; color: var(--muted); font-size: 0.92rem; }
+
+    /* ---- Screenshots ---- */
+    .shots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.1rem; }
+    @media (max-width: 880px) { .shots { grid-template-columns: 1fr; } }
+    .shot {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .shot img { width: 100%; display: block; }
+    .shot .ph {
+      aspect-ratio: 16 / 10;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--surface-dark);
+      color: #64748b; font-size: 0.85rem;
+    }
+    .shot .cap { padding: 0.7rem 1rem; font-size: 0.85rem; color: var(--muted); }
+
+    /* ---- Compatibility ---- */
+    .compat-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      font-size: 0.92rem;
+    }
+    .compat-table th, .compat-table td { padding: 0.8rem 1rem; text-align: left; border-bottom: 1px solid var(--border); }
+    .compat-table th { background: var(--bg); font-weight: 700; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+    .compat-table tr:last-child td { border-bottom: none; }
+    .compat-note {
+      margin-top: 1rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+      background: color-mix(in srgb, var(--warning) 8%, transparent);
+      border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+      border-radius: 8px;
+      padding: 0.7rem 1rem;
+    }
+    .ok { color: var(--success); font-weight: 700; }
+    .maybe { color: var(--muted); font-weight: 700; }
+
+    /* ---- Download ---- */
+    .download {
+      text-align: center;
+      background: var(--surface-dark);
+      border-radius: 16px;
+      padding: 3.5rem 2rem;
+      color: #fff;
+    }
+    .download h2 { font-size: 2rem; font-weight: 800; margin: 0 0 0.7rem; }
+    .download p { color: #cbd5e1; margin: 0 0 1.8rem; }
+    .download .hero-actions { justify-content: center; }
+    .download .btn-secondary { background: transparent; color: #fff; border-color: #475569; }
+    .download .btn-secondary:hover { background: rgba(255,255,255,0.06); }
+    .download .sub { margin-top: 1rem; font-size: 0.82rem; color: #94a3b8; }
+    .download .sub a { color: #93c5fd; }
+
+    /* ---- Footer ---- */
+    footer { border-top: 1px solid var(--border); padding: 2.5rem 0; }
+    .footer-inner { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+    .footer-inner .muted { color: var(--muted); font-size: 0.85rem; }
+    .footer-links { display: flex; gap: 1.3rem; font-size: 0.9rem; }
+    .footer-links a { color: var(--muted); }
+    .footer-links a:hover { color: var(--text); }
+  </style>
+</head>
+<body>
+
+  <!-- ====================== NAV ====================== -->
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <a href="#top" class="brand" aria-label="OpenCycling home">
+        <img class="logo" src="logo-source.svg" alt="" aria-hidden="true" width="28" height="28">
+        <span class="name">OPENCYCLING</span>
+      </a>
+      <nav class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#screenshots">Screenshots</a>
+        <a href="#compatibility">Compatibility</a>
+        <a class="nav-cta" href="https://github.com/TheElysium/opencycling" target="_blank" rel="noopener"><img src="icons/github.svg" alt="">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ====================== HERO ====================== -->
+  <a id="top"></a>
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <span class="pill">100% OFFLINE · OPEN-SOURCE</span>
+        <h1>Structured ERG workouts.<br>Your trainer, your data.</h1>
+        <p class="lead">
+          Connect your smart trainer over Bluetooth, run <code>.zwo</code>
+          workouts in ERG mode, and review every session. No account, no
+          subscription.
+        </p>
+        <div class="hero-actions">
+          <!-- Download: points to the latest release. Swap to the direct asset URL
+               once a release is published, e.g.
+               https://github.com/TheElysium/opencycling/releases/latest/download/opencycling_0.1.0_x64-setup.exe -->
+          <a class="btn btn-primary" href="https://github.com/TheElysium/opencycling/releases/latest" target="_blank" rel="noopener"><img src="icons/windows.svg" alt="">Download for Windows</a>
+          <a class="btn btn-primary" href="https://github.com/TheElysium/opencycling/releases/latest" target="_blank" rel="noopener"><img src="icons/tux.svg" alt="">Download for Linux</a>
+          <a class="btn btn-secondary" href="https://github.com/TheElysium/opencycling" target="_blank" rel="noopener"><img src="icons/github.svg" alt="">View on GitHub</a>
+        </div>
+        <p class="hero-note">Windows &amp; Linux desktop · free &amp; open-source (GPL v3)</p>
+      </div>
+
+      <!-- Workout card, rendered exactly like the app -->
+      <div class="wcard" aria-hidden="true">
+        <div class="wchart">
+          <!-- 3x10min tempo/sweet-spot: warmup ramp (rising wedge), 3 sustained
+               green blocks with short blue recoveries, cooldown ramp (falling wedge).
+               Ramps are sloped like the app, not flat gradients. -->
+          <div style="flex:1.4;height:80%;background:linear-gradient(to right,var(--z2),var(--z3));clip-path:polygon(0 55%,100% 0,100% 100%,0 100%)"></div>
+          <div style="flex:2.2;background:var(--z3);height:80%"></div>
+          <div style="flex:.55;background:var(--z2);height:40%"></div>
+          <div style="flex:2.2;background:var(--z3);height:80%"></div>
+          <div style="flex:.55;background:var(--z2);height:40%"></div>
+          <div style="flex:2.2;background:var(--z3);height:80%"></div>
+          <div style="flex:1.4;height:80%;background:linear-gradient(to right,var(--z3),var(--z2));clip-path:polygon(0 0,100% 55%,100% 100%,0 100%)"></div>
+        </div>
+        <span class="wbadge">● SWEET SPOT</span>
+        <div class="wtitle">Phase 1 — Tempo S1 (3x10min)</div>
+        <div class="wmeta">1h 5m · 57 TSS · 0.72 IF</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====================== WHAT IT IS ====================== -->
+  <section>
+    <div class="wrap">
+      <div class="pitch">
+        <span class="label">What it is</span>
+        <h2>Just your structured ERG sessions.</h2>
+        <p>
+          OpenCycling does one thing and does it well: it drives your smart
+          trainer's target power through a structured workout, samples every
+          second, and lets you review the result. No avatars, no virtual worlds,
+          no monthly fee — and everything stays on your machine.
+        </p>
+        <span class="scope">ERG mode only — no SIM / free-ride / manual resistance</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====================== FEATURES ====================== -->
+  <section id="features">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Everything you need for an ERG session</h2>
+        <p>And nothing you don't.</p>
+      </div>
+      <div class="features">
+        <div class="feature">
+          <div class="icon">📡</div>
+          <h3>Automatic BLE scanning</h3>
+          <p>Scans on launch with separate status for the trainer and the heart-rate monitor. The trainer is required to start; the HRM is optional.</p>
+        </div>
+        <div class="feature">
+          <div class="icon">📄</div>
+          <h3><code>.zwo</code> workouts</h3>
+          <p>Reads workouts from a folder you choose. Supports Warmup, SteadyState, IntervalsT and Cooldown blocks, with target watts computed from your FTP.</p>
+        </div>
+        <div class="feature">
+          <div class="icon">🎯</div>
+          <h3>ERG control per block</h3>
+          <p>Sends each block's target power every second and follows linear ramps for warmups and cooldowns. A keep-alive resends the target so the trainer never drops resistance.</p>
+        </div>
+        <div class="feature">
+          <div class="icon">📊</div>
+          <h3>Recording &amp; history</h3>
+          <p>Power, heart rate and cadence are stored every second in a local SQLite database. Browse past sessions and open any one for stats, a power graph and zone breakdowns.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====================== SCREENSHOTS ====================== -->
+  <section id="screenshots">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>A clean, focused desktop app</h2>
+        <p>Light, fast, and out of your way.</p>
+      </div>
+      <div class="shots">
+        <!-- Each <img> falls back to a dark placeholder if the PNG is missing. -->
+        <figure class="shot" style="margin:0">
+          <img src="screenshots/connection.png" alt="Device connection" onerror="this.outerHTML='&lt;div class=\'ph\'&gt;Connection&lt;/div&gt;'">
+          <figcaption class="cap">Connection</figcaption>
+        </figure>
+        <figure class="shot" style="margin:0">
+          <img src="screenshots/workouts.png" alt="Workout library" onerror="this.outerHTML='&lt;div class=\'ph\'&gt;Workout library&lt;/div&gt;'">
+          <figcaption class="cap">Workout library</figcaption>
+        </figure>
+        <figure class="shot" style="margin:0">
+          <img src="screenshots/workout-details.png" alt="Workout detail" onerror="this.outerHTML='&lt;div class=\'ph\'&gt;Workout detail&lt;/div&gt;'">
+          <figcaption class="cap">Workout detail</figcaption>
+        </figure>
+        <figure class="shot" style="margin:0">
+          <img src="screenshots/session.png" alt="Live session" onerror="this.outerHTML='&lt;div class=\'ph\'&gt;Live session&lt;/div&gt;'">
+          <figcaption class="cap">Live session</figcaption>
+        </figure>
+        <figure class="shot" style="margin:0">
+          <img src="screenshots/history-list.png" alt="Session history" onerror="this.outerHTML='&lt;div class=\'ph\'&gt;Session history&lt;/div&gt;'">
+          <figcaption class="cap">Session history</figcaption>
+        </figure>
+        <figure class="shot" style="margin:0">
+          <img src="screenshots/history.png" alt="Session detail" onerror="this.outerHTML='&lt;div class=\'ph\'&gt;Session detail&lt;/div&gt;'">
+          <figcaption class="cap">Session detail</figcaption>
+        </figure>
+        <figure class="shot" style="margin:0">
+          <img src="screenshots/settings.png" alt="Settings" onerror="this.outerHTML='&lt;div class=\'ph\'&gt;Settings&lt;/div&gt;'">
+          <figcaption class="cap">Settings</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====================== COMPATIBILITY ====================== -->
+  <section id="compatibility">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Works with standard BLE devices</h2>
+        <p>OpenCycling speaks standard FTMS (trainers) and HRS (heart rate), so any compliant device should work. Only the hardware below has been verified.</p>
+      </div>
+      <table class="compat-table">
+        <thead>
+          <tr><th>Device</th><th>Type</th><th>Protocol</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Decathlon D500</td><td>Smart trainer</td><td>FTMS (0x2AD2)</td><td><span class="ok">✓ Tested</span></td></tr>
+          <tr><td>Polar (H9 / H10 / OH1…)</td><td>Heart rate monitor</td><td>HRS (0x2A37)</td><td><span class="ok">✓ Tested</span></td></tr>
+          <tr><td>Other FTMS trainers</td><td>Smart trainer</td><td>FTMS (0x2AD2)</td><td><span class="maybe">○ Should work</span></td></tr>
+          <tr><td>Other HRS straps</td><td>Heart rate monitor</td><td>HRS (0x2A37)</td><td><span class="maybe">○ Should work</span></td></tr>
+        </tbody>
+      </table>
+      <p class="compat-note">
+        <strong>Requires FTMS Set Target Power.</strong> A trainer without it can't be
+        used (no free-ride / slope mode). A heart-rate monitor is optional.
+        Primary tested platform is <strong>Windows</strong>; devices are filtered by
+        name prefix (<code>D500</code> / <code>Polar</code>) because UUID filtering is
+        unreliable on Windows.
+      </p>
+    </div>
+  </section>
+
+  <!-- ====================== DOWNLOAD ====================== -->
+  <section>
+    <div class="wrap">
+      <div class="download">
+        <h2>Get started in minutes</h2>
+        <p>Download, set your <code>.zwo</code> folder and FTP, connect your trainer, and pedal.</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="https://github.com/TheElysium/opencycling/releases/latest" target="_blank" rel="noopener"><img src="icons/windows.svg" alt="">Download for Windows</a>
+          <a class="btn btn-primary" href="https://github.com/TheElysium/opencycling/releases/latest" target="_blank" rel="noopener"><img src="icons/tux.svg" alt="">Download for Linux</a>
+          <a class="btn btn-secondary" href="https://github.com/TheElysium/opencycling#-build--run" target="_blank" rel="noopener">Build from source</a>
+        </div>
+        <p class="sub">On macOS? Build it from source with <a href="https://github.com/TheElysium/opencycling#-build--run">pnpm tauri build</a>.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====================== FOOTER ====================== -->
+  <footer>
+    <div class="wrap footer-inner">
+      <div class="muted">© 2026 Luka Signe--Morice · GPL v3.0 or later</div>
+      <nav class="footer-links">
+        <a href="https://github.com/TheElysium/opencycling" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/TheElysium/opencycling/issues" target="_blank" rel="noopener">Report a bug</a>
+        <a href="https://github.com/TheElysium/opencycling/blob/main/LICENSE" target="_blank" rel="noopener">License</a>
+      </nav>
+    </div>
+  </footer>
+
+</body>
+</html>

@@ -1,17 +1,11 @@
-<p align="center">
-  <img src="static/logo-source.svg" alt="OpenCycling logo" width="160" height="160">
-</p>
-
 <h1 align="center">OpenCycling</h1>
-
-A lightweight, open-source desktop application for **structured indoor cycling workouts in ERG mode**. OpenCycling connects to a smart trainer over Bluetooth, runs Zwift `.zwo` workouts by setting the target power automatically, and lets you review each session afterwards. Everything runs offline, with no account and no subscription.
-
-OpenCycling is an open alternative to Indoor training applications (Zwift, TrainerRoad, ...) for cyclists who just want to run a structured ERG session and own their data.
-
 <!-- Screenshot: app overview / hero shot -->
 <p align="center">
-  <img src="docs/screenshots/hero.png" alt="OpenCycling overview" width="800">
+  <img src="docs/screenshots/hero.svg" alt="OpenCycling overview">
 </p>
+A lightweight, open-source desktop application for **structured indoor cycling workouts in ERG mode**. OpenCycling connects to a smart trainer over Bluetooth, runs `.zwo` workouts by setting the target power automatically, and lets you review each session afterwards. Everything runs offline, with no account and no subscription.
+
+OpenCycling is an open alternative to commercial indoor training applications for cyclists who just want to run a structured ERG session and own their data.
 
 ---
 
@@ -35,7 +29,7 @@ OpenCycling speaks the standard BLE **FTMS** (trainers) and **HRS** (heart rate)
 ## ✨ Features
 
 - **Automatic BLE scanning** on launch, with separate connection status for the trainer and the HRM. The trainer must be connected to start a session; the HRM is optional.
-- **Zwift workout support.** Reads `.zwo` files from a folder you configure. Supported blocks: `Warmup`, `SteadyState`, `IntervalsT`, and `Cooldown` (`FreeRide` blocks are skipped). Target watts are computed from each block's `%FTP` and your configured FTP.
+- **Structured workout support.** Reads `.zwo` files from a folder you configure. Supported blocks: `Warmup`, `SteadyState`, `IntervalsT`, and `Cooldown` (`FreeRide` blocks are skipped). Target watts are computed from each block's `%FTP` and your configured FTP.
 - **ERG control per block.** During a session the app sends the block's target power to the trainer every second. Steady blocks hold a constant target; warmup, cooldown, and ramp blocks follow a linear power progression from start to end watts. An ERG keep-alive resends the current target periodically so the trainer never drops resistance.
 - **Pedal-to-start.** No countdown: a session waits for the rider and begins automatically as soon as you start pedalling.
 - **Live session view.** Current block and its target, actual power, heart rate, cadence, elapsed and remaining time, a block-by-block timeline, and the full workout block list.
@@ -48,30 +42,49 @@ OpenCycling speaks the standard BLE **FTMS** (trainers) and **HRS** (heart rate)
 
 <!-- Replace each placeholder below with a real capture in docs/screenshots/ -->
 
-**Connection**
-
+### Connection
 <!-- Screenshot: device connection page -->
-![Connection page](docs/screenshots/connection.png)
+<p align="center">
+  <img src="docs/screenshots/connection.png" alt="Connection page">
+</p>
 
-**Workout library and detail**
+### Workout library and detail
 
 <!-- Screenshot: workouts list + a workout detail with the block chart -->
-![Workouts](docs/screenshots/workouts.png)
+<p align="center">
+  <img src="docs/screenshots/workouts.png" alt="Workout library">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/workout-details.png" alt="Workout detail">
+</p>
+
+
 
 **Live session**
 
 <!-- Screenshot: active session view with tiles + timeline -->
-![Live session](docs/screenshots/session.png)
+<p align="center">
+  <img src="docs/screenshots/session.png" alt="Live session">
+</p>
 
 **Session summary / history**
 
 <!-- Screenshot: a past session detail with power graph + zone bars -->
-![Session detail](docs/screenshots/history.png)
+<p align="center">
+  <img src="docs/screenshots/history-list.png" alt="Sessions">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/history.png" alt="Session detail">
+</p>
 
 **Settings**
 
 <!-- Screenshot: settings page (workout folder, FTP, max HR) -->
-![Settings](docs/screenshots/settings.png)
+<p align="center">
+  <img src="docs/screenshots/settings.png" alt="Settings">
+</p>
 
 ## 🚀 Getting Started
 
