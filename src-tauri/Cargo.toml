@@ -32,6 +32,6 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
 roxmltree = "0.21"
 btleplug = "0.12.0"
 uuid = { version = "1.23.1", features = ["v4"] }
-oneshot = "0.2.1"
 rusqlite = { version = "0.40.0", features = ["bundled"] }
 chrono = "0.4.44"
+tauri-plugin-updater = "2"

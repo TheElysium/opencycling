@@ -25,6 +25,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "icon": [
       "icons/32x32.png",
@@ -33,5 +34,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY3QkM5QkI1NDI1NDBBNDkKUldSSkNsUkN0WnU4WjdJbEVpMTlkSldZNWpRdzd6K00yZWNOV252c1RWdDZnUUh2WlZTUzl1QXEK\n",
+      "endpoints": [
+        "https://github.com/TheElysium/opencycling/releases/latest/download/latest.json"
+      ]
+    }
   }
 }
