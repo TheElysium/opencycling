@@ -4,11 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OpenCycling — Structured ERG workouts for your smart trainer</title>
-  <meta name="description" content="A lightweight, open-source desktop app that runs structured Zwift .zwo workouts in ERG mode. Fully offline, no account, no subscription.">
+  <link rel="icon" type="image/svg+xml" href="logo-source.svg">
+  <meta name="description" content="A lightweight, open-source desktop app that runs structured .zwo workouts in ERG mode. Fully offline, no account, no subscription.">
 
   <!-- Open Graph -->
   <meta property="og:title" content="OpenCycling — Structured ERG workouts. Your trainer, your data.">
-  <meta property="og:description" content="Run Zwift .zwo workouts in ERG mode over Bluetooth. Fully offline, open-source, no subscription.">
+  <meta property="og:description" content="Run .zwo workouts in ERG mode over Bluetooth. Fully offline, open-source, no subscription.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://theelysium.github.io/opencycling/">
 
@@ -72,6 +73,9 @@
     .btn-primary:hover { opacity: 0.88; }
     .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
     .btn-secondary:hover { background: var(--bg); }
+    .btn svg, .nav-cta svg { width: 1.5em; height: 1.5em; flex-shrink: 0; fill: currentColor; }
+    .btn img, .nav-cta img { width: 1.5em; height: 1.5em; flex-shrink: 0; }
+    .btn-primary img { filter: brightness(0) invert(1); }
 
     /* ---- Nav ---- */
     .nav {
@@ -310,27 +314,14 @@
   <header class="nav">
     <div class="wrap nav-inner">
       <a href="#top" class="brand" aria-label="OpenCycling home">
-        <svg class="logo" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <mask id="m0" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="25" y="7" width="25" height="93"><path d="M25 7.85H50V100H25V7.85Z" fill="#fff"/></mask>
-          <g mask="url(#m0)"><path d="M0 34.9L12.5 22.9L28 25.2L51.5 7.5L70.5 11L84 0.1L100 6.4V100H0V34.9Z" fill="#4ADE80"/></g>
-          <mask id="m1" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="0" y="22" width="25" height="78"><path d="M0 32.5C0 27 4.5 22.5 10 22.5H25V100H5C2.2 100 0 97.8 0 95V32.5Z" fill="#fff"/></mask>
-          <g mask="url(#m1)"><path d="M0 34.9L12.5 22.9L28 25.2L51.5 7.5L70.5 11L84 0.1L100 6.4V100H0V34.9Z" fill="#60A5FA"/></g>
-          <mask id="m2" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="75" y="0" width="25" height="100"><path d="M75 0H90C95.5 0 100 4.5 100 10V95C100 97.8 97.8 100 95 100H75L75 0Z" fill="#fff"/></mask>
-          <g mask="url(#m2)"><path d="M0 34.9L12.5 22.9L28 25.2L51.5 7.5L70.5 11L84 0.1L100 6.4V100H0V34.9Z" fill="#F87171"/></g>
-          <mask id="m3" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="50" y="3" width="25" height="97"><path d="M50 3.14H75V100H50V3.14Z" fill="#fff"/></mask>
-          <g mask="url(#m3)"><path d="M0 34.9L12.5 22.9L28 25.2L51.5 7.5L70.5 11L84 0.1L100 6.4V100H0V34.9Z" fill="#FACC15"/></g>
-          <path d="M52 40.5c2.2 0 4.4 1 5.8 2.7 1.5 1.7 3.7 2.7 6.1 2.7s4.6-1 6.1-2.7c1.5-1.7 2-3.7 1.7-5.9-.5-3.4-4.1-6.1-8.5-5.9-4.1.2-8 1.7-11 4.4l-1.7 1.7c-.5.5-.7 1.2-.2 1.9.2.7 1 1 1.7 1Z" fill="#1E293B"/>
-          <path d="M53.7 68.6 44.6 63l11.2-9.7 4.6 4.6c.5.5 1 .7 1.7.7h12.2c1.5 0 2.4-1 2.4-2.4s-1-2.4-2.4-2.4H63.2L56.1 46.6c-3.4-3.4-8.8-3.6-12.4-.5L35.1 53.5c-1.5 1-2.2 2.9-2 4.9.3 2 1.3 3.7 3 4.9l13.7 8.5-4.4 12.9c-.5 1.2.2 2.7 1.4 3.2.2 0 .5.2.7.2 1 0 2-.7 2.2-1.7l4.9-14.6c.5-1.5 0-2.7-1-3.2Z" fill="#1E293B"/>
-          <path d="M25.6 65.6C17.6 65.6 11 72.2 11 80.3s6.6 14.6 14.6 14.6 14.6-6.6 14.6-14.6-6.6-14.7-14.6-14.7Z" fill="#1E293B"/>
-          <path d="M74.4 65.6c-8 0-14.6 6.6-14.6 14.7s6.6 14.6 14.6 14.6S89 88.3 89 80.3s-6.6-14.7-14.6-14.7Z" fill="#1E293B"/>
-        </svg>
+        <img class="logo" src="logo-source.svg" alt="" aria-hidden="true" width="28" height="28">
         <span class="name">OPENCYCLING</span>
       </a>
       <nav class="nav-links">
         <a href="#features">Features</a>
         <a href="#screenshots">Screenshots</a>
         <a href="#compatibility">Compatibility</a>
-        <a class="nav-cta" href="https://github.com/TheElysium/opencycling" target="_blank" rel="noopener">★ GitHub</a>
+        <a class="nav-cta" href="https://github.com/TheElysium/opencycling" target="_blank" rel="noopener"><img src="icons/github.svg" alt="">GitHub</a>
       </nav>
     </div>
   </header>
@@ -343,7 +334,7 @@
         <span class="pill">100% OFFLINE · OPEN-SOURCE</span>
         <h1>Structured ERG workouts.<br>Your trainer, your data.</h1>
         <p class="lead">
-          Connect your smart trainer over Bluetooth, run Zwift <code>.zwo</code>
+          Connect your smart trainer over Bluetooth, run <code>.zwo</code>
           workouts in ERG mode, and review every session. No account, no
           subscription.
         </p>
@@ -351,23 +342,26 @@
           <!-- Download: points to the latest release. Swap to the direct asset URL
                once a release is published, e.g.
                https://github.com/TheElysium/opencycling/releases/latest/download/opencycling_0.1.0_x64-setup.exe -->
-          <a class="btn btn-primary" href="https://github.com/TheElysium/opencycling/releases/latest" target="_blank" rel="noopener">↓ Download for Windows</a>
-          <a class="btn btn-secondary" href="https://github.com/TheElysium/opencycling" target="_blank" rel="noopener">View on GitHub</a>
+          <a class="btn btn-primary" href="https://github.com/TheElysium/opencycling/releases/latest" target="_blank" rel="noopener"><img src="icons/windows.svg" alt="">Download for Windows</a>
+          <a class="btn btn-primary" href="https://github.com/TheElysium/opencycling/releases/latest" target="_blank" rel="noopener"><img src="icons/tux.svg" alt="">Download for Linux</a>
+          <a class="btn btn-secondary" href="https://github.com/TheElysium/opencycling" target="_blank" rel="noopener"><img src="icons/github.svg" alt="">View on GitHub</a>
         </div>
-        <p class="hero-note">Windows desktop · free &amp; open-source (GPL v3)</p>
+        <p class="hero-note">Windows &amp; Linux desktop · free &amp; open-source (GPL v3)</p>
       </div>
 
       <!-- Workout card, rendered exactly like the app -->
       <div class="wcard" aria-hidden="true">
         <div class="wchart">
-          <div style="flex:2;background:linear-gradient(90deg,var(--z2),var(--z3));height:55%"></div>
-          <div style="flex:1;background:var(--z3);height:78%"></div>
-          <div style="flex:1;background:var(--z1);height:45%"></div>
-          <div style="flex:1;background:var(--z3);height:78%"></div>
-          <div style="flex:1;background:var(--z1);height:45%"></div>
-          <div style="flex:.45;background:var(--z6);height:95%"></div>
-          <div style="flex:.45;background:var(--z6);height:95%"></div>
-          <div style="flex:2;background:linear-gradient(90deg,var(--z3),var(--z2));height:50%"></div>
+          <!-- 3x10min tempo/sweet-spot: warmup ramp (rising wedge), 3 sustained
+               green blocks with short blue recoveries, cooldown ramp (falling wedge).
+               Ramps are sloped like the app, not flat gradients. -->
+          <div style="flex:1.4;height:80%;background:linear-gradient(to right,var(--z2),var(--z3));clip-path:polygon(0 55%,100% 0,100% 100%,0 100%)"></div>
+          <div style="flex:2.2;background:var(--z3);height:80%"></div>
+          <div style="flex:.55;background:var(--z2);height:40%"></div>
+          <div style="flex:2.2;background:var(--z3);height:80%"></div>
+          <div style="flex:.55;background:var(--z2);height:40%"></div>
+          <div style="flex:2.2;background:var(--z3);height:80%"></div>
+          <div style="flex:1.4;height:80%;background:linear-gradient(to right,var(--z3),var(--z2));clip-path:polygon(0 0,100% 55%,100% 100%,0 100%)"></div>
         </div>
         <span class="wbadge">● SWEET SPOT</span>
         <div class="wtitle">Phase 1 — Tempo S1 (3x10min)</div>
@@ -408,7 +402,7 @@
         </div>
         <div class="feature">
           <div class="icon">📄</div>
-          <h3>Zwift <code>.zwo</code> workouts</h3>
+          <h3><code>.zwo</code> workouts</h3>
           <p>Reads workouts from a folder you choose. Supports Warmup, SteadyState, IntervalsT and Cooldown blocks, with target watts computed from your FTP.</p>
         </div>
         <div class="feature">
@@ -433,19 +427,34 @@
         <p>Light, fast, and out of your way.</p>
       </div>
       <div class="shots">
-        <!-- Each <img> upgrades automatically once the PNG is added to docs/screenshots/.
-             Until then the dark placeholder is shown. -->
+        <!-- Each <img> falls back to a dark placeholder if the PNG is missing. -->
         <figure class="shot" style="margin:0">
-          <img src="screenshots/workout-details.png" alt="Workout library" onerror="this.outerHTML='&lt;div class=\'ph\'&gt;Workout library&lt;/div&gt;'">
+          <img src="screenshots/connection.png" alt="Device connection" onerror="this.outerHTML='&lt;div class=\'ph\'&gt;Connection&lt;/div&gt;'">
+          <figcaption class="cap">Connection</figcaption>
+        </figure>
+        <figure class="shot" style="margin:0">
+          <img src="screenshots/workouts.png" alt="Workout library" onerror="this.outerHTML='&lt;div class=\'ph\'&gt;Workout library&lt;/div&gt;'">
           <figcaption class="cap">Workout library</figcaption>
+        </figure>
+        <figure class="shot" style="margin:0">
+          <img src="screenshots/workout-details.png" alt="Workout detail" onerror="this.outerHTML='&lt;div class=\'ph\'&gt;Workout detail&lt;/div&gt;'">
+          <figcaption class="cap">Workout detail</figcaption>
         </figure>
         <figure class="shot" style="margin:0">
           <img src="screenshots/session.png" alt="Live session" onerror="this.outerHTML='&lt;div class=\'ph\'&gt;Live session&lt;/div&gt;'">
           <figcaption class="cap">Live session</figcaption>
         </figure>
         <figure class="shot" style="margin:0">
-          <img src="screenshots/history.png" alt="Session history &amp; detail" onerror="this.outerHTML='&lt;div class=\'ph\'&gt;Session detail&lt;/div&gt;'">
+          <img src="screenshots/history-list.png" alt="Session history" onerror="this.outerHTML='&lt;div class=\'ph\'&gt;Session history&lt;/div&gt;'">
+          <figcaption class="cap">Session history</figcaption>
+        </figure>
+        <figure class="shot" style="margin:0">
+          <img src="screenshots/history.png" alt="Session detail" onerror="this.outerHTML='&lt;div class=\'ph\'&gt;Session detail&lt;/div&gt;'">
           <figcaption class="cap">Session detail</figcaption>
+        </figure>
+        <figure class="shot" style="margin:0">
+          <img src="screenshots/settings.png" alt="Settings" onerror="this.outerHTML='&lt;div class=\'ph\'&gt;Settings&lt;/div&gt;'">
+          <figcaption class="cap">Settings</figcaption>
         </figure>
       </div>
     </div>
@@ -486,10 +495,11 @@
         <h2>Get started in minutes</h2>
         <p>Download, set your <code>.zwo</code> folder and FTP, connect your trainer, and pedal.</p>
         <div class="hero-actions">
-          <a class="btn btn-primary" href="https://github.com/TheElysium/opencycling/releases/latest" target="_blank" rel="noopener">↓ Download for Windows</a>
+          <a class="btn btn-primary" href="https://github.com/TheElysium/opencycling/releases/latest" target="_blank" rel="noopener"><img src="icons/windows.svg" alt="">Download for Windows</a>
+          <a class="btn btn-primary" href="https://github.com/TheElysium/opencycling/releases/latest" target="_blank" rel="noopener"><img src="icons/tux.svg" alt="">Download for Linux</a>
           <a class="btn btn-secondary" href="https://github.com/TheElysium/opencycling#-build--run" target="_blank" rel="noopener">Build from source</a>
         </div>
-        <p class="sub">On macOS or Linux? Build it from source with <a href="https://github.com/TheElysium/opencycling#-build--run">pnpm tauri build</a>.</p>
+        <p class="sub">On macOS? Build it from source with <a href="https://github.com/TheElysium/opencycling#-build--run">pnpm tauri build</a>.</p>
       </div>
     </div>
   </section>

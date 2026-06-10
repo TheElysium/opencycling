@@ -3,9 +3,9 @@
 <p align="center">
   <img src="docs/screenshots/hero.svg" alt="OpenCycling overview">
 </p>
-A lightweight, open-source desktop application for **structured indoor cycling workouts in ERG mode**. OpenCycling connects to a smart trainer over Bluetooth, runs Zwift `.zwo` workouts by setting the target power automatically, and lets you review each session afterwards. Everything runs offline, with no account and no subscription.
+A lightweight, open-source desktop application for **structured indoor cycling workouts in ERG mode**. OpenCycling connects to a smart trainer over Bluetooth, runs `.zwo` workouts by setting the target power automatically, and lets you review each session afterwards. Everything runs offline, with no account and no subscription.
 
-OpenCycling is an open alternative to Indoor training applications (Zwift, TrainerRoad, ...) for cyclists who just want to run a structured ERG session and own their data.
+OpenCycling is an open alternative to commercial indoor training applications for cyclists who just want to run a structured ERG session and own their data.
 
 ---
 
@@ -29,7 +29,7 @@ OpenCycling speaks the standard BLE **FTMS** (trainers) and **HRS** (heart rate)
 ## ✨ Features
 
 - **Automatic BLE scanning** on launch, with separate connection status for the trainer and the HRM. The trainer must be connected to start a session; the HRM is optional.
-- **Zwift workout support.** Reads `.zwo` files from a folder you configure. Supported blocks: `Warmup`, `SteadyState`, `IntervalsT`, and `Cooldown` (`FreeRide` blocks are skipped). Target watts are computed from each block's `%FTP` and your configured FTP.
+- **Structured workout support.** Reads `.zwo` files from a folder you configure. Supported blocks: `Warmup`, `SteadyState`, `IntervalsT`, and `Cooldown` (`FreeRide` blocks are skipped). Target watts are computed from each block's `%FTP` and your configured FTP.
 - **ERG control per block.** During a session the app sends the block's target power to the trainer every second. Steady blocks hold a constant target; warmup, cooldown, and ramp blocks follow a linear power progression from start to end watts. An ERG keep-alive resends the current target periodically so the trainer never drops resistance.
 - **Pedal-to-start.** No countdown: a session waits for the rider and begins automatically as soon as you start pedalling.
 - **Live session view.** Current block and its target, actual power, heart rate, cadence, elapsed and remaining time, a block-by-block timeline, and the full workout block list.
