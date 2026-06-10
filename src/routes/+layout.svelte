@@ -74,7 +74,7 @@
   {#if showSidebar}
     <nav class="sidebar">
       <div class="logo">
-        <img src="/logo-source.svg" alt="" class="logo-icon" />
+        <img src="/logo-source.svg" alt="" class="logo-icon" width="22" height="22" />
         <span>OpenCycling</span>
       </div>
       <ul>
