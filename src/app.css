@@ -1,4 +1,8 @@
 :root {
+  /* App is light-only; pin the scheme so the OS dark mode doesn't invert
+     native UI (text caret, scrollbars, form controls) into white/dark. */
+  color-scheme: light;
+
   --bg:      #f8f9fa;
   --surface: #ffffff;
   --surface-dark: #1e293b;

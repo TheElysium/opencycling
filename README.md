@@ -1,4 +1,8 @@
-# OpenCycling
+<p align="center">
+  <img src="static/logo-source.svg" alt="OpenCycling logo" width="160" height="160">
+</p>
+
+<h1 align="center">OpenCycling</h1>
 
 A lightweight, open-source desktop application for **structured indoor cycling workouts in ERG mode**. OpenCycling connects to a smart trainer over Bluetooth, runs Zwift `.zwo` workouts by setting the target power automatically, and lets you review each session afterwards. Everything runs offline, with no account and no subscription.
 
@@ -11,24 +15,24 @@ OpenCycling is an open alternative to Indoor training applications (Zwift, Train
 
 ---
 
-# For Users
+# 🚴 For Users
 
-## Compatibility
+## 🔌 Compatibility
 
 OpenCycling speaks the standard BLE **FTMS** (trainers) and **HRS** (heart rate) protocols, so it should work with any compliant device. In practice, only the hardware below has been verified.
 
 | Device | Type | Protocol | Status |
 |---|---|---|---|
-| Decathlon D500 | Smart trainer | FTMS (0x2AD2) | Tested, reference device |
-| Polar (H9 / H10 / OH1...) | Heart rate monitor | HRS (0x2A37) | Tested |
-| Other FTMS trainers | Smart trainer | FTMS (0x2AD2) | Should work, untested |
-| Other HRS straps | Heart rate monitor | HRS (0x2A37) | Should work, untested |
+| Decathlon D500 | Smart trainer | FTMS (0x2AD2) | ✅ Tested, reference device |
+| Polar (H9 / H10 / OH1...) | Heart rate monitor | HRS (0x2A37) | ✅ Tested |
+| Other FTMS trainers | Smart trainer | FTMS (0x2AD2) | ⚪ Should work, untested |
+| Other HRS straps | Heart rate monitor | HRS (0x2A37) | ⚪ Should work, untested |
 
 > **ERG mode only.** OpenCycling drives the trainer's target power and runs structured `.zwo` workouts. There is no free-ride / SIM (slope) mode and no manual resistance control. A trainer that does not support FTMS Set Target Power cannot be used. A heart rate monitor is optional.
 
 **Platform:** the primary development and testing target is **Windows**. On Windows WinRT, BLE filtering by service UUID is unreliable, so devices are filtered by name prefix (`"D500"` for the trainer, `"Polar"` for the HRM). Non-Polar straps or non-D500 trainers may need the prefix filters adjusted in the code.
 
-## Features
+## ✨ Features
 
 - **Automatic BLE scanning** on launch, with separate connection status for the trainer and the HRM. The trainer must be connected to start a session; the HRM is optional.
 - **Zwift workout support.** Reads `.zwo` files from a folder you configure. Supported blocks: `Warmup`, `SteadyState`, `IntervalsT`, and `Cooldown` (`FreeRide` blocks are skipped). Target watts are computed from each block's `%FTP` and your configured FTP.
@@ -40,7 +44,7 @@ OpenCycling speaks the standard BLE **FTMS** (trainers) and **HRS** (heart rate)
 - **Automatic recording.** Power, heart rate, and cadence are sampled every second and stored in a local SQLite database, so a session is kept even if it ends early.
 - **Session summary and history.** Browse past sessions as cards (date, duration, averages, intensity badge) and open any one for a detail view with summary stats, a power-over-time graph, the workout blocks, and zone breakdowns. Power uses six zones (Recovery, Endurance, Tempo, Threshold, VO2max, Anaerobic) based on your FTP; heart rate zones use your configured max HR.
 
-## Screenshots
+## 📸 Screenshots
 
 <!-- Replace each placeholder below with a real capture in docs/screenshots/ -->
 
@@ -69,14 +73,14 @@ OpenCycling speaks the standard BLE **FTMS** (trainers) and **HRS** (heart rate)
 <!-- Screenshot: settings page (workout folder, FTP, max HR) -->
 ![Settings](docs/screenshots/settings.png)
 
-## Getting Started
+## 🚀 Getting Started
 
 1. Install the app, or build it from source (see the contributor section below).
 2. Open **Settings** and set your `.zwo` folder path, your **FTP** (watts), and your **max heart rate** (bpm).
 3. Power on your trainer. Scanning starts automatically on the connection page; connect the trainer (and your HRM if you use one).
 4. Pick a workout, start it, and begin pedalling to launch the session.
 
-## Reporting a Bug or Requesting a Feature
+## 🐛 Reporting a Bug or Requesting a Feature
 
 Please use the GitHub issue tracker: **[github.com/TheElysium/opencycling/issues](https://github.com/TheElysium/opencycling/issues)**.
 
@@ -87,16 +91,16 @@ Please search existing issues first to avoid duplicates.
 
 ---
 
-# For Contributors
+# 🛠️ For Contributors
 
-## Tech Stack
+## 🧱 Tech Stack
 
 - **Framework:** [Tauri v2](https://tauri.app/) (desktop shell)
 - **Frontend:** [SvelteKit 5](https://svelte.dev/) (Svelte runes), TypeScript, Vite
 - **Backend:** Rust (edition 2021), Tokio, `rusqlite`, `roxmltree`, `thiserror`, `tracing`
 - **Storage:** SQLite (schema-migrated on startup)
 
-## Architecture
+## 🏗️ Architecture
 
 The Rust backend separates **pure parsers** (no I/O, fully unit-tested) from **Tokio actors** that own all state and communicate over `mpsc` channels:
 
@@ -113,13 +117,13 @@ The frontend calls Rust via `invoke('<command>', args)`, and Rust pushes live da
 
 > Note: `docs/prd.md` is an early design document and has drifted from the implementation (for example, it describes a countdown and synthesized ramps that the code does not use). Treat the code as the source of truth.
 
-## Prerequisites
+## 📦 Prerequisites
 
 - [Node.js](https://nodejs.org/) and [pnpm](https://pnpm.io/)
 - [Rust](https://www.rust-lang.org/tools/install) (stable toolchain)
 - [Tauri v2 system dependencies](https://tauri.app/start/prerequisites/) for your OS
 
-## Build & Run
+## ⚙️ Build & Run
 
 Frontend and full app (from the repo root):
 
@@ -137,11 +141,11 @@ cargo test <test_name>      # run a single test by partial name match
 cargo clippy                # lint
 ```
 
-## Testing Conventions
+## 🧪 Testing Conventions
 
 Tests live in the same file as the code they test, inside a `#[cfg(test)]` module (no separate test files). Pure parsers and the session state machine are unit-tested. The actors are not unit-tested: `BleActor` depends on BLE hardware, `DbActor` on SQLite I/O, and `SessionActor` on the Tokio runtime. They are validated manually or via integration tests.
 
-## License
+## 📄 License
 
 OpenCycling is licensed under the **GNU General Public License v3.0 or later**. See [LICENSE](LICENSE) for the full text.
 

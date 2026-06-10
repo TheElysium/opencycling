@@ -10,7 +10,8 @@
       "Bash(bash \"C:/Users/lukas/.claude/plugins/cache/claude-plugins-official/superpowers/5.1.0/skills/brainstorming/scripts/start-server.sh\" --project-dir \"C:/Users/lukas/Documents/Projets/opencycling\")",
       "Bash(python *)",
       "Bash(cargo test *)",
-      "PowerShell(cargo test *)"
+      "PowerShell(cargo test *)",
+      "Bash(curl -fsSL https://www.gnu.org/licenses/gpl-3.0.txt -o \"C:/Users/lukas/Documents/Projets/opencycling/LICENSE\")"
     ]
   }
 }
