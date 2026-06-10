@@ -6,6 +6,7 @@
 A lightweight, open-source desktop application for **structured indoor cycling workouts in ERG mode**. OpenCycling connects to a smart trainer over Bluetooth, runs Zwift `.zwo` workouts by setting the target power automatically, and lets you review each session afterwards. Everything runs offline, with no account and no subscription.
 
 OpenCycling is an open alternative to Indoor training applications (Zwift, TrainerRoad, ...) for cyclists who just want to run a structured ERG session and own their data.
+
 ---
 
 # 🚴 For Users
