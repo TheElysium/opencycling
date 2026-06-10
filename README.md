@@ -1,4 +1,8 @@
-# OpenCycling
+<p align="center">
+  <img src="static/logo-source.svg" alt="OpenCycling logo" width="160" height="160">
+</p>
+
+<h1 align="center">OpenCycling</h1>
 
 A lightweight, open-source desktop application for **structured indoor cycling workouts in ERG mode**. OpenCycling connects to a smart trainer over Bluetooth, runs Zwift `.zwo` workouts by setting the target power automatically, and lets you review each session afterwards. Everything runs offline, with no account and no subscription.
 
