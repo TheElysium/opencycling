@@ -1,9 +1,9 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
   import { onMount } from 'svelte';
-  import { fade } from 'svelte/transition';
+  import { fade, slide } from 'svelte/transition';
   import { goto } from '$app/navigation';
-  import { Search, Plug2, Heart, Activity, Gauge } from '@lucide/svelte';
+  import { Search, LoaderCircle, Plug2, Heart, Activity, Gauge } from '@lucide/svelte';
   import { ble, disconnectDevice, type DeviceKind, type DeviceStatus } from '$lib/ble.svelte';
   import { toMessage } from '$lib/format';
 
@@ -106,13 +106,25 @@
   let showLiveMetrics = $derived(
     ble.trainerStatus === 'connected' || ble.hrmStatus === 'connected'
   );
+  let anyConnected = $derived(
+    ble.trainerStatus === 'connected' || ble.hrmStatus === 'connected'
+  );
 </script>
 
 <div class="page-wide">
   <div class="header">
     <h1>Connection</h1>
-    <button onclick={scanDevices} disabled={scanning} class="btn-secondary">
-      {scanning ? 'Scanning…' : 'Scan'}
+    <button
+      onclick={scanDevices}
+      disabled={scanning}
+      class="scan-btn {anyConnected ? 'btn-secondary' : 'btn-primary'}"
+    >
+      <span class="scan-label" class:hidden={scanning}>
+        <Search size={16} /> Scan
+      </span>
+      <span class="scan-label" class:hidden={!scanning}>
+        <LoaderCircle size={16} class="spin" /> Scanning…
+      </span>
     </button>
   </div>
 
@@ -132,26 +144,28 @@
           {/if}
         </div>
         <div class="status">
-          <span class="dot" style="background: {statusColor(ble.trainerStatus)}"></span>
-          <span class="status-text">{statusLabels[ble.trainerStatus]}</span>
+          <span class="dot" class:pulse-dot={ble.trainerStatus === 'scanning'} style="background: {statusColor(ble.trainerStatus)}"></span>
+          <span class="status-text" style="color: {statusColor(ble.trainerStatus)}">{statusLabels[ble.trainerStatus]}</span>
         </div>
       </div>
       {#if ble.trainerStatus === 'not_found' && !bothNotFound}
-        <p class="hint">Make sure your trainer is powered on, then scan again.</p>
+        <p class="hint" transition:slide={{ duration: 200 }}>Make sure your trainer is powered on, then scan again.</p>
       {/if}
       {#if ble.trainerStatus === 'disconnected'}
-        <p class="hint">Trainer disconnected. Scan to reconnect.</p>
+        <p class="hint" transition:slide={{ duration: 200 }}>Trainer disconnected. Scan to reconnect.</p>
       {/if}
-      <div class="card-actions">
-        {#if ble.trainerStatus === 'detected'}
+      {#if ble.trainerStatus === 'detected'}
+        <div class="card-actions" transition:slide={{ duration: 200 }}>
           <button onclick={() => connect('Trainer')} class="btn-primary">Connect</button>
-        {/if}
-        {#if ble.trainerStatus === 'connected'}
+        </div>
+      {/if}
+      {#if ble.trainerStatus === 'connected'}
+        <div class="card-actions" transition:slide={{ duration: 200 }}>
           <button onclick={() => disconnectDevice('Trainer')} class="btn-ghost">Disconnect</button>
-        {/if}
-      </div>
+        </div>
+      {/if}
       {#if ble.trainerError}
-        <p class="error">{ble.trainerError}</p>
+        <p class="error" transition:slide={{ duration: 200 }}>{ble.trainerError}</p>
       {/if}
     </div>
 
@@ -167,26 +181,28 @@
           {/if}
         </div>
         <div class="status">
-          <span class="dot" style="background: {statusColor(ble.hrmStatus)}"></span>
-          <span class="status-text">{statusLabels[ble.hrmStatus]}</span>
+          <span class="dot" class:pulse-dot={ble.hrmStatus === 'scanning'} style="background: {statusColor(ble.hrmStatus)}"></span>
+          <span class="status-text" style="color: {statusColor(ble.hrmStatus)}">{statusLabels[ble.hrmStatus]}</span>
         </div>
       </div>
       {#if ble.hrmStatus === 'not_found'}
-        <p class="hint">No heart rate monitor detected. Sessions work without HR.</p>
+        <p class="hint" transition:slide={{ duration: 200 }}>No heart rate monitor detected. Sessions work without HR.</p>
       {/if}
       {#if ble.hrmStatus === 'disconnected'}
-        <p class="hint">Heart rate monitor disconnected. Scan to reconnect.</p>
+        <p class="hint" transition:slide={{ duration: 200 }}>Heart rate monitor disconnected. Scan to reconnect.</p>
       {/if}
-      <div class="card-actions">
-        {#if ble.hrmStatus === 'detected'}
+      {#if ble.hrmStatus === 'detected'}
+        <div class="card-actions" transition:slide={{ duration: 200 }}>
           <button onclick={() => connect('Hrm')} class="btn-primary">Connect</button>
-        {/if}
-        {#if ble.hrmStatus === 'connected'}
+        </div>
+      {/if}
+      {#if ble.hrmStatus === 'connected'}
+        <div class="card-actions" transition:slide={{ duration: 200 }}>
           <button onclick={() => disconnectDevice('Hrm')} class="btn-ghost">Disconnect</button>
-        {/if}
-      </div>
+        </div>
+      {/if}
       {#if ble.hrmError}
-        <p class="error">{ble.hrmError}</p>
+        <p class="error" transition:slide={{ duration: 200 }}>{ble.hrmError}</p>
       {/if}
     </div>
   </div>
@@ -234,6 +250,42 @@
 
 <style>
   .scan-error { margin: 0 0 1rem; }
+
+  .scan-btn {
+    display: inline-grid;
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  }
+
+  .scan-label {
+    grid-area: 1 / 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    white-space: nowrap;
+    transition: opacity 0.2s ease;
+  }
+
+  .scan-label.hidden {
+    opacity: 0;
+  }
+
+  :global(.spin) {
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .pulse-dot {
+    animation: pulse-dot 1s ease-in-out infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50%      { transform: scale(1.4); opacity: 0.5; }
+  }
 
   .header {
     display: flex;
@@ -311,11 +363,13 @@
     height: 8px;
     border-radius: 50%;
     display: inline-block;
+    transition: background 0.2s ease;
   }
 
   .status-text {
     font-size: 0.85rem;
     color: var(--muted);
+    transition: color 0.2s ease;
   }
 
   .card-actions {
