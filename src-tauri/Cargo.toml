@@ -1,6 +1,6 @@
 [package]
 name = "opencycling"
-version = "0.1.0"
+version = "0.1.2"
 description = "A Tauri App"
 authors = ["Luka Signe--Morice"]
 edition = "2021"
