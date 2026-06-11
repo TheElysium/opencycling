@@ -44,47 +44,38 @@ OpenCycling speaks the standard BLE **FTMS** (trainers) and **HRS** (heart rate)
 
 ### Connection
 <!-- Screenshot: device connection page -->
-<p align="center">
-  <img src="docs/screenshots/connection.png" alt="Connection page">
-</p>
+<img src="docs/screenshots/connection.png" alt="Connection page">
+
 
 ### Workout library and detail
 
 <!-- Screenshot: workouts list + a workout detail with the block chart -->
-<p align="center">
-  <img src="docs/screenshots/workouts.png" alt="Workout library">
-</p>
+<table>
+  <tr>
+    <td><img src="docs/screenshots/workouts.png" alt="Workout library"></td>
+    <td><img src="docs/screenshots/workout-details.png" alt="Workout detail"></td>
+  </tr>
+</table>
 
-<p align="center">
-  <img src="docs/screenshots/workout-details.png" alt="Workout detail">
-</p>
-
-
-
-**Live session**
+### Live session
 
 <!-- Screenshot: active session view with tiles + timeline -->
-<p align="center">
-  <img src="docs/screenshots/session.png" alt="Live session">
-</p>
+<img src="docs/screenshots/session.png" alt="Live session">
 
-**Session summary / history**
+### Session summary / history
 
 <!-- Screenshot: a past session detail with power graph + zone bars -->
-<p align="center">
-  <img src="docs/screenshots/history-list.png" alt="Sessions">
-</p>
+<table>
+  <tr>
+    <td><img src="docs/screenshots/history-list.png" alt="Sessions"></td>
+    <td><img src="docs/screenshots/history.png" alt="Session detail"></td>
+  </tr>
+</table>
 
-<p align="center">
-  <img src="docs/screenshots/history.png" alt="Session detail">
-</p>
-
-**Settings**
+### Settings
 
 <!-- Screenshot: settings page (workout folder, FTP, max HR) -->
-<p align="center">
-  <img src="docs/screenshots/settings.png" alt="Settings">
-</p>
+<img src="docs/screenshots/settings.png" alt="Settings">
 
 ## 🚀 Getting Started
 
