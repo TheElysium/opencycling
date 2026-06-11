@@ -98,6 +98,29 @@ jobs:
           args: ${{ matrix.args }}
           tagName: ${{ needs.prepare.outputs.tag }}
           releaseName: "OpenCycling ${{ needs.prepare.outputs.tag }}"
-          releaseBody: "See the assets below to download and install this version."
+          releaseBody: "Release notes are being generated..."
           releaseDraft: true
           prerelease: false
+
+  finalize:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compose release notes (downloads + changelog)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          VERSION="${TAG#v}"
+          # Static downloads section, with the version substituted in.
+          DOWNLOADS=$(sed "s/{{VERSION}}/$VERSION/g" .github/release-downloads.md)
+          # GitHub's auto-generated changelog (What's Changed + Full Changelog link).
+          CHANGELOG=$(gh api "repos/${{ github.repository }}/releases/generate-notes" \
+            -f tag_name="$TAG" -q .body)
+          BODY="${DOWNLOADS}"$'\n\n---\n\n'"${CHANGELOG}"
+          gh release edit "$TAG" --notes "$BODY"
