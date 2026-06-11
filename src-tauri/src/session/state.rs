@@ -11,10 +11,8 @@ impl State for WaitingForRiderState {
         StateKind::WaitingForRider
     }
     fn tick(self: Box<Self>, session: &mut Session) -> Box<dyn State> {
-        let pedaling = session
-            .last_cadence_rpm
-            .map_or(false, |c| c >= CADENCE_START)
-            || session.last_power_w.map_or(false, |p| p >= POWER_START);
+        let pedaling = session.last_cadence_rpm.is_some_and(|c| c >= CADENCE_START)
+            || session.last_power_w.is_some_and(|p| p >= POWER_START);
         if pedaling {
             Box::new(RunningState)
         } else {

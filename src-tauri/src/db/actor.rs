@@ -7,6 +7,16 @@ use rusqlite::Connection;
 use tokio::sync::mpsc::Receiver;
 use tracing::info;
 
+/// Aggregated session metrics: (avg_power, max_power, avg_hr, max_hr, avg_cad, max_cad).
+type SessionAggregates = (
+    Option<i64>,
+    Option<i64>,
+    Option<i64>,
+    Option<i64>,
+    Option<i64>,
+    Option<i64>,
+);
+
 pub struct DbActor {
     conn: Connection,
     cmd_rx: Receiver<DbCommand>,
@@ -151,14 +161,7 @@ impl DbActor {
             )
             .map_err(|e| AppError::DbError(e.to_string()))?;
 
-        let (avg_power, max_power, avg_hr, max_hr, avg_cad, max_cad): (
-            Option<i64>,
-            Option<i64>,
-            Option<i64>,
-            Option<i64>,
-            Option<i64>,
-            Option<i64>,
-        ) = self
+        let (avg_power, max_power, avg_hr, max_hr, avg_cad, max_cad): SessionAggregates = self
             .conn
             .query_row(
                 "SELECT \
