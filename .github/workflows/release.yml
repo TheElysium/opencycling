@@ -1,13 +1,48 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
+    inputs:
+      level:
+        description: "Version bump (or an explicit x.y.z)"
+        required: true
+        default: patch
+        type: string
 
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.bump.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # cargo-release needs the full history
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-release
+        run: cargo install cargo-release
+
+      - name: Configure git author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump version, commit, tag and push
+        id: bump
+        working-directory: src-tauri
+        run: |
+          cargo release "${{ inputs.level }}" --execute --no-confirm
+          VERSION=$(grep '^version' Cargo.toml | head -1 | sed -E 's/.*"(.*)".*/\1/')
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: prepare
     permissions:
       contents: write
     strategy:
@@ -21,8 +56,10 @@ jobs:
     runs-on: ${{ matrix.platform }}
 
     steps:
-      - name: Checkout
+      - name: Checkout release tag
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
 
       - name: Install Linux system dependencies
         if: matrix.platform == 'ubuntu-22.04'
@@ -59,8 +96,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           args: ${{ matrix.args }}
-          tagName: ${{ github.ref_name }}
-          releaseName: "OpenCycling ${{ github.ref_name }}"
+          tagName: ${{ needs.prepare.outputs.tag }}
+          releaseName: "OpenCycling ${{ needs.prepare.outputs.tag }}"
           releaseBody: "See the assets below to download and install this version."
           releaseDraft: true
           prerelease: false

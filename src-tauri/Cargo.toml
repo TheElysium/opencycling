@@ -36,3 +36,15 @@ uuid = { version = "1.23.1", features = ["v4"] }
 rusqlite = { version = "0.40.0", features = ["bundled"] }
 chrono = "0.4.44"
 tauri-plugin-updater = "2"
+
+[package.metadata.release]
+publish = false                                   # desktop app, not a crates.io crate
+push = true
+tag-name = "v{{version}}"
+pre-release-commit-message = "chore: release v{{version}}"
+tag-message = "Release v{{version}}"
+# Cargo.toml is bumped automatically; propagate the same version to the JSON manifests.
+pre-release-replacements = [
+  { file = "../package.json", search = "\"version\": \"[^\"]+\"", replace = "\"version\": \"{{version}}\"", exactly = 1 },
+  { file = "tauri.conf.json", search = "\"version\": \"[^\"]+\"", replace = "\"version\": \"{{version}}\"", exactly = 1 },
+]
