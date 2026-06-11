@@ -1,12 +1,11 @@
+use super::types::{
+    Feature, FeatureVal, AVERAGE_CADENCE_FLAG, AVERAGE_POWER_FLAG, AVERAGE_SPEED_FLAG,
+    ELAPSED_TIME_FLAG, EXPENDED_ENERGY_FLAG, HEART_RATE_FLAG, INSTANTANEOUS_CADENCE_FLAG,
+    INSTANTANEOUS_POWER_FLAG, METABOLIC_EQUIVALENT_FLAG, MORE_DATA_FLAG, REMAINING_TIME_FLAG,
+    RESISTANCE_LEVEL_FLAG, TOTAL_DISTANCE_FLAG,
+};
 use crate::errors::AppError;
 use crate::errors::AppError::FTMSPacketParseError;
-use super::types::{
-    Feature, FeatureVal,
-    MORE_DATA_FLAG, AVERAGE_SPEED_FLAG, INSTANTANEOUS_CADENCE_FLAG,
-    AVERAGE_CADENCE_FLAG, TOTAL_DISTANCE_FLAG, RESISTANCE_LEVEL_FLAG,
-    INSTANTANEOUS_POWER_FLAG, AVERAGE_POWER_FLAG, EXPENDED_ENERGY_FLAG,
-    HEART_RATE_FLAG, METABOLIC_EQUIVALENT_FLAG, ELAPSED_TIME_FLAG, REMAINING_TIME_FLAG,
-};
 
 fn read_u16(data: &[u8], size: usize) -> Result<u16, AppError> {
     if data.len() < size {
@@ -16,7 +15,9 @@ fn read_u16(data: &[u8], size: usize) -> Result<u16, AppError> {
 }
 
 fn get_instantaneous_speed(data: &[u8], size: usize) -> Result<FeatureVal, AppError> {
-    Ok(FeatureVal::InstantaneousSpeed(read_u16(data, size)? as f32 / 100.0))
+    Ok(FeatureVal::InstantaneousSpeed(
+        read_u16(data, size)? as f32 / 100.0,
+    ))
 }
 
 fn get_average_speed(data: &[u8], size: usize) -> Result<FeatureVal, AppError> {
@@ -24,7 +25,9 @@ fn get_average_speed(data: &[u8], size: usize) -> Result<FeatureVal, AppError> {
 }
 
 fn get_instantaneous_cadence(data: &[u8], size: usize) -> Result<FeatureVal, AppError> {
-    Ok(FeatureVal::InstantaneousCadenceRpm(read_u16(data, size)? / 2))
+    Ok(FeatureVal::InstantaneousCadenceRpm(
+        read_u16(data, size)? / 2,
+    ))
 }
 
 fn get_average_cadence(data: &[u8], size: usize) -> Result<FeatureVal, AppError> {
@@ -81,19 +84,71 @@ fn get_remaining_time(data: &[u8], size: usize) -> Result<FeatureVal, AppError> 
     Ok(FeatureVal::RemainingTime(read_u16(data, size)?))
 }
 
-const FEATURE_INSTANTANEOUS_SPEED: Feature = Feature { bitmask: MORE_DATA_FLAG, size_bytes: 2, parse: get_instantaneous_speed };
-const FEATURE_AVERAGE_SPEED: Feature = Feature { bitmask: AVERAGE_SPEED_FLAG, size_bytes: 2, parse: get_average_speed };
-const FEATURE_INSTANTANEOUS_CADENCE: Feature = Feature { bitmask: INSTANTANEOUS_CADENCE_FLAG, size_bytes: 2, parse: get_instantaneous_cadence };
-const FEATURE_AVERAGE_CADENCE: Feature = Feature { bitmask: AVERAGE_CADENCE_FLAG, size_bytes: 2, parse: get_average_cadence };
-const FEATURE_TOTAL_DISTANCE: Feature = Feature { bitmask: TOTAL_DISTANCE_FLAG, size_bytes: 3, parse: get_total_distance };
-const FEATURE_RESISTANCE_LEVEL: Feature = Feature { bitmask: RESISTANCE_LEVEL_FLAG, size_bytes: 2, parse: get_resistance_level };
-const FEATURE_INSTANTANEOUS_POWER: Feature = Feature { bitmask: INSTANTANEOUS_POWER_FLAG, size_bytes: 2, parse: get_instantaneous_power };
-const FEATURE_AVERAGE_POWER: Feature = Feature { bitmask: AVERAGE_POWER_FLAG, size_bytes: 2, parse: get_average_power };
-const FEATURE_EXPENDED_ENERGY: Feature = Feature { bitmask: EXPENDED_ENERGY_FLAG, size_bytes: 5, parse: get_expended_energy };
-const FEATURE_HEART_RATE: Feature = Feature { bitmask: HEART_RATE_FLAG, size_bytes: 1, parse: get_heart_rate };
-const FEATURE_METABOLIC_EQUIVALENT: Feature = Feature { bitmask: METABOLIC_EQUIVALENT_FLAG, size_bytes: 1, parse: get_metabolic_equivalent };
-const FEATURE_ELAPSED_TIME: Feature = Feature { bitmask: ELAPSED_TIME_FLAG, size_bytes: 2, parse: get_elapsed_time };
-const FEATURE_REMAINING_TIME: Feature = Feature { bitmask: REMAINING_TIME_FLAG, size_bytes: 2, parse: get_remaining_time };
+const FEATURE_INSTANTANEOUS_SPEED: Feature = Feature {
+    bitmask: MORE_DATA_FLAG,
+    size_bytes: 2,
+    parse: get_instantaneous_speed,
+};
+const FEATURE_AVERAGE_SPEED: Feature = Feature {
+    bitmask: AVERAGE_SPEED_FLAG,
+    size_bytes: 2,
+    parse: get_average_speed,
+};
+const FEATURE_INSTANTANEOUS_CADENCE: Feature = Feature {
+    bitmask: INSTANTANEOUS_CADENCE_FLAG,
+    size_bytes: 2,
+    parse: get_instantaneous_cadence,
+};
+const FEATURE_AVERAGE_CADENCE: Feature = Feature {
+    bitmask: AVERAGE_CADENCE_FLAG,
+    size_bytes: 2,
+    parse: get_average_cadence,
+};
+const FEATURE_TOTAL_DISTANCE: Feature = Feature {
+    bitmask: TOTAL_DISTANCE_FLAG,
+    size_bytes: 3,
+    parse: get_total_distance,
+};
+const FEATURE_RESISTANCE_LEVEL: Feature = Feature {
+    bitmask: RESISTANCE_LEVEL_FLAG,
+    size_bytes: 2,
+    parse: get_resistance_level,
+};
+const FEATURE_INSTANTANEOUS_POWER: Feature = Feature {
+    bitmask: INSTANTANEOUS_POWER_FLAG,
+    size_bytes: 2,
+    parse: get_instantaneous_power,
+};
+const FEATURE_AVERAGE_POWER: Feature = Feature {
+    bitmask: AVERAGE_POWER_FLAG,
+    size_bytes: 2,
+    parse: get_average_power,
+};
+const FEATURE_EXPENDED_ENERGY: Feature = Feature {
+    bitmask: EXPENDED_ENERGY_FLAG,
+    size_bytes: 5,
+    parse: get_expended_energy,
+};
+const FEATURE_HEART_RATE: Feature = Feature {
+    bitmask: HEART_RATE_FLAG,
+    size_bytes: 1,
+    parse: get_heart_rate,
+};
+const FEATURE_METABOLIC_EQUIVALENT: Feature = Feature {
+    bitmask: METABOLIC_EQUIVALENT_FLAG,
+    size_bytes: 1,
+    parse: get_metabolic_equivalent,
+};
+const FEATURE_ELAPSED_TIME: Feature = Feature {
+    bitmask: ELAPSED_TIME_FLAG,
+    size_bytes: 2,
+    parse: get_elapsed_time,
+};
+const FEATURE_REMAINING_TIME: Feature = Feature {
+    bitmask: REMAINING_TIME_FLAG,
+    size_bytes: 2,
+    parse: get_remaining_time,
+};
 
 pub(super) const FEATURES: [Feature; 13] = [
     FEATURE_INSTANTANEOUS_SPEED,
