@@ -248,7 +248,14 @@
       border: 1px solid var(--border);
       border-radius: 10px;
       overflow: hidden;
+      box-shadow: 0 8px 30px -12px rgba(30, 41, 59, 0.18);
+      transition: transform .18s ease, box-shadow .18s ease;
     }
+    .shot:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 14px 36px -12px rgba(30, 41, 59, 0.28);
+    }
+    .shot--feature { grid-column: 1 / -1; }
     .shot img { width: 100%; display: block; }
     .shot .ph {
       aspect-ratio: 16 / 10;
@@ -428,6 +435,10 @@
       </div>
       <div class="shots">
         <!-- Each <img> falls back to a dark placeholder if the PNG is missing. -->
+        <figure class="shot shot--feature" style="margin:0">
+          <img src="screenshots/session.png" alt="Live session" onerror="this.outerHTML='&lt;div class=\'ph\'&gt;Live session&lt;/div&gt;'">
+          <figcaption class="cap">Live session</figcaption>
+        </figure>
         <figure class="shot" style="margin:0">
           <img src="screenshots/connection.png" alt="Device connection" onerror="this.outerHTML='&lt;div class=\'ph\'&gt;Connection&lt;/div&gt;'">
           <figcaption class="cap">Connection</figcaption>
@@ -439,10 +450,6 @@
         <figure class="shot" style="margin:0">
           <img src="screenshots/workout-details.png" alt="Workout detail" onerror="this.outerHTML='&lt;div class=\'ph\'&gt;Workout detail&lt;/div&gt;'">
           <figcaption class="cap">Workout detail</figcaption>
-        </figure>
-        <figure class="shot" style="margin:0">
-          <img src="screenshots/session.png" alt="Live session" onerror="this.outerHTML='&lt;div class=\'ph\'&gt;Live session&lt;/div&gt;'">
-          <figcaption class="cap">Live session</figcaption>
         </figure>
         <figure class="shot" style="margin:0">
           <img src="screenshots/history-list.png" alt="Session history" onerror="this.outerHTML='&lt;div class=\'ph\'&gt;Session history&lt;/div&gt;'">
