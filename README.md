@@ -37,6 +37,7 @@ OpenCycling speaks the standard BLE **FTMS** (trainers) and **HRS** (heart rate)
 - **Pause, resume, and skip block** during a session.
 - **Automatic recording.** Power, heart rate, and cadence are sampled every second and stored in a local SQLite database, so a session is kept even if it ends early.
 - **Session summary and history.** Browse past sessions as cards (date, duration, averages, intensity badge) and open any one for a detail view with summary stats, a power-over-time graph, the workout blocks, and zone breakdowns. Power uses six zones (Recovery, Endurance, Tempo, Threshold, VO2max, Anaerobic) based on your FTP; heart rate zones use your configured max HR.
+- **TCX export.** Export any recorded session to a standard `.tcx` file from the session detail view. The file carries the per-second power, heart rate, and cadence track plus a note describing the workout structure (warmup, intervals, cooldown), so it can be imported into Strava, Garmin Connect, or any tool that reads TCX.
 
 ## 📸 Screenshots
 

@@ -11,6 +11,7 @@ use tracing_subscriber::{fmt, EnvFilter};
 mod ble;
 pub mod db;
 pub mod errors;
+mod export;
 mod metrics;
 mod session;
 pub mod workout;
@@ -19,7 +20,7 @@ const DB_FILE: &str = "opencycling.db";
 
 #[tauri::command]
 fn load_workout(path: String) -> Result<ParsedWorkout, AppError> {
-    let content = std::fs::read_to_string(path).map_err(|e| AppError::Other(e.to_string()))?;
+    let content = std::fs::read_to_string(path).map_err(|e| AppError::Io(e.to_string()))?;
     parse_zwo(&content)
 }
 
@@ -128,6 +129,18 @@ async fn delete_session(state: tauri::State<'_, DbActorHandle>, id: i64) -> Resu
     state.delete_session(id).await
 }
 
+#[tauri::command]
+async fn export_session_tcx(
+    state: tauri::State<'_, DbActorHandle>,
+    id: i64,
+    path: String,
+) -> Result<(), AppError> {
+    let detail = state.get_session(id).await?;
+    let tcx = export::tcx::build_tcx(&detail);
+    std::fs::write(&path, tcx).map_err(|e| AppError::Io(e.to_string()))?;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -150,7 +163,8 @@ pub fn run() {
             get_session_snapshot,
             list_sessions,
             get_session,
-            delete_session
+            delete_session,
+            export_session_tcx
         ])
         .setup(|app| {
             let log_dir = app.path().app_log_dir().expect("no app log dir");

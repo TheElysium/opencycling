@@ -4,7 +4,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import { ArrowLeft } from '@lucide/svelte';
+  import { ArrowLeft, Upload } from '@lucide/svelte';
   import { workoutTypeColor } from '$lib/metrics';
   import { toMessage } from '$lib/format';
   import {
@@ -12,6 +12,7 @@
     formatLongDate, formatHourMinute, formatHmsShort,
   } from '$lib/db';
   import { getSettings } from '$lib/settings';
+  import { exportSessionTcx } from '$lib/export';
   import SessionDetailRecap from '$lib/components/SessionDetailRecap.svelte';
 
   let detail  = $state<SessionDetail | null>(null);
@@ -35,6 +36,15 @@
       loading = false;
     }
   });
+
+  async function onExportTcx() {
+    if (!detail) return;
+    try {
+      await exportSessionTcx(detail.id, detail.workout_name, detail.started_at);
+    } catch (e) {
+      error = toMessage(e);
+    }
+  }
 
   async function onDelete() {
     if (!detail) return;
@@ -82,7 +92,11 @@
 
     <SessionDetailRecap {detail} {maxHr} />
 
-    <div class="danger-zone">
+    <div class="actions">
+      <button class="btn-export" onclick={onExportTcx}>
+        <Upload size={16} />
+        Export .tcx
+      </button>
       <button class="btn-delete" onclick={onDelete}>Delete session</button>
     </div>
   </div>
@@ -151,13 +165,32 @@
     font-size: 0.85rem;
     font-weight: 600;
     cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
   }
   .btn-delete:hover {
     background: color-mix(in srgb, var(--danger) 10%, transparent);
   }
-  .danger-zone {
+  .btn-export {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 0.55rem 1.4rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .btn-export:hover {
+    border-color: var(--accent);
+  }
+  .actions {
     display: flex;
     justify-content: flex-end;
+    gap: 0.75rem;
     margin-top: 2rem;
     padding-top: 1.25rem;
     border-top: 1px solid var(--border);

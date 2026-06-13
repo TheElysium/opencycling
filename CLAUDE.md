@@ -29,6 +29,7 @@ OpenCycling is a **Tauri v2 desktop app**: SvelteKit 5 frontend (Svelte runes) +
 - `ble/ftms/` — parses FTMS `Indoor Bike Data` notifications (0x2AD2) and builds ERG commands. Split into `mod.rs` (parser logic), `types.rs` (structs, flags, `FeatureVal` enum), `features.rs` (per-field parse functions + FEATURES table).
 - `ble/hrs.rs` — parses HRS `Heart Rate Measurement` notifications (0x2A37).
 - `workout/zwo.rs` — parses `.zwo` Zwift XML files into `ParsedWorkout` (`WorkoutBlock` list). `workout/library.rs` lists/parses every `.zwo` in a folder; `workout/types.rs` holds `ParsedWorkout`, `WorkoutBlock`, `SportType`.
+- `export/tcx.rs` — `build_tcx(&SessionDetail) -> String` builds a Garmin TCX activity (Sport="Biking") from a recorded session: one `<Trackpoint>` per 1 Hz sample (time, HR, cadence, power via the `ns3:` ActivityExtension namespace) plus a `<Notes>` block describing the workout structure (warmup / intervals / cooldown). Free text is XML-escaped. Used by the `export_session_tcx` command (local `.tcx` file).
 
 `metrics.rs` — shared `WorkoutType` enum (zone classification); **must mirror** the TypeScript `WorkoutType` in `src/lib/metrics.ts`.
 
@@ -45,13 +46,13 @@ Actors are wired together in `lib.rs::run()` (the `.setup()` closure) and regist
 
 SvelteKit routes: `/` (connection), `/workouts`, `/workouts/detail`, `/session`, `/history`, `/history/[id]`, `/settings`. Sidebar hidden on `/session`.
 
-Shared state lives in `.svelte.ts` rune stores: `lib/ble.svelte.ts`, `lib/session.svelte.ts`, `lib/workout.svelte.ts`. Helpers: `lib/db.ts`, `lib/settings.ts`, `lib/format.ts`, `lib/metrics.ts`, `lib/audio.ts`, `lib/session-visuals.ts`.
+Shared state lives in `.svelte.ts` rune stores: `lib/ble.svelte.ts`, `lib/session.svelte.ts`, `lib/workout.svelte.ts`. Helpers: `lib/db.ts`, `lib/settings.ts`, `lib/format.ts`, `lib/metrics.ts`, `lib/audio.ts`, `lib/session-visuals.ts`, `lib/export.ts` (TCX export via the save dialog).
 
 Reusable components in `lib/components/` — e.g. `WorkoutChart` / `WorkoutPreview` / `WorkoutThumb` (block bars), `ZoneBar` (zone distribution), `SessionChart` (live power line), and the session UI tiles (`MetricTile`, `MetricsStrip`, `PowerTile`, `CurrentBlockCard`, `SessionTimeline`, `SessionStatsPanel`, `SessionFinishedCard`, `SessionDetailRecap`, `BlocksList`).
 
 ### Tauri bridge
 
-Frontend calls Rust via `invoke('<command>', args)`. Commands are registered in `lib.rs`: `load_workout`, `list_workouts_cmd`, `scan_devices`, `connect_trainer`, `connect_hrm`, `set_target_power`, `get_settings`, `update_settings`, `start_session`, `pause_session`, `resume_session`, `stop_session`, `skip_block`, `get_session_snapshot`, `list_sessions`, `get_session`, `delete_session`. Rust pushes data via events: `ble_metrics`, `session_metrics`, `ble_error`, `ble_disconnected`. Full contracts are documented in `docs/prd.md`.
+Frontend calls Rust via `invoke('<command>', args)`. Commands are registered in `lib.rs`: `load_workout`, `list_workouts_cmd`, `scan_devices`, `connect_trainer`, `connect_hrm`, `set_target_power`, `get_settings`, `update_settings`, `start_session`, `pause_session`, `resume_session`, `stop_session`, `skip_block`, `get_session_snapshot`, `list_sessions`, `get_session`, `delete_session`, `export_session_tcx`. Rust pushes data via events: `ble_metrics`, `session_metrics`, `ble_error`, `ble_disconnected`. Full contracts are documented in `docs/prd.md`.
 
 ## Key constraints
 

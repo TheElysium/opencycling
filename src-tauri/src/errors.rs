@@ -28,6 +28,8 @@ pub enum AppError {
     DbError(String),
     #[error("Session already active")]
     SessionAlreadyActive,
+    #[error("I/O error: {0}")]
+    Io(String),
     #[error("{0}")]
     Other(String),
 }
