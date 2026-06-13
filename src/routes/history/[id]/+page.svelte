@@ -4,7 +4,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import { ArrowLeft, Upload } from '@lucide/svelte';
+  import { ArrowLeft, Upload, RotateCw } from '@lucide/svelte';
   import { workoutTypeColor } from '$lib/metrics';
   import { toMessage } from '$lib/format';
   import {
@@ -13,12 +13,14 @@
   } from '$lib/db';
   import { getSettings } from '$lib/settings';
   import { exportSessionTcx } from '$lib/export';
+  import { uploadSessionToStrava, activityUrl } from '$lib/strava';
   import SessionDetailRecap from '$lib/components/SessionDetailRecap.svelte';
 
-  let detail  = $state<SessionDetail | null>(null);
-  let maxHr   = $state(190);
-  let loading = $state(true);
-  let error   = $state<string | null>(null);
+  let detail    = $state<SessionDetail | null>(null);
+  let maxHr     = $state(190);
+  let loading   = $state(true);
+  let error     = $state<string | null>(null);
+  let uploading = $state(false);
 
   let id = $derived(parseInt($page.params.id ?? '0', 10));
 
@@ -43,6 +45,39 @@
       await exportSessionTcx(detail.id, detail.workout_name, detail.started_at);
     } catch (e) {
       error = toMessage(e);
+    }
+  }
+
+  async function onSendToStrava() {
+    if (!detail) return;
+    uploading = true;
+    error = null;
+    try {
+      const activityId = await uploadSessionToStrava(detail.id);
+      detail.strava_activity_id = activityId;
+    } catch (e) {
+      error = toMessage(e);
+    } finally {
+      uploading = false;
+    }
+  }
+
+  async function onReupload() {
+    if (!detail) return;
+    const ok = await confirm(
+      'Re-upload to Strava? This creates a new activity. Use it only if the original was deleted on Strava.',
+      { title: 'Re-upload to Strava', kind: 'warning' },
+    );
+    if (!ok) return;
+    uploading = true;
+    error = null;
+    try {
+      const activityId = await uploadSessionToStrava(detail.id, true);
+      detail.strava_activity_id = activityId;
+    } catch (e) {
+      error = toMessage(e);
+    } finally {
+      uploading = false;
     }
   }
 
@@ -93,6 +128,26 @@
     <SessionDetailRecap {detail} {maxHr} />
 
     <div class="actions">
+      {#if detail.strava_activity_id}
+        <a
+          class="btn-strava"
+          href={activityUrl(detail.strava_activity_id)}
+          target="_blank"
+          rel="noreferrer"
+        >
+          <Upload size={16} />
+          View on Strava
+        </a>
+        <button class="btn-export" onclick={onReupload} disabled={uploading}>
+          <RotateCw size={16} />
+          {uploading ? 'Uploading…' : 'Re-upload'}
+        </button>
+      {:else}
+        <button class="btn-strava" onclick={onSendToStrava} disabled={uploading}>
+          <Upload size={16} />
+          {uploading ? 'Uploading…' : 'Send to Strava'}
+        </button>
+      {/if}
       <button class="btn-export" onclick={onExportTcx}>
         <Upload size={16} />
         Export .tcx
@@ -186,6 +241,29 @@
   }
   .btn-export:hover {
     border-color: var(--accent);
+  }
+  .btn-strava {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    background: #fc4c02;
+    color: #fff;
+    border: 1px solid #fc4c02;
+    border-radius: 7px;
+    padding: 0.55rem 1.4rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+  }
+  .btn-strava:hover {
+    background: #e44402;
+    border-color: #e44402;
+  }
+  .btn-strava:disabled {
+    opacity: 0.6;
+    cursor: default;
   }
   .actions {
     display: flex;

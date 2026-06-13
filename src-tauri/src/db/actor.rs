@@ -1,5 +1,5 @@
 use crate::db::command::DbCommand;
-use crate::db::{Metric, SessionCard, SessionDetail, Settings};
+use crate::db::{Metric, SessionCard, SessionDetail, Settings, StravaAuth};
 use crate::errors::AppError;
 use crate::metrics::{classify, WorkoutType};
 use crate::session::FlatBlock;
@@ -79,6 +79,29 @@ impl DbActor {
                     }
                     DbCommand::DeleteSession { id, reply } => {
                         let _ = reply.send(self.delete_session(id));
+                    }
+                    DbCommand::UpsertStravaAuth { auth, reply } => {
+                        let _ = reply.send(self.upsert_strava_auth(auth));
+                    }
+                    DbCommand::GetStravaAuth { reply } => {
+                        let _ = reply.send(self.get_strava_auth());
+                    }
+                    DbCommand::DeleteStravaAuth { reply } => {
+                        let _ = reply.send(self.delete_strava_auth());
+                    }
+                    DbCommand::GetStravaAutoUpload { reply } => {
+                        let _ = reply.send(self.get_strava_auto_upload());
+                    }
+                    DbCommand::SetStravaAutoUpload { enabled, reply } => {
+                        let _ = reply.send(self.set_strava_auto_upload(enabled));
+                    }
+                    DbCommand::SetSessionStravaActivity {
+                        session_id,
+                        activity_id,
+                        reply,
+                    } => {
+                        let _ =
+                            reply.send(self.set_session_strava_activity(session_id, activity_id));
                     }
                 },
             }
@@ -286,7 +309,7 @@ impl DbActor {
                 "SELECT started_at, ended_at, workout_name, duration_s, \
                         avg_power_w, max_power_w, avg_hr_bpm, max_hr_bpm, \
                         avg_cadence_rpm, max_cadence_rpm, ftp_w_used, \
-                        workout_type, flat_blocks \
+                        workout_type, flat_blocks, strava_activity_id \
                  FROM sessions WHERE id = ?1",
                 [id],
                 |row| {
@@ -294,6 +317,7 @@ impl DbActor {
                     let flat_blocks_json: String = row.get("flat_blocks")?;
                     let detail = SessionDetail {
                         id,
+                        strava_activity_id: row.get("strava_activity_id")?,
                         started_at: row.get("started_at")?,
                         ended_at: row.get("ended_at")?,
                         workout_name: row.get("workout_name")?,
@@ -344,6 +368,95 @@ impl DbActor {
         // session_metrics rows cascade via the FK ON DELETE CASCADE.
         self.conn
             .execute("DELETE FROM sessions WHERE id = ?1", [id])
+            .map_err(|e| AppError::DbError(e.to_string()))?;
+        Ok(())
+    }
+
+    fn upsert_strava_auth(&mut self, auth: StravaAuth) -> Result<(), AppError> {
+        self.conn
+            .execute(
+                "INSERT INTO strava_auth \
+                   (id, access_token, refresh_token, expires_at, athlete_id, connected_at) \
+                 VALUES (1, ?1, ?2, ?3, ?4, ?5) \
+                 ON CONFLICT(id) DO UPDATE SET \
+                   access_token=excluded.access_token, \
+                   refresh_token=excluded.refresh_token, \
+                   expires_at=excluded.expires_at, \
+                   athlete_id=excluded.athlete_id, \
+                   connected_at=excluded.connected_at",
+                (
+                    &auth.access_token,
+                    &auth.refresh_token,
+                    auth.expires_at,
+                    auth.athlete_id,
+                    &auth.connected_at,
+                ),
+            )
+            .map_err(|e| AppError::DbError(e.to_string()))?;
+        Ok(())
+    }
+
+    fn get_strava_auth(&self) -> Result<Option<StravaAuth>, AppError> {
+        self.conn
+            .query_row(
+                "SELECT access_token, refresh_token, expires_at, athlete_id, connected_at \
+                 FROM strava_auth WHERE id = 1",
+                [],
+                |row| {
+                    Ok(StravaAuth {
+                        access_token: row.get(0)?,
+                        refresh_token: row.get(1)?,
+                        expires_at: row.get(2)?,
+                        athlete_id: row.get(3)?,
+                        connected_at: row.get(4)?,
+                    })
+                },
+            )
+            .map(Some)
+            .or_else(|e| match e {
+                rusqlite::Error::QueryReturnedNoRows => Ok(None),
+                other => Err(AppError::DbError(other.to_string())),
+            })
+    }
+
+    fn delete_strava_auth(&mut self) -> Result<(), AppError> {
+        self.conn
+            .execute("DELETE FROM strava_auth WHERE id = 1", [])
+            .map_err(|e| AppError::DbError(e.to_string()))?;
+        Ok(())
+    }
+
+    fn get_strava_auto_upload(&self) -> Result<bool, AppError> {
+        self.conn
+            .query_row(
+                "SELECT strava_auto_upload FROM settings WHERE id = 1",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .map(|v| v != 0)
+            .map_err(|e| AppError::DbError(e.to_string()))
+    }
+
+    fn set_strava_auto_upload(&mut self, enabled: bool) -> Result<(), AppError> {
+        self.conn
+            .execute(
+                "UPDATE settings SET strava_auto_upload = ?1 WHERE id = 1",
+                [enabled as i64],
+            )
+            .map_err(|e| AppError::DbError(e.to_string()))?;
+        Ok(())
+    }
+
+    fn set_session_strava_activity(
+        &mut self,
+        session_id: i64,
+        activity_id: i64,
+    ) -> Result<(), AppError> {
+        self.conn
+            .execute(
+                "UPDATE sessions SET strava_activity_id = ?1 WHERE id = ?2",
+                (activity_id, session_id),
+            )
             .map_err(|e| AppError::DbError(e.to_string()))?;
         Ok(())
     }

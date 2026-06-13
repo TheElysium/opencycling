@@ -30,6 +30,12 @@ pub enum AppError {
     SessionAlreadyActive,
     #[error("I/O error: {0}")]
     Io(String),
+    #[error("Strava auth error: {0}")]
+    StravaAuth(String),
+    #[error("Strava API error: {0}")]
+    StravaApi(String),
+    #[error("Strava upload error: {0}")]
+    StravaUpload(String),
     #[error("{0}")]
     Other(String),
 }

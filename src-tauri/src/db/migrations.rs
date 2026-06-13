@@ -41,6 +41,19 @@ const MIGRATIONS: &[&str] = &[
     INSERT OR IGNORE INTO settings (id, ftp_w, max_hr_bpm, workout_path)
         VALUES (1, 200, 190, '');
     "#,
+    // v1 -> v2 : Strava integration
+    r#"
+    CREATE TABLE IF NOT EXISTS strava_auth(
+        id            INTEGER PRIMARY KEY CHECK (id = 1),
+        access_token  TEXT NOT NULL,
+        refresh_token TEXT NOT NULL,
+        expires_at    INTEGER NOT NULL,
+        athlete_id    INTEGER,
+        connected_at  TEXT NOT NULL
+    );
+    ALTER TABLE settings ADD COLUMN strava_auto_upload INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE sessions ADD COLUMN strava_activity_id INTEGER;
+    "#,
 ];
 
 pub fn run(conn: &mut Connection) -> Result<(), AppError> {

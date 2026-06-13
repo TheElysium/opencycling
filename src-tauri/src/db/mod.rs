@@ -4,4 +4,4 @@ mod migrations;
 mod types;
 
 pub use command::DbActorHandle;
-pub use types::{Metric, SessionCard, SessionDetail, Settings};
+pub use types::{Metric, SessionCard, SessionDetail, Settings, StravaAuth};

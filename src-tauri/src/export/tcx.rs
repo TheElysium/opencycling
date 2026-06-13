@@ -17,7 +17,8 @@ fn xml_escape(s: &str) -> String {
 
 /// One human-readable line per workout block (warmup / intervals / cooldown),
 /// e.g. `Warmup: 10:00 @ 100-150 W`. Powers are absolute watts.
-fn workout_description(session: &SessionDetail) -> String {
+/// Reused as the Strava activity description (plain text, no XML escaping there).
+pub fn workout_description(session: &SessionDetail) -> String {
     session
         .flat_blocks
         .iter()
@@ -106,6 +107,7 @@ mod tests {
     fn base_session() -> SessionDetail {
         SessionDetail {
             id: 1,
+            strava_activity_id: None,
             started_at: "2026-06-13T10:00:00+00:00".to_string(),
             ended_at: Some("2026-06-13T10:00:03+00:00".to_string()),
             workout_name: "Test Workout".to_string(),

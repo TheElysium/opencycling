@@ -36,6 +36,7 @@ uuid = { version = "1.23.1", features = ["v4"] }
 rusqlite = { version = "0.40.0", features = ["bundled"] }
 chrono = "0.4.44"
 tauri-plugin-updater = "2"
+reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls"] }
 
 [package.metadata.release]
 publish = false                                   # desktop app, not a crates.io crate

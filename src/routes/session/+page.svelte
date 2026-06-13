@@ -9,6 +9,7 @@
   import { toMessage } from '$lib/format';
   import { type SessionDetail } from '$lib/db';
   import { getSettings } from '$lib/settings';
+  import { stravaStatus, uploadSessionToStrava } from '$lib/strava';
   import CurrentBlockCard from '$lib/components/CurrentBlockCard.svelte';
   import SessionFinishedCard from '$lib/components/SessionFinishedCard.svelte';
   import PowerTile from '$lib/components/PowerTile.svelte';
@@ -38,14 +39,36 @@
   let prevState: SessionMetrics['state'] | null = null;
   let prevBlockIdx: number | null = null;
   let prevBlockRemaining: number | null = null;
+  let autoUploaded = false;
+
+  /// Fires once when a session finishes: uploads to Strava if connected and the
+  /// auto-upload setting is on. The backend dedup guard covers any re-entry.
+  async function maybeAutoUpload(sessionId: number | null) {
+    if (sessionId == null || autoUploaded) return;
+    autoUploaded = true;
+    try {
+      const status = await stravaStatus();
+      if (status.connected && status.auto_upload) {
+        await uploadSessionToStrava(sessionId);
+      }
+    } catch (e) {
+      console.error('auto-upload failed', e);
+    }
+  }
 
   $effect(() => {
     if (!m) return;
     const curBlock = session.flat_blocks[m.current_block_idx];
     const remaining = curBlock ? curBlock.duration_s - m.current_block_elapsed_s : null;
 
+    // A fresh session resets the one-shot auto-upload guard.
+    if (m.state === 'WaitingForRider') autoUploaded = false;
+
     if (prevState !== null && prevState !== 'Running' && m.state === 'Running') beepLow();
-    if (prevState !== null && prevState !== 'Finished' && m.state === 'Finished') beepLow();
+    if (prevState !== null && prevState !== 'Finished' && m.state === 'Finished') {
+      beepLow();
+      maybeAutoUpload(m.session_id);
+    }
     if (m.state === 'Running' && prevBlockIdx !== null && prevBlockIdx !== m.current_block_idx) beepLong();
     if (
       m.state === 'Running' &&

@@ -1,9 +1,11 @@
 use crate::ble::{BleActorHandle, BleMetrics, DeviceInfo};
-use crate::db::{DbActorHandle, SessionCard, SessionDetail, Settings};
+use crate::db::{DbActorHandle, SessionCard, SessionDetail, Settings, StravaAuth};
 use crate::errors::AppError;
 use crate::session::{SessionActorHandle, SessionSnapshot};
+use crate::strava::types::StravaStatus;
 use crate::workout::{list_workouts, parse_zwo, ParsedWorkout};
 use tauri::Manager;
+use tauri_plugin_opener::OpenerExt;
 use tracing::metadata::LevelFilter;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{fmt, EnvFilter};
@@ -14,6 +16,7 @@ pub mod errors;
 mod export;
 mod metrics;
 mod session;
+mod strava;
 pub mod workout;
 
 const DB_FILE: &str = "opencycling.db";
@@ -141,6 +144,81 @@ async fn export_session_tcx(
     Ok(())
 }
 
+#[tauri::command]
+async fn strava_status(state: tauri::State<'_, DbActorHandle>) -> Result<StravaStatus, AppError> {
+    let auth = state.get_strava_auth().await?;
+    let auto_upload = state.get_strava_auto_upload().await?;
+    Ok(StravaStatus {
+        connected: auth.is_some(),
+        athlete_id: auth.and_then(|a| a.athlete_id),
+        auto_upload,
+    })
+}
+
+#[tauri::command]
+async fn strava_connect(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, DbActorHandle>,
+) -> Result<StravaStatus, AppError> {
+    // Open the browser, then await the loopback callback with the auth code.
+    app.opener()
+        .open_url(strava::oauth::authorize_url(), None::<&str>)
+        .map_err(|e| AppError::StravaAuth(e.to_string()))?;
+    let code = strava::oauth::wait_for_code().await?;
+    let tokens = strava::oauth::exchange_code(&code).await?;
+    state
+        .upsert_strava_auth(StravaAuth {
+            access_token: tokens.access_token,
+            refresh_token: tokens.refresh_token,
+            expires_at: tokens.expires_at,
+            athlete_id: tokens.athlete_id,
+            connected_at: chrono::Utc::now().to_rfc3339(),
+        })
+        .await?;
+    let auto_upload = state.get_strava_auto_upload().await?;
+    Ok(StravaStatus {
+        connected: true,
+        athlete_id: tokens.athlete_id,
+        auto_upload,
+    })
+}
+
+#[tauri::command]
+async fn strava_disconnect(state: tauri::State<'_, DbActorHandle>) -> Result<(), AppError> {
+    state.delete_strava_auth().await
+}
+
+#[tauri::command]
+async fn strava_set_auto_upload(
+    state: tauri::State<'_, DbActorHandle>,
+    enabled: bool,
+) -> Result<(), AppError> {
+    state.set_strava_auto_upload(enabled).await
+}
+
+#[tauri::command]
+async fn upload_session_to_strava(
+    state: tauri::State<'_, DbActorHandle>,
+    session_id: i64,
+    force: bool,
+) -> Result<i64, AppError> {
+    let detail = state.get_session(session_id).await?;
+    if !force {
+        if let Some(existing) = detail.strava_activity_id {
+            return Ok(existing); // dedup guard: already uploaded
+        }
+    }
+    let token = strava::ensure_fresh_token(&state).await?;
+    let tcx = export::tcx::build_tcx(&detail);
+    let name = format!("OpenCycling - {}", detail.workout_name);
+    let description = export::tcx::workout_description(&detail);
+    let activity_id = strava::api::upload_tcx(&token, tcx, &name, &description).await?;
+    state
+        .set_session_strava_activity(session_id, activity_id)
+        .await?;
+    Ok(activity_id)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -164,7 +242,12 @@ pub fn run() {
             list_sessions,
             get_session,
             delete_session,
-            export_session_tcx
+            export_session_tcx,
+            strava_status,
+            strava_connect,
+            strava_disconnect,
+            strava_set_auto_upload,
+            upload_session_to_strava
         ])
         .setup(|app| {
             let log_dir = app.path().app_log_dir().expect("no app log dir");
