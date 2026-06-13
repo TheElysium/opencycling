@@ -150,7 +150,8 @@ async fn strava_status(state: tauri::State<'_, DbActorHandle>) -> Result<StravaS
     let auto_upload = state.get_strava_auto_upload().await?;
     Ok(StravaStatus {
         connected: auth.is_some(),
-        athlete_id: auth.and_then(|a| a.athlete_id),
+        athlete_id: auth.as_ref().and_then(|a| a.athlete_id),
+        athlete_name: auth.and_then(|a| a.athlete_name),
         auto_upload,
     })
 }
@@ -160,11 +161,15 @@ async fn strava_connect(
     app: tauri::AppHandle,
     state: tauri::State<'_, DbActorHandle>,
 ) -> Result<StravaStatus, AppError> {
-    // Open the browser, then await the loopback callback with the auth code.
+    // CSRF nonce: passed to Strava and verified when the callback returns.
+    let csrf_state = uuid::Uuid::new_v4().to_string();
+    // Bind the loopback listener before opening the browser so the callback
+    // can never race ahead of us listening.
+    let listener = strava::oauth::bind_loopback()?;
     app.opener()
-        .open_url(strava::oauth::authorize_url(), None::<&str>)
+        .open_url(strava::oauth::authorize_url(&csrf_state), None::<&str>)
         .map_err(|e| AppError::StravaAuth(e.to_string()))?;
-    let code = strava::oauth::wait_for_code().await?;
+    let code = strava::oauth::wait_for_code(listener, csrf_state).await?;
     let tokens = strava::oauth::exchange_code(&code).await?;
     state
         .upsert_strava_auth(StravaAuth {
@@ -172,6 +177,7 @@ async fn strava_connect(
             refresh_token: tokens.refresh_token,
             expires_at: tokens.expires_at,
             athlete_id: tokens.athlete_id,
+            athlete_name: tokens.athlete_name.clone(),
             connected_at: chrono::Utc::now().to_rfc3339(),
         })
         .await?;
@@ -179,6 +185,7 @@ async fn strava_connect(
     Ok(StravaStatus {
         connected: true,
         athlete_id: tokens.athlete_id,
+        athlete_name: tokens.athlete_name,
         auto_upload,
     })
 }

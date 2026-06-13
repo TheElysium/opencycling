@@ -57,5 +57,6 @@ pub struct StravaAuth {
     /// Token expiry, epoch seconds (UTC).
     pub expires_at: i64,
     pub athlete_id: Option<i64>,
+    pub athlete_name: Option<String>,
     pub connected_at: String,
 }

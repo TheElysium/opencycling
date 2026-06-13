@@ -9,6 +9,8 @@ pub struct ProxyTokens {
     pub expires_at: i64,
     #[serde(default)]
     pub athlete_id: Option<i64>,
+    #[serde(default)]
+    pub athlete_name: Option<String>,
 }
 
 /// Status surfaced to the frontend.
@@ -16,6 +18,7 @@ pub struct ProxyTokens {
 pub struct StravaStatus {
     pub connected: bool,
     pub athlete_id: Option<i64>,
+    pub athlete_name: Option<String>,
     pub auto_upload: bool,
 }
 

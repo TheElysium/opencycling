@@ -66,6 +66,11 @@ async fn poll_activity_id(
             .send()
             .await
             .map_err(|e| AppError::StravaUpload(e.to_string()))?;
+        if !resp.status().is_success() {
+            let code = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            return Err(AppError::StravaUpload(format!("poll {code}: {body}")));
+        }
         let status: UploadStatus = resp
             .json()
             .await
@@ -78,6 +83,6 @@ async fn poll_activity_id(
         }
     }
     Err(AppError::StravaUpload(
-        "upload still processing after 30s".into(),
+        "upload still processing after ~30s of polling".into(),
     ))
 }

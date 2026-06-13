@@ -22,7 +22,7 @@
   let error       = $state<string | null>(null);
   let savedTimer: ReturnType<typeof setTimeout> | null = null;
 
-  let strava      = $state<StravaStatus>({ connected: false, athlete_id: null, auto_upload: false });
+  let strava      = $state<StravaStatus>({ connected: false, athlete_id: null, athlete_name: null, auto_upload: false });
   let stravaBusy  = $state(false);
   let stravaError = $state<string | null>(null);
 
@@ -155,7 +155,7 @@
             {#if strava.connected}
               <span class="status-badge" transition:fade={{ duration: 120 }}>
                 <Check size={13} strokeWidth={3} />
-                Connected{strava.athlete_id ? ` · athlete ${strava.athlete_id}` : ''}
+                Connected{strava.athlete_name ? ` · ${strava.athlete_name}` : strava.athlete_id ? ` · athlete ${strava.athlete_id}` : ''}
               </span>
             {:else}
               <span class="integration-sub">Publish finished sessions as Virtual Rides</span>

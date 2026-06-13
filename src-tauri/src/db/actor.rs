@@ -376,19 +376,21 @@ impl DbActor {
         self.conn
             .execute(
                 "INSERT INTO strava_auth \
-                   (id, access_token, refresh_token, expires_at, athlete_id, connected_at) \
-                 VALUES (1, ?1, ?2, ?3, ?4, ?5) \
+                   (id, access_token, refresh_token, expires_at, athlete_id, athlete_name, connected_at) \
+                 VALUES (1, ?1, ?2, ?3, ?4, ?5, ?6) \
                  ON CONFLICT(id) DO UPDATE SET \
                    access_token=excluded.access_token, \
                    refresh_token=excluded.refresh_token, \
                    expires_at=excluded.expires_at, \
                    athlete_id=excluded.athlete_id, \
+                   athlete_name=excluded.athlete_name, \
                    connected_at=excluded.connected_at",
                 (
                     &auth.access_token,
                     &auth.refresh_token,
                     auth.expires_at,
                     auth.athlete_id,
+                    &auth.athlete_name,
                     &auth.connected_at,
                 ),
             )
@@ -399,7 +401,7 @@ impl DbActor {
     fn get_strava_auth(&self) -> Result<Option<StravaAuth>, AppError> {
         self.conn
             .query_row(
-                "SELECT access_token, refresh_token, expires_at, athlete_id, connected_at \
+                "SELECT access_token, refresh_token, expires_at, athlete_id, athlete_name, connected_at \
                  FROM strava_auth WHERE id = 1",
                 [],
                 |row| {
@@ -408,7 +410,8 @@ impl DbActor {
                         refresh_token: row.get(1)?,
                         expires_at: row.get(2)?,
                         athlete_id: row.get(3)?,
-                        connected_at: row.get(4)?,
+                        athlete_name: row.get(4)?,
+                        connected_at: row.get(5)?,
                     })
                 },
             )

@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 export type StravaStatus = {
   connected: boolean;
   athlete_id: number | null;
+  athlete_name: string | null;
   auto_upload: boolean;
 };
 

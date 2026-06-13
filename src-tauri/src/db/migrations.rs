@@ -54,6 +54,10 @@ const MIGRATIONS: &[&str] = &[
     ALTER TABLE settings ADD COLUMN strava_auto_upload INTEGER NOT NULL DEFAULT 0;
     ALTER TABLE sessions ADD COLUMN strava_activity_id INTEGER;
     "#,
+    // v2 -> v3 : store the athlete display name
+    r#"
+    ALTER TABLE strava_auth ADD COLUMN athlete_name TEXT;
+    "#,
 ];
 
 pub fn run(conn: &mut Connection) -> Result<(), AppError> {

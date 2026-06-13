@@ -25,6 +25,7 @@ struct Tokens {
     refresh_token: String,
     expires_at: i64,
     athlete_id: Option<i64>,
+    athlete_name: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -39,6 +40,10 @@ struct StravaTokenResp {
 #[derive(Deserialize)]
 struct Athlete {
     id: i64,
+    #[serde(default)]
+    firstname: Option<String>,
+    #[serde(default)]
+    lastname: Option<String>,
 }
 
 async fn exchange(
@@ -86,11 +91,22 @@ async fn map_token_resp(resp: reqwest::Response) -> Result<Json<Tokens>, String>
         return Err(format!("Strava token error {status}: {body}"));
     }
     let t: StravaTokenResp = resp.json().await.map_err(|e| e.to_string())?;
+    let athlete_id = t.athlete.as_ref().map(|a| a.id);
+    let athlete_name = t.athlete.as_ref().and_then(|a| {
+        let name = format!(
+            "{} {}",
+            a.firstname.as_deref().unwrap_or(""),
+            a.lastname.as_deref().unwrap_or("")
+        );
+        let name = name.trim().to_string();
+        (!name.is_empty()).then_some(name)
+    });
     Ok(Json(Tokens {
         access_token: t.access_token,
         refresh_token: t.refresh_token,
         expires_at: t.expires_at,
-        athlete_id: t.athlete.map(|a| a.id),
+        athlete_id,
+        athlete_name,
     }))
 }
 

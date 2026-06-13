@@ -24,6 +24,7 @@ pub async fn ensure_fresh_token(db: &DbActorHandle) -> Result<String, AppError> 
         refresh_token: fresh.refresh_token,
         expires_at: fresh.expires_at,
         athlete_id: auth.athlete_id,
+        athlete_name: auth.athlete_name,
         connected_at: auth.connected_at,
     };
     db.upsert_strava_auth(updated).await?;
