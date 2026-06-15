@@ -42,8 +42,32 @@ jobs:
           VERSION=$(grep '^version' Cargo.toml | head -1 | sed -E 's/.*"(.*)".*/\1/')
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
 
-  build:
+  create-release:
     needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      release_id: ${{ steps.create.outputs.result }}
+    steps:
+      - name: Create the draft release (once, shared by every platform)
+        uses: actions/github-script@v7
+        id: create
+        with:
+          script: |
+            const { data } = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: '${{ needs.prepare.outputs.tag }}',
+              name: 'OpenCycling ${{ needs.prepare.outputs.tag }}',
+              body: 'Release notes are being generated...',
+              draft: true,
+              prerelease: false,
+            });
+            return data.id;
+
+  build:
+    needs: [prepare, create-release]
     permissions:
       contents: write
     strategy:
@@ -89,7 +113,7 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build & release Tauri app
+      - name: Build & upload Tauri app to the shared release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -97,14 +121,10 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           args: ${{ matrix.args }}
-          tagName: ${{ needs.prepare.outputs.tag }}
-          releaseName: "OpenCycling ${{ needs.prepare.outputs.tag }}"
-          releaseBody: "Release notes are being generated..."
-          releaseDraft: true
-          prerelease: false
+          releaseId: ${{ needs.create-release.outputs.release_id }}
 
   finalize:
-    needs: [prepare, build]
+    needs: [prepare, create-release, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
