@@ -7,11 +7,6 @@ use rusqlite::Connection;
 use tokio::sync::mpsc::Receiver;
 use tracing::info;
 
-/// Score at/above which a frame counts as "in aero".
-/// MUST mirror `AERO_THRESHOLD` in `src/lib/aero.ts` (single source of truth for the
-/// aero/upright decision on both sides of the Tauri bridge).
-const AERO_THRESHOLD: f32 = 0.5;
-
 /// Aggregated session metrics: (avg_power, max_power, avg_hr, max_hr, avg_cad, max_cad).
 type SessionAggregates = (
     Option<i64>,
@@ -224,15 +219,15 @@ impl DbActor {
 
         let workout_type = self.compute_workout_type(session_id, ftp_w_used)?;
 
-        // Share of valid aero samples that are in aero (score >= 0.5). NULL if
-        // no aero samples were recorded for this session.
+        // Share of samples spent in aero. The frontend already made the binary
+        // aero/upright decision (smoothing + hysteresis) and stored it as 0.0/1.0,
+        // so a plain AVG reproduces exactly what the rider saw live. AVG skips NULLs
+        // (samples with no aero report), yielding NULL when none were recorded.
         let aero_pct: Option<f64> = self
             .conn
             .query_row(
-                "SELECT AVG(CASE WHEN aero_score >= ?2 THEN 1.0 ELSE 0.0 END) \
-                 FROM session_metrics \
-                 WHERE session_id = ?1 AND aero_score IS NOT NULL",
-                rusqlite::params![session_id, AERO_THRESHOLD],
+                "SELECT AVG(aero_score) FROM session_metrics WHERE session_id = ?1",
+                [session_id],
                 |row| row.get(0),
             )
             .map_err(|e| AppError::DbError(e.to_string()))?;

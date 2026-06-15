@@ -116,8 +116,8 @@ impl SessionActor {
                 }
                 self.emit_metrics();
             }
-            SessionCommand::ReportAero { score } => {
-                self.last_aero = score;
+            SessionCommand::ReportAero { aero } => {
+                self.last_aero = aero;
             }
             SessionCommand::Snapshot { reply } => {
                 let snapshot = self.build_snapshot();
@@ -195,7 +195,12 @@ impl SessionActor {
                                 cadence_rpm: self.last_cadence_rpm,
                                 // consume: reset to None so a stalled frontend
                                 // doesn't keep writing this value into later samples.
-                                aero_score: self.last_aero.take(),
+                                // Persist the binary decision as 0.0/1.0 so the DB
+                                // can average it straight into aero_pct.
+                                aero_score: self
+                                    .last_aero
+                                    .take()
+                                    .map(|a| if a { 1.0 } else { 0.0 }),
                             },
                         )
                         .await;

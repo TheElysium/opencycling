@@ -39,9 +39,9 @@ impl SessionActorHandle {
         Self { sender: cmd_tx }
     }
 
-    pub async fn report_aero(&self, score: Option<f32>) -> Result<(), AppError> {
+    pub async fn report_aero(&self, aero: Option<bool>) -> Result<(), AppError> {
         self.sender
-            .send(SessionCommand::ReportAero { score })
+            .send(SessionCommand::ReportAero { aero })
             .await
             .map_err(|_| AppError::ChannelClosed)
     }

@@ -108,9 +108,9 @@ async fn skip_block(state: tauri::State<'_, SessionActorHandle>) -> Result<(), A
 #[tauri::command]
 async fn report_aero(
     state: tauri::State<'_, SessionActorHandle>,
-    score: Option<f32>,
+    aero: Option<bool>,
 ) -> Result<(), AppError> {
-    state.report_aero(score).await
+    state.report_aero(aero).await
 }
 
 #[tauri::command]
