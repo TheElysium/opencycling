@@ -193,7 +193,9 @@ impl SessionActor {
                                 power_w: self.last_power_w.map(|p| p.max(0) as u16),
                                 hr_bpm: self.last_hr_bpm,
                                 cadence_rpm: self.last_cadence_rpm,
-                                aero_score: self.last_aero,
+                                // consume: reset to None so a stalled frontend
+                                // doesn't keep writing this value into later samples.
+                                aero_score: self.last_aero.take(),
                             },
                         )
                         .await;
