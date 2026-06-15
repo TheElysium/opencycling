@@ -33,9 +33,17 @@ impl SessionActorHandle {
             db_handle,
             current_session_id: None,
             last_session_id: None,
+            last_aero: None,
         };
         tokio::spawn(actor.run());
         Self { sender: cmd_tx }
+    }
+
+    pub async fn report_aero(&self, score: Option<f32>) -> Result<(), AppError> {
+        self.sender
+            .send(SessionCommand::ReportAero { score })
+            .await
+            .map_err(|_| AppError::ChannelClosed)
     }
 
     pub async fn start(&self, workout: ParsedWorkout, ftp_w: u16) -> Result<(), AppError> {

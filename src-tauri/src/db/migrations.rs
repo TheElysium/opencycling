@@ -62,6 +62,12 @@ const MIGRATIONS: &[&str] = &[
     r#"
     ALTER TABLE settings ADD COLUMN strava_proxy_url TEXT NOT NULL DEFAULT 'http://127.0.0.1:8788';
     "#,
+    // v4 -> v5 : aero position detection
+    r#"
+    ALTER TABLE session_metrics ADD COLUMN aero_score REAL;
+    ALTER TABLE sessions ADD COLUMN aero_pct REAL;
+    ALTER TABLE settings ADD COLUMN aero_enabled INTEGER NOT NULL DEFAULT 0;
+    "#,
 ];
 
 pub fn run(conn: &mut Connection) -> Result<(), AppError> {

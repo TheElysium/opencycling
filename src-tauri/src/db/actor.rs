@@ -111,7 +111,8 @@ impl DbActor {
     fn query_settings(&self) -> Result<Settings, AppError> {
         self.conn
             .query_row(
-                "SELECT ftp_w, max_hr_bpm, workout_path, strava_proxy_url FROM settings WHERE id = 1",
+                "SELECT ftp_w, max_hr_bpm, workout_path, strava_proxy_url, aero_enabled \
+                 FROM settings WHERE id = 1",
                 [],
                 |row| {
                     Ok(Settings {
@@ -119,6 +120,7 @@ impl DbActor {
                         max_hr_bpm: row.get(1)?,
                         workout_path: row.get(2)?,
                         strava_proxy_url: row.get(3)?,
+                        aero_enabled: row.get::<_, i64>(4)? != 0,
                     })
                 },
             )
@@ -130,7 +132,7 @@ impl DbActor {
             .conn
             .prepare(
                 "UPDATE settings SET ftp_w=(?1), max_hr_bpm=(?2), workout_path=(?3), \
-                 strava_proxy_url=(?4) WHERE id = 1",
+                 strava_proxy_url=(?4), aero_enabled=(?5) WHERE id = 1",
             )
             .map_err(|e| AppError::DbError(e.to_string()))?;
         stmt.execute((
@@ -138,6 +140,7 @@ impl DbActor {
             settings.max_hr_bpm,
             settings.workout_path,
             settings.strava_proxy_url,
+            settings.aero_enabled as i64,
         ))
         .map_err(|e| AppError::DbError(e.to_string()))?;
         Ok(())
@@ -163,14 +166,15 @@ impl DbActor {
     fn insert_metric(&mut self, session_id: i64, metric: Metric) -> Result<(), AppError> {
         self.conn
             .execute(
-                "INSERT INTO session_metrics (session_id, t_offset_s, power_w, hr_bpm, cadence_rpm) \
-             VALUES (?1, ?2, ?3, ?4, ?5)",
+                "INSERT INTO session_metrics (session_id, t_offset_s, power_w, hr_bpm, cadence_rpm, aero_score) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                 (
                     session_id,
                     metric.t_offset_s,
                     metric.power_w,
                     metric.hr_bpm,
                     metric.cadence_rpm,
+                    metric.aero_score,
                 ),
             )
             .map_err(|e| AppError::DbError(e.to_string()))?;
@@ -215,6 +219,19 @@ impl DbActor {
 
         let workout_type = self.compute_workout_type(session_id, ftp_w_used)?;
 
+        // Share of valid aero samples that are in aero (score >= 0.5). NULL if
+        // no aero samples were recorded for this session.
+        let aero_pct: Option<f64> = self
+            .conn
+            .query_row(
+                "SELECT AVG(CASE WHEN aero_score >= 0.5 THEN 1.0 ELSE 0.0 END) \
+                 FROM session_metrics \
+                 WHERE session_id = ?1 AND aero_score IS NOT NULL",
+                [session_id],
+                |row| row.get(0),
+            )
+            .map_err(|e| AppError::DbError(e.to_string()))?;
+
         self.conn
             .execute(
                 "UPDATE sessions SET \
@@ -222,8 +239,8 @@ impl DbActor {
                     avg_power_w = ?3, max_power_w = ?4, \
                     avg_hr_bpm = ?5, max_hr_bpm = ?6, \
                     avg_cadence_rpm = ?7, max_cadence_rpm = ?8, \
-                    workout_type = ?9 \
-                 WHERE id = ?10",
+                    workout_type = ?9, aero_pct = ?10 \
+                 WHERE id = ?11",
                 (
                     &ended_at,
                     duration_s,
@@ -234,6 +251,7 @@ impl DbActor {
                     avg_cad,
                     max_cad,
                     workout_type.map(|t| t.as_str()),
+                    aero_pct,
                     session_id,
                 ),
             )
@@ -282,7 +300,7 @@ impl DbActor {
             .conn
             .prepare(
                 "SELECT id, started_at, workout_name, duration_s, \
-                        avg_power_w, avg_hr_bpm, avg_cadence_rpm, ftp_w_used, workout_type \
+                        avg_power_w, avg_hr_bpm, avg_cadence_rpm, ftp_w_used, workout_type, aero_pct \
                  FROM sessions \
                  ORDER BY started_at DESC",
             )
@@ -300,6 +318,7 @@ impl DbActor {
                     avg_cadence_rpm: row.get(6)?,
                     ftp_w_used: row.get(7)?,
                     workout_type: workout_type_str.as_deref().and_then(WorkoutType::from_str),
+                    aero_pct: row.get(9)?,
                 })
             })
             .map_err(|e| AppError::DbError(e.to_string()))?;
@@ -316,7 +335,7 @@ impl DbActor {
                 "SELECT started_at, ended_at, workout_name, duration_s, \
                         avg_power_w, max_power_w, avg_hr_bpm, max_hr_bpm, \
                         avg_cadence_rpm, max_cadence_rpm, ftp_w_used, \
-                        workout_type, flat_blocks, strava_activity_id \
+                        workout_type, aero_pct, flat_blocks, strava_activity_id \
                  FROM sessions WHERE id = ?1",
                 [id],
                 |row| {
@@ -337,6 +356,7 @@ impl DbActor {
                         max_cadence_rpm: row.get("max_cadence_rpm")?,
                         ftp_w_used: row.get("ftp_w_used")?,
                         workout_type: workout_type_str.as_deref().and_then(WorkoutType::from_str),
+                        aero_pct: row.get("aero_pct")?,
                         flat_blocks: Vec::new(),
                         metrics: Vec::new(),
                     };
@@ -351,7 +371,7 @@ impl DbActor {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT t_offset_s, power_w, hr_bpm, cadence_rpm \
+                "SELECT t_offset_s, power_w, hr_bpm, cadence_rpm, aero_score \
                  FROM session_metrics WHERE session_id = ?1 ORDER BY t_offset_s",
             )
             .map_err(|e| AppError::DbError(e.to_string()))?;
@@ -362,6 +382,7 @@ impl DbActor {
                     power_w: row.get(1)?,
                     hr_bpm: row.get(2)?,
                     cadence_rpm: row.get(3)?,
+                    aero_score: row.get(4)?,
                 })
             })
             .map_err(|e| AppError::DbError(e.to_string()))?

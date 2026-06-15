@@ -9,6 +9,8 @@ pub struct Settings {
     pub workout_path: String,
     /// Base URL of the user's local Strava auth proxy (holds their client secret).
     pub strava_proxy_url: String,
+    /// Global default for front-camera aero detection.
+    pub aero_enabled: bool,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -22,6 +24,7 @@ pub struct SessionCard {
     pub avg_cadence_rpm: Option<u16>,
     pub ftp_w_used: u16,
     pub workout_type: Option<WorkoutType>,
+    pub aero_pct: Option<f32>,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -30,6 +33,7 @@ pub struct Metric {
     pub power_w: Option<u16>,
     pub hr_bpm: Option<u16>,
     pub cadence_rpm: Option<u16>,
+    pub aero_score: Option<f32>,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -48,6 +52,7 @@ pub struct SessionDetail {
     pub max_cadence_rpm: Option<u16>,
     pub ftp_w_used: u16,
     pub workout_type: Option<WorkoutType>,
+    pub aero_pct: Option<f32>,
     pub flat_blocks: Vec<FlatBlock>,
     pub metrics: Vec<Metric>,
 }

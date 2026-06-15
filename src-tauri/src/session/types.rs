@@ -99,6 +99,9 @@ pub enum SessionCommand {
     Resume,
     Stop,
     Skip,
+    ReportAero {
+        score: Option<f32>,
+    },
     Snapshot {
         reply: oneshot::Sender<Option<SessionSnapshot>>,
     },
@@ -144,4 +147,5 @@ pub struct SessionActor {
     pub db_handle: DbActorHandle,
     pub current_session_id: Option<i64>,
     pub last_session_id: Option<i64>,
+    pub last_aero: Option<f32>,
 }
