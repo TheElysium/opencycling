@@ -19,21 +19,34 @@ takes about two minutes and is described below.
    it authorizes the local redirect the desktop app listens on.
 4. After creating it, note your **Client ID** and **Client Secret**.
 
-## 2. Configure the proxy
+## 2. Get the proxy
 
-The proxy is the small `strava-proxy` server. It holds your client secret and
-performs the token exchange. It reads its configuration from environment
-variables, falling back to a `.env` file when a variable is not already set in
-the environment:
+The proxy is a small standalone server that holds your client secret and performs
+the token exchange. It lives in its own repository:
+<https://github.com/TheElysium/opencycling-strava-proxy>.
+
+Either download the prebuilt binary for your platform from its
+[latest release](https://github.com/TheElysium/opencycling-strava-proxy/releases/latest),
+or clone and build from source:
+
+```bash
+git clone https://github.com/TheElysium/opencycling-strava-proxy.git
+cd opencycling-strava-proxy
+```
+
+## 3. Configure and run the proxy
+
+The proxy reads its configuration from environment variables, falling back to a
+`.env` file when a variable is not already set in the environment:
 
 - `STRAVA_CLIENT_ID` (required)
 - `STRAVA_CLIENT_SECRET` (required)
 - `PROXY_PORT` (optional, defaults to `8788`)
 
-The simplest setup is a `.env` file. Copy the example and fill it in:
+The simplest setup is a `.env` file next to the binary (or in the cloned repo).
+Copy the example and fill it in:
 
 ```bash
-cd strava-proxy
 cp .env.example .env
 ```
 
@@ -53,14 +66,8 @@ export STRAVA_CLIENT_ID=<your client id>
 export STRAVA_CLIENT_SECRET=<your client secret>
 ```
 
-## 3. Run the proxy
-
-```bash
-cd strava-proxy
-cargo run
-```
-
-It listens on `http://127.0.0.1:8788` and exposes three routes:
+Then run it (the downloaded binary directly, or `cargo run` from the source
+checkout). It listens on `http://127.0.0.1:8788` and exposes three routes:
 
 - `GET /config` returns your client id (used by the app to build the authorize
   URL). The secret is never exposed.
