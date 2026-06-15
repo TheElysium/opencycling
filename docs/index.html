@@ -403,29 +403,29 @@
       </div>
       <div class="features">
         <div class="feature">
-          <div class="icon">📡</div>
+          <div class="icon" style="background: color-mix(in srgb, #60a5fa 14%, transparent)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="2"/><path d="M4.93 19.07a10 10 0 0 1 0-14.14M7.76 16.24a6 6 0 0 1 0-8.48M16.24 7.76a6 6 0 0 1 0 8.48M19.07 4.93a10 10 0 0 1 0 14.14"/></svg></div>
           <h3>Automatic BLE scanning</h3>
           <p>Scans on launch with separate status for the trainer and the heart-rate monitor. The trainer is required to start; the HRM is optional.</p>
         </div>
         <div class="feature">
-          <div class="icon">📄</div>
+          <div class="icon" style="background: color-mix(in srgb, #4ade80 14%, transparent)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg></div>
           <h3><code>.zwo</code> workouts</h3>
           <p>Reads workouts from a folder you choose. Supports Warmup, SteadyState, IntervalsT and Cooldown blocks, with target watts computed from your FTP.</p>
         </div>
         <div class="feature">
-          <div class="icon">🎯</div>
+          <div class="icon" style="background: color-mix(in srgb, #facc15 16%, transparent)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#facc15" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></div>
           <h3>ERG control per block</h3>
           <p>Sends each block's target power every second and follows linear ramps for warmups and cooldowns. A keep-alive resends the target so the trainer never drops resistance.</p>
         </div>
         <div class="feature">
-          <div class="icon">📊</div>
+          <div class="icon" style="background: color-mix(in srgb, #f87171 14%, transparent)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#f87171" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
           <h3>Recording &amp; history</h3>
           <p>Power, heart rate and cadence are stored every second in a local SQLite database. Browse past sessions and open any one for stats, a power graph and zone breakdowns.</p>
         </div>
         <div class="feature" style="grid-column: 1 / -1">
-          <div class="icon">🟧</div>
+          <div class="icon" style="background: color-mix(in srgb, #fb923c 15%, transparent)"><svg viewBox="0 0 24 24" width="22" height="22" fill="#fb923c" aria-hidden="true"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066M10.463 0l-7 13.828h4.172l2.828-5.696 2.828 5.696h4.172"/></svg></div>
           <h3>Strava upload <span style="font-weight:600;color:var(--muted);font-size:0.85rem">· optional, manual setup</span></h3>
-          <p>Finished sessions can be exported as TCX and pushed to Strava as Virtual Rides. There is no shared account: to keep the app fully open you bring your own free Strava app and run a small local proxy. It takes about two minutes, see the <a href="https://github.com/TheElysium/opencycling/blob/main/docs/strava-setup.md" target="_blank" rel="noopener" style="color:var(--accent)">setup guide</a>.</p>
+          <p>Finished sessions can be exported as TCX and pushed to Strava as Virtual Rides. There is no shared account: to keep the app fully open you bring your own free Strava app and run a small <a href="https://github.com/TheElysium/opencycling-strava-proxy" target="_blank" rel="noopener" style="color:var(--accent)">auth proxy</a>. It takes about two minutes, see the <a href="https://github.com/TheElysium/opencycling-strava-proxy/blob/main/README.md" target="_blank" rel="noopener" style="color:var(--accent)">setup guide</a>.</p>
         </div>
       </div>
     </div>
