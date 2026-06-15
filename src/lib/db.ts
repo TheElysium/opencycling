@@ -22,6 +22,7 @@ export type MetricSample = {
 
 export type SessionDetail = {
   id: number;
+  strava_activity_id: number | null;
   started_at: string;
   ended_at: string | null;
   workout_name: string;

@@ -7,6 +7,8 @@ pub struct Settings {
     pub ftp_w: u16,
     pub max_hr_bpm: u16,
     pub workout_path: String,
+    /// Base URL of the user's local Strava auth proxy (holds their client secret).
+    pub strava_proxy_url: String,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -33,6 +35,7 @@ pub struct Metric {
 #[derive(Serialize, Debug, Clone)]
 pub struct SessionDetail {
     pub id: i64,
+    pub strava_activity_id: Option<i64>,
     pub started_at: String,
     pub ended_at: Option<String>,
     pub workout_name: String,
@@ -47,4 +50,15 @@ pub struct SessionDetail {
     pub workout_type: Option<WorkoutType>,
     pub flat_blocks: Vec<FlatBlock>,
     pub metrics: Vec<Metric>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct StravaAuth {
+    pub access_token: String,
+    pub refresh_token: String,
+    /// Token expiry, epoch seconds (UTC).
+    pub expires_at: i64,
+    pub athlete_id: Option<i64>,
+    pub athlete_name: Option<String>,
+    pub connected_at: String,
 }

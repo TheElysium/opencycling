@@ -1,5 +1,5 @@
 use crate::db::actor::DbActor;
-use crate::db::types::{Metric, SessionCard, SessionDetail};
+use crate::db::types::{Metric, SessionCard, SessionDetail, StravaAuth};
 use crate::db::Settings;
 use crate::errors::AppError;
 use tokio::sync::mpsc::{channel, Sender};
@@ -38,6 +38,28 @@ pub enum DbCommand {
     },
     DeleteSession {
         id: i64,
+        reply: oneshot::Sender<Result<(), AppError>>,
+    },
+    UpsertStravaAuth {
+        auth: StravaAuth,
+        reply: oneshot::Sender<Result<(), AppError>>,
+    },
+    GetStravaAuth {
+        reply: oneshot::Sender<Result<Option<StravaAuth>, AppError>>,
+    },
+    DeleteStravaAuth {
+        reply: oneshot::Sender<Result<(), AppError>>,
+    },
+    GetStravaAutoUpload {
+        reply: oneshot::Sender<Result<bool, AppError>>,
+    },
+    SetStravaAutoUpload {
+        enabled: bool,
+        reply: oneshot::Sender<Result<(), AppError>>,
+    },
+    SetSessionStravaActivity {
+        session_id: i64,
+        activity_id: i64,
         reply: oneshot::Sender<Result<(), AppError>>,
     },
 }
@@ -145,6 +167,68 @@ impl DbActorHandle {
         let (tx, rx) = oneshot::channel();
         self.sender
             .send(DbCommand::DeleteSession { id, reply: tx })
+            .await
+            .map_err(|e| AppError::DbError(e.to_string()))?;
+        rx.await.map_err(|e| AppError::DbError(e.to_string()))?
+    }
+
+    pub async fn upsert_strava_auth(&self, auth: StravaAuth) -> Result<(), AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::UpsertStravaAuth { auth, reply: tx })
+            .await
+            .map_err(|e| AppError::DbError(e.to_string()))?;
+        rx.await.map_err(|e| AppError::DbError(e.to_string()))?
+    }
+
+    pub async fn get_strava_auth(&self) -> Result<Option<StravaAuth>, AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::GetStravaAuth { reply: tx })
+            .await
+            .map_err(|e| AppError::DbError(e.to_string()))?;
+        rx.await.map_err(|e| AppError::DbError(e.to_string()))?
+    }
+
+    pub async fn delete_strava_auth(&self) -> Result<(), AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::DeleteStravaAuth { reply: tx })
+            .await
+            .map_err(|e| AppError::DbError(e.to_string()))?;
+        rx.await.map_err(|e| AppError::DbError(e.to_string()))?
+    }
+
+    pub async fn get_strava_auto_upload(&self) -> Result<bool, AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::GetStravaAutoUpload { reply: tx })
+            .await
+            .map_err(|e| AppError::DbError(e.to_string()))?;
+        rx.await.map_err(|e| AppError::DbError(e.to_string()))?
+    }
+
+    pub async fn set_strava_auto_upload(&self, enabled: bool) -> Result<(), AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::SetStravaAutoUpload { enabled, reply: tx })
+            .await
+            .map_err(|e| AppError::DbError(e.to_string()))?;
+        rx.await.map_err(|e| AppError::DbError(e.to_string()))?
+    }
+
+    pub async fn set_session_strava_activity(
+        &self,
+        session_id: i64,
+        activity_id: i64,
+    ) -> Result<(), AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::SetSessionStravaActivity {
+                session_id,
+                activity_id,
+                reply: tx,
+            })
             .await
             .map_err(|e| AppError::DbError(e.to_string()))?;
         rx.await.map_err(|e| AppError::DbError(e.to_string()))?
