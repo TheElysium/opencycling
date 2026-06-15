@@ -16,6 +16,7 @@
   let ftp         = $state<number | null>(null);
   let maxHr       = $state<number | null>(null);
   let workoutPath = $state<string | null>(null);
+  let stravaProxy = $state<string | null>(null);
   let loading     = $state(true);
   let saving      = $state(false);
   let saved       = $state(false);
@@ -71,12 +72,25 @@
     }
   }
 
+  // The proxy URL lives in the Strava tile and persists on blur, so it can be
+  // set right before clicking Connect without scrolling up to the global Save.
+  async function saveProxyUrl() {
+    if (ftp === null || maxHr === null || workoutPath === null || stravaProxy === null) return;
+    stravaError = null;
+    try {
+      await updateSettings({ ftp_w: ftp, max_hr_bpm: maxHr, workout_path: workoutPath, strava_proxy_url: stravaProxy });
+    } catch (e) {
+      stravaError = toMessage(e);
+    }
+  }
+
   onMount(async () => {
     try {
       const s = await getSettings();
       ftp         = s.ftp_w;
       maxHr       = s.max_hr_bpm;
       workoutPath = s.workout_path;
+      stravaProxy = s.strava_proxy_url;
     } catch (e) {
       error = toMessage(e);
     } finally {
@@ -86,12 +100,12 @@
   });
 
   async function save() {
-    if (ftp === null || maxHr === null || workoutPath === null) return;
+    if (ftp === null || maxHr === null || workoutPath === null || stravaProxy === null) return;
     saving = true;
     error  = null;
     saved  = false;
     try {
-      await updateSettings({ ftp_w: ftp, max_hr_bpm: maxHr, workout_path: workoutPath });
+      await updateSettings({ ftp_w: ftp, max_hr_bpm: maxHr, workout_path: workoutPath, strava_proxy_url: stravaProxy });
       saved = true;
       if (savedTimer) clearTimeout(savedTimer);
       savedTimer = setTimeout(() => saved = false, 2000);
@@ -135,7 +149,7 @@
       {#if saved}
         <span class="saved-msg" transition:fade={{ duration: 100 }}>Saved</span>
       {/if}
-      <button onclick={save} disabled={saving || ftp === null || maxHr === null || workoutPath === null} class="btn-primary">
+      <button onclick={save} disabled={saving || ftp === null || maxHr === null || workoutPath === null || stravaProxy === null} class="btn-primary">
         {saving ? 'Saving…' : 'Save'}
       </button>
     </div>
@@ -170,6 +184,12 @@
             {stravaBusy ? 'Waiting…' : 'Connect'}
           </button>
         {/if}
+      </div>
+
+      <div class="proxy-field">
+        <label for="strava-proxy">Auth proxy URL</label>
+        <input id="strava-proxy" type="text" bind:value={stravaProxy} onblur={saveProxyUrl} placeholder="http://127.0.0.1:8788" />
+        <span class="field-hint">Endpoint of the Strava auth proxy. Saved automatically. See the setup guide.</span>
       </div>
 
       {#if strava.connected}
@@ -225,6 +245,11 @@
   input:focus {
     outline: none;
     border-color: var(--accent);
+  }
+
+  .field-hint {
+    font-size: 0.75rem;
+    color: var(--muted);
   }
 
   .path-row {
@@ -351,6 +376,14 @@
     transition: color 0.15s, border-color 0.15s;
   }
   .btn-ghost:hover { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, transparent); }
+
+  .proxy-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    border-top: 1px solid var(--border);
+    padding-top: 1rem;
+  }
 
   .toggle {
     display: flex;

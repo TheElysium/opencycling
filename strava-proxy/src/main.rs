@@ -1,4 +1,8 @@
-use axum::{extract::State, routing::post, Json, Router};
+use axum::{
+    extract::State,
+    routing::{get, post},
+    Json, Router,
+};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -17,6 +21,11 @@ struct ExchangeReq {
 #[derive(Deserialize)]
 struct RefreshReq {
     refresh_token: String,
+}
+
+#[derive(Serialize)]
+struct ConfigResp {
+    client_id: String,
 }
 
 #[derive(Serialize)]
@@ -44,6 +53,14 @@ struct Athlete {
     firstname: Option<String>,
     #[serde(default)]
     lastname: Option<String>,
+}
+
+/// Exposes the configured client id so the desktop app can build the authorize
+/// URL without duplicating the value. The client secret is never exposed.
+async fn config(State(cfg): State<Arc<Config>>) -> Json<ConfigResp> {
+    Json(ConfigResp {
+        client_id: cfg.client_id.clone(),
+    })
 }
 
 async fn exchange(
@@ -110,14 +127,28 @@ async fn map_token_resp(resp: reqwest::Response) -> Result<Json<Tokens>, String>
     }))
 }
 
+/// Reads a required secret. Environment variables take precedence; `.env` (loaded
+/// above via dotenvy, which never overrides existing vars) acts as a fallback.
+/// Exits with a clear message instead of a cryptic panic when neither is set.
+fn required_env(key: &str) -> String {
+    std::env::var(key).unwrap_or_else(|_| {
+        eprintln!(
+            "Missing {key}. Set it as an environment variable or in strava-proxy/.env \
+             (see .env.example)."
+        );
+        std::process::exit(1);
+    })
+}
+
 #[tokio::main]
 async fn main() {
     // Load strava-proxy/.env into the environment if present (optional).
+    // dotenvy does not override variables already set, so real env vars win.
     let _ = dotenvy::dotenv();
 
     let cfg = Arc::new(Config {
-        client_id: std::env::var("STRAVA_CLIENT_ID").expect("STRAVA_CLIENT_ID"),
-        client_secret: std::env::var("STRAVA_CLIENT_SECRET").expect("STRAVA_CLIENT_SECRET"),
+        client_id: required_env("STRAVA_CLIENT_ID"),
+        client_secret: required_env("STRAVA_CLIENT_SECRET"),
         http: reqwest::Client::new(),
     });
     let port: u16 = std::env::var("PROXY_PORT")
@@ -126,6 +157,7 @@ async fn main() {
         .unwrap_or(8788);
 
     let app = Router::new()
+        .route("/config", get(config))
         .route("/exchange", post(exchange))
         .route("/refresh", post(refresh))
         .with_state(cfg);

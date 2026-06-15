@@ -18,7 +18,8 @@ pub async fn ensure_fresh_token(db: &DbActorHandle) -> Result<String, AppError> 
         return Ok(auth.access_token);
     }
 
-    let fresh = oauth::refresh_tokens(&auth.refresh_token).await?;
+    let proxy_url = db.get_settings().await?.strava_proxy_url;
+    let fresh = oauth::refresh_tokens(&proxy_url, &auth.refresh_token).await?;
     let updated = StravaAuth {
         access_token: fresh.access_token.clone(),
         refresh_token: fresh.refresh_token,

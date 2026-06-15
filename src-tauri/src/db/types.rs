@@ -7,6 +7,8 @@ pub struct Settings {
     pub ftp_w: u16,
     pub max_hr_bpm: u16,
     pub workout_path: String,
+    /// Base URL of the user's local Strava auth proxy (holds their client secret).
+    pub strava_proxy_url: String,
 }
 
 #[derive(Serialize, Debug, Clone)]

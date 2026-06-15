@@ -58,6 +58,10 @@ const MIGRATIONS: &[&str] = &[
     r#"
     ALTER TABLE strava_auth ADD COLUMN athlete_name TEXT;
     "#,
+    // v3 -> v4 : configurable Strava auth proxy URL (each user runs their own)
+    r#"
+    ALTER TABLE settings ADD COLUMN strava_proxy_url TEXT NOT NULL DEFAULT 'http://127.0.0.1:8788';
+    "#,
 ];
 
 pub fn run(conn: &mut Connection) -> Result<(), AppError> {

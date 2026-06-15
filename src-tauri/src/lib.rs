@@ -161,16 +161,18 @@ async fn strava_connect(
     app: tauri::AppHandle,
     state: tauri::State<'_, DbActorHandle>,
 ) -> Result<StravaStatus, AppError> {
+    let proxy_url = state.get_settings().await?.strava_proxy_url;
     // CSRF nonce: passed to Strava and verified when the callback returns.
     let csrf_state = uuid::Uuid::new_v4().to_string();
     // Bind the loopback listener before opening the browser so the callback
     // can never race ahead of us listening.
     let listener = strava::oauth::bind_loopback()?;
+    let authorize = strava::oauth::authorize_url(&proxy_url, &csrf_state).await?;
     app.opener()
-        .open_url(strava::oauth::authorize_url(&csrf_state), None::<&str>)
+        .open_url(authorize, None::<&str>)
         .map_err(|e| AppError::StravaAuth(e.to_string()))?;
     let code = strava::oauth::wait_for_code(listener, csrf_state).await?;
-    let tokens = strava::oauth::exchange_code(&code).await?;
+    let tokens = strava::oauth::exchange_code(&proxy_url, &code).await?;
     state
         .upsert_strava_auth(StravaAuth {
             access_token: tokens.access_token,

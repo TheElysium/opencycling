@@ -1,22 +1,63 @@
 use crate::errors::AppError;
 use crate::strava::types::ProxyTokens;
+use serde::Deserialize;
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use tokio::time::{timeout, Duration};
 
-/// Public Strava application client id (safe to ship: visible in the authorize URL).
-pub const CLIENT_ID: &str = "257818";
+/// Fallback proxy URL when the user has not customised it in Settings.
+pub const DEFAULT_PROXY_URL: &str = "http://127.0.0.1:8788";
 pub const LOOPBACK_PORT: u16 = 8123;
-pub const PROXY_BASE: &str = "http://127.0.0.1:8788";
+
+/// Trims a user-provided proxy URL, stripping a trailing slash so route
+/// concatenation never yields `//path`, and falls back to the default when empty.
+fn normalized_proxy_url(proxy_url: &str) -> String {
+    let trimmed = proxy_url.trim().trim_end_matches('/');
+    if trimmed.is_empty() {
+        DEFAULT_PROXY_URL.to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+#[derive(Deserialize)]
+struct ProxyConfig {
+    client_id: String,
+}
+
+/// Fetches the user's Strava client id from their local proxy's `/config` route.
+/// Keeping the client id on the proxy means it lives in exactly one place
+/// (the proxy `.env`) instead of being duplicated in the desktop app.
+async fn fetch_client_id(proxy_url: &str) -> Result<String, AppError> {
+    let url = format!("{}/config", normalized_proxy_url(proxy_url));
+    let resp = reqwest::Client::new()
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| AppError::StravaAuth(format!("proxy /config: {e}")))?;
+    if !resp.status().is_success() {
+        return Err(AppError::StravaAuth(format!(
+            "proxy /config returned {}",
+            resp.status()
+        )));
+    }
+    resp.json::<ProxyConfig>()
+        .await
+        .map(|c| c.client_id)
+        .map_err(|e| AppError::StravaAuth(format!("proxy /config: {e}")))
+}
 
 /// Builds the Strava authorize URL the browser is sent to.
 /// `state` is an opaque nonce echoed back in the callback for CSRF protection.
-pub fn authorize_url(state: &str) -> String {
-    format!(
-        "https://www.strava.com/oauth/authorize?client_id={CLIENT_ID}\
+/// The client id is fetched from the user's proxy so it always matches the app
+/// the proxy will use for the token exchange.
+pub async fn authorize_url(proxy_url: &str, state: &str) -> Result<String, AppError> {
+    let client_id = fetch_client_id(proxy_url).await?;
+    Ok(format!(
+        "https://www.strava.com/oauth/authorize?client_id={client_id}\
 &response_type=code&redirect_uri=http://localhost:{LOOPBACK_PORT}/callback\
 &approval_prompt=auto&scope=activity:write,read&state={state}"
-    )
+    ))
 }
 
 /// Extracts a query parameter from the request's first line.
@@ -93,21 +134,26 @@ pub async fn wait_for_code(
 }
 
 /// Exchanges an auth code for tokens via the proxy.
-pub async fn exchange_code(code: &str) -> Result<ProxyTokens, AppError> {
-    proxy_post("/exchange", serde_json::json!({ "code": code })).await
+pub async fn exchange_code(proxy_url: &str, code: &str) -> Result<ProxyTokens, AppError> {
+    proxy_post(proxy_url, "/exchange", serde_json::json!({ "code": code })).await
 }
 
 /// Refreshes tokens via the proxy.
-pub async fn refresh_tokens(refresh_token: &str) -> Result<ProxyTokens, AppError> {
+pub async fn refresh_tokens(proxy_url: &str, refresh_token: &str) -> Result<ProxyTokens, AppError> {
     proxy_post(
+        proxy_url,
         "/refresh",
         serde_json::json!({ "refresh_token": refresh_token }),
     )
     .await
 }
 
-async fn proxy_post(path: &str, body: serde_json::Value) -> Result<ProxyTokens, AppError> {
-    let url = format!("{PROXY_BASE}{path}");
+async fn proxy_post(
+    proxy_url: &str,
+    path: &str,
+    body: serde_json::Value,
+) -> Result<ProxyTokens, AppError> {
+    let url = format!("{}{path}", normalized_proxy_url(proxy_url));
     let resp = reqwest::Client::new()
         .post(&url)
         .json(&body)

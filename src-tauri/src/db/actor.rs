@@ -111,13 +111,14 @@ impl DbActor {
     fn query_settings(&self) -> Result<Settings, AppError> {
         self.conn
             .query_row(
-                "SELECT ftp_w, max_hr_bpm, workout_path FROM settings WHERE id = 1",
+                "SELECT ftp_w, max_hr_bpm, workout_path, strava_proxy_url FROM settings WHERE id = 1",
                 [],
                 |row| {
                     Ok(Settings {
                         ftp_w: row.get(0)?,
                         max_hr_bpm: row.get(1)?,
                         workout_path: row.get(2)?,
+                        strava_proxy_url: row.get(3)?,
                     })
                 },
             )
@@ -128,11 +129,17 @@ impl DbActor {
         let mut stmt = self
             .conn
             .prepare(
-                "UPDATE settings SET ftp_w=(?1), max_hr_bpm=(?2), workout_path=(?3) WHERE id = 1",
+                "UPDATE settings SET ftp_w=(?1), max_hr_bpm=(?2), workout_path=(?3), \
+                 strava_proxy_url=(?4) WHERE id = 1",
             )
             .map_err(|e| AppError::DbError(e.to_string()))?;
-        stmt.execute((settings.ftp_w, settings.max_hr_bpm, settings.workout_path))
-            .map_err(|e| AppError::DbError(e.to_string()))?;
+        stmt.execute((
+            settings.ftp_w,
+            settings.max_hr_bpm,
+            settings.workout_path,
+            settings.strava_proxy_url,
+        ))
+        .map_err(|e| AppError::DbError(e.to_string()))?;
         Ok(())
     }
 
