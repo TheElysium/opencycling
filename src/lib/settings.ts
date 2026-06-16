@@ -5,6 +5,7 @@ export type Settings = {
   max_hr_bpm: number;
   workout_path: string;
   strava_proxy_url: string;
+  aero_enabled: boolean;
 };
 
 export function getSettings(): Promise<Settings> {

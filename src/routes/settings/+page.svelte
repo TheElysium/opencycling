@@ -17,6 +17,7 @@
   let maxHr       = $state<number | null>(null);
   let workoutPath = $state<string | null>(null);
   let stravaProxy = $state<string | null>(null);
+  let aeroEnabled = $state(false);
   let loading     = $state(true);
   let saving      = $state(false);
   let saved       = $state(false);
@@ -72,15 +73,31 @@
     }
   }
 
+  // Single source of the settings payload, shared by Save, the aero toggle, and the
+  // proxy-URL blur. No-op until every required field is populated.
+  async function persist() {
+    if (ftp === null || maxHr === null || workoutPath === null || stravaProxy === null) return;
+    await updateSettings({ ftp_w: ftp, max_hr_bpm: maxHr, workout_path: workoutPath, strava_proxy_url: stravaProxy, aero_enabled: aeroEnabled });
+  }
+
   // The proxy URL lives in the Strava tile and persists on blur, so it can be
   // set right before clicking Connect without scrolling up to the global Save.
   async function saveProxyUrl() {
-    if (ftp === null || maxHr === null || workoutPath === null || stravaProxy === null) return;
     stravaError = null;
     try {
-      await updateSettings({ ftp_w: ftp, max_hr_bpm: maxHr, workout_path: workoutPath, strava_proxy_url: stravaProxy });
+      await persist();
     } catch (e) {
       stravaError = toMessage(e);
+    }
+  }
+
+  // Persist the aero toggle immediately, like the Strava auto-upload switch, so the
+  // slider feels instant without waiting for the global Save.
+  async function toggleAero() {
+    try {
+      await persist();
+    } catch (e) {
+      error = toMessage(e);
     }
   }
 
@@ -91,6 +108,7 @@
       maxHr       = s.max_hr_bpm;
       workoutPath = s.workout_path;
       stravaProxy = s.strava_proxy_url;
+      aeroEnabled = s.aero_enabled;
     } catch (e) {
       error = toMessage(e);
     } finally {
@@ -105,7 +123,7 @@
     error  = null;
     saved  = false;
     try {
-      await updateSettings({ ftp_w: ftp, max_hr_bpm: maxHr, workout_path: workoutPath, strava_proxy_url: stravaProxy });
+      await persist();
       saved = true;
       if (savedTimer) clearTimeout(savedTimer);
       savedTimer = setTimeout(() => saved = false, 2000);
@@ -152,6 +170,25 @@
       <button onclick={save} disabled={saving || ftp === null || maxHr === null || workoutPath === null || stravaProxy === null} class="btn-primary">
         {saving ? 'Saving…' : 'Save'}
       </button>
+    </div>
+
+    <h2>Features</h2>
+    <div class="card feature">
+      <div class="feature-row">
+        <div class="feature-info">
+          <span class="feature-name">Aero position detection</span>
+          <p class="feature-desc">
+            Uses a front-facing webcam to detect when you're in your aero position. After a quick
+            calibration (hold aero, then sit upright) it tracks your head and shoulders and logs how
+            much of each session you ride aero. Everything runs locally on your machine; no video
+            ever leaves the device.
+          </p>
+        </div>
+        <label class="switch">
+          <input type="checkbox" bind:checked={aeroEnabled} onchange={toggleAero} />
+          <span class="slider"></span>
+        </label>
+      </div>
     </div>
 
     <h2>Third-party integrations</h2>
@@ -400,5 +437,37 @@
   .toggle input {
     width: auto;
     cursor: pointer;
+  }
+
+  .feature-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.5rem;
+  }
+
+  .feature-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    min-width: 0;
+  }
+
+  .feature-name {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .feature-desc {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  /* Shared .switch/.slider styles live in app.css; nudge it to align with the title. */
+  .feature-row :global(.switch) {
+    margin-top: 0.1rem;
   }
 </style>

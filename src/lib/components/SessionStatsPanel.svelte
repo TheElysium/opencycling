@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Zap, Heart, RotateCw, Flame, Target, Battery, HelpCircle } from '@lucide/svelte';
+  import { Zap, Heart, RotateCw, Flame, Target, Battery, Wind, HelpCircle } from '@lucide/svelte';
   import { type SessionDetail, computeSessionMetrics } from '$lib/db';
   import MetricsStrip, { type MetricTile } from './MetricsStrip.svelte';
   import SessionChart from './SessionChart.svelte';
@@ -19,6 +19,10 @@
                                                        : '—',
                                                unit: detail.avg_power_w != null && detail.duration_s != null ? 'kJ' : undefined,
                                                                                                                                               secondary: { label: 'kJ'  } },
+    // Only present when aero detection ran for this session.
+    ...(detail.aero_pct != null
+      ? [{ icon: Wind, label: 'Aero', value: Math.round(detail.aero_pct * 100), unit: '%', secondary: { label: 'in position' } } satisfies MetricTile]
+      : []),
   ]);
 
   let helpOpen = $state(false);
@@ -61,6 +65,10 @@
             <dd>Average intensity relative to FTP. 0.65 = recovery, 0.85 = tempo, 1.0 = threshold, &gt;1.05 = VO2max.</dd>
             <dt>Work <span class="acro">kJ</span></dt>
             <dd>Total energy produced. Good calorie proxy (1 kJ ≈ 1 kcal in cycling).</dd>
+            {#if detail.aero_pct != null}
+              <dt>Aero <span class="acro">%</span></dt>
+              <dd>Share of the session you rode in your aero position, from the front-camera detector.</dd>
+            {/if}
           </dl>
         </div>
       {/if}

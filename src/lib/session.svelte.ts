@@ -38,7 +38,46 @@ class SessionStore {
   workout_author      = $state<string | null>(null);
   workout_description = $state<string | null>(null);
 
-  async start(workout: ParsedWorkout, ftpW: number): Promise<void> {
+  // Whether aero detection was requested for the pending/active session.
+  aeroEnabled         = $state(false);
+
+  // Deferred start: the detail page records the chosen workout here and navigates,
+  // but `start_session` is not sent until the session page consumes it (after aero
+  // calibration when enabled). This keeps the session unarmed while the rider is
+  // calibrating, so pedaling cannot trigger the auto-start early.
+  private pendingWorkout: ParsedWorkout | null = null;
+  private pendingFtp = 0;
+
+  prepare(workout: ParsedWorkout, ftpW: number, aero: boolean): void {
+    // Drop the previous session's display state so the session page doesn't show the
+    // last ride behind the calibration overlay while this one waits to be armed.
+    this.apply(null);
+    this.pendingWorkout = workout;
+    this.pendingFtp = ftpW;
+    this.aeroEnabled = aero;
+  }
+
+  get hasPendingStart(): boolean {
+    return this.pendingWorkout != null;
+  }
+
+  // Consume the pending start. No-op if nothing is pending.
+  async startPending(): Promise<void> {
+    if (!this.pendingWorkout) return;
+    const workout = this.pendingWorkout;
+    const ftpW = this.pendingFtp;
+    this.pendingWorkout = null;
+    await this.start(workout, ftpW);
+    // start_session returns (), so pull the snapshot to populate flat_blocks /
+    // metrics; without this the session page stays on the empty branch (no blocks)
+    // and the live UI never renders behind the "start pedaling" prompt.
+    await this.loadSnapshot();
+  }
+
+  // Private: the only supported entry point is prepare() + startPending(). Calling
+  // start_session directly would re-arm the session during aero calibration, which
+  // is exactly what the deferred-start flow exists to prevent.
+  private async start(workout: ParsedWorkout, ftpW: number): Promise<void> {
     await invoke('start_session', { workout, ftpW });
   }
 
@@ -61,7 +100,12 @@ class SessionStore {
     this.workout_description = snap?.workout_description ?? null;
   }
 
-  reset(): void { this.apply(null); }
+  reset(): void {
+    this.apply(null);
+    this.pendingWorkout = null;
+    this.pendingFtp = 0;
+    this.aeroEnabled = false;
+  }
 }
 
 export const session = new SessionStore();

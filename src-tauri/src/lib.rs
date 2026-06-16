@@ -106,6 +106,14 @@ async fn skip_block(state: tauri::State<'_, SessionActorHandle>) -> Result<(), A
 }
 
 #[tauri::command]
+async fn report_aero(
+    state: tauri::State<'_, SessionActorHandle>,
+    aero: Option<bool>,
+) -> Result<(), AppError> {
+    state.report_aero(aero).await
+}
+
+#[tauri::command]
 async fn get_session_snapshot(
     state: tauri::State<'_, SessionActorHandle>,
 ) -> Result<Option<SessionSnapshot>, AppError> {
@@ -247,6 +255,7 @@ pub fn run() {
             resume_session,
             stop_session,
             skip_block,
+            report_aero,
             get_session_snapshot,
             list_sessions,
             get_session,

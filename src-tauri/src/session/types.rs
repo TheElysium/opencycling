@@ -99,6 +99,9 @@ pub enum SessionCommand {
     Resume,
     Stop,
     Skip,
+    ReportAero {
+        aero: Option<bool>,
+    },
     Snapshot {
         reply: oneshot::Sender<Option<SessionSnapshot>>,
     },
@@ -144,4 +147,10 @@ pub struct SessionActor {
     pub db_handle: DbActorHandle,
     pub current_session_id: Option<i64>,
     pub last_session_id: Option<i64>,
+    /// Last aero/upright decision reported by the frontend (already smoothed and
+    /// debounced client-side), consumed (reset to `None`) when written into a sample.
+    /// A stalled frontend (camera cut, occlusion, rider out of frame, paused tab)
+    /// then yields `None` instead of re-writing the last value into every 1 Hz
+    /// sample, which would bias `aero_pct`.
+    pub last_aero: Option<bool>,
 }

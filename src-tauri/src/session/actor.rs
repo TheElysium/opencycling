@@ -75,6 +75,7 @@ impl SessionActor {
                 self.last_cadence_rpm = None;
                 self.current_session_id = None;
                 self.last_session_id = None;
+                self.last_aero = None;
                 if let Some(s) = self.session.as_ref() {
                     info!(
                         workout = s.workout_name.as_deref().unwrap_or("Untitled"),
@@ -114,6 +115,9 @@ impl SessionActor {
                     self.state = Some(state.skip(session))
                 }
                 self.emit_metrics();
+            }
+            SessionCommand::ReportAero { aero } => {
+                self.last_aero = aero;
             }
             SessionCommand::Snapshot { reply } => {
                 let snapshot = self.build_snapshot();
@@ -189,6 +193,14 @@ impl SessionActor {
                                 power_w: self.last_power_w.map(|p| p.max(0) as u16),
                                 hr_bpm: self.last_hr_bpm,
                                 cadence_rpm: self.last_cadence_rpm,
+                                // consume: reset to None so a stalled frontend
+                                // doesn't keep writing this value into later samples.
+                                // Persist the binary decision as 0.0/1.0 so the DB
+                                // can average it straight into aero_pct.
+                                aero_score: self
+                                    .last_aero
+                                    .take()
+                                    .map(|a| if a { 1.0 } else { 0.0 }),
                             },
                         )
                         .await;

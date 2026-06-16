@@ -120,6 +120,7 @@ mod tests {
             max_cadence_rpm: Some(95),
             ftp_w_used: 250,
             workout_type: None,
+            aero_pct: None,
             flat_blocks: vec![],
             metrics: vec![],
         }
@@ -175,12 +176,14 @@ mod tests {
                 power_w: Some(200),
                 hr_bpm: Some(150),
                 cadence_rpm: Some(90),
+                aero_score: None,
             },
             Metric {
                 t_offset_s: 1,
                 power_w: None,
                 hr_bpm: None,
                 cadence_rpm: None,
+                aero_score: None,
             },
         ];
         let xml = build_tcx(&s);
