@@ -33,6 +33,8 @@ OpenCycling is a **Tauri v2 desktop app**: SvelteKit 5 frontend (Svelte runes) +
 
 `metrics.rs` — shared `WorkoutType` enum (zone classification); **must mirror** the TypeScript `WorkoutType` in `src/lib/metrics.ts`.
 
+**Aero position detection** — all scoring lives in the webview (see Frontend below); Rust stays "dumb" and only stores already-projected numbers. The `report_aero` command feeds `SessionActor.last_aero: Option<bool>` (the frontend's smoothed + debounced aero/upright decision), which is written into the next 1 Hz sample as `aero_score` and reset to `None` on `Start`. On finalize, `DbActor` computes `sessions.aero_pct` as `AVG(aero_score)` over the session's samples. Settings carry a global default `aero_enabled` flag. Schema added in `db/migrations.rs` (v4 → v5: `session_metrics.aero_score`, `sessions.aero_pct`, `settings.aero_enabled`).
+
 **Tokio actors** — communicate exclusively via `mpsc` channels. Each lives in a module with `actor.rs` (loop/logic), `command.rs` (the `*Handle` public API), and `types.rs`:
 - `ble/` (`BleActorHandle`) — BLE scan/connect, ERG keep-alive (retransmit last target every 10s), emits `ble_metrics` every second; emits `ble_error` and `ble_disconnected` on failures.
 - `session/` (`SessionActorHandle`) — session state machine, ticks every second, emits `session_metrics`. State is a `State` trait with variant structs in `state.rs` (WaitingForRider → Running → Paused → Finished). Consumes `ble_metrics`, drives ERG targets, persists samples via the DB actor.
@@ -46,13 +48,15 @@ Actors are wired together in `lib.rs::run()` (the `.setup()` closure) and regist
 
 SvelteKit routes: `/` (connection), `/workouts`, `/workouts/detail`, `/session`, `/history`, `/history/[id]`, `/settings`. Sidebar hidden on `/session`.
 
-Shared state lives in `.svelte.ts` rune stores: `lib/ble.svelte.ts`, `lib/session.svelte.ts`, `lib/workout.svelte.ts`. Helpers: `lib/db.ts`, `lib/settings.ts`, `lib/format.ts`, `lib/metrics.ts`, `lib/audio.ts`, `lib/session-visuals.ts`, `lib/export.ts` (TCX export via the save dialog).
+Shared state lives in `.svelte.ts` rune stores: `lib/ble.svelte.ts`, `lib/session.svelte.ts`, `lib/workout.svelte.ts`, `lib/aero.svelte.ts`. Helpers: `lib/db.ts`, `lib/settings.ts`, `lib/format.ts`, `lib/metrics.ts`, `lib/audio.ts`, `lib/session-visuals.ts`, `lib/export.ts` (TCX export via the save dialog), `lib/aero.ts`.
 
-Reusable components in `lib/components/` — e.g. `WorkoutChart` / `WorkoutPreview` / `WorkoutThumb` (block bars), `ZoneBar` (zone distribution), `SessionChart` (live power line), and the session UI tiles (`MetricTile`, `MetricsStrip`, `PowerTile`, `CurrentBlockCard`, `SessionTimeline`, `SessionStatsPanel`, `SessionFinishedCard`, `SessionDetailRecap`, `BlocksList`).
+Reusable components in `lib/components/` — e.g. `WorkoutChart` / `WorkoutPreview` / `WorkoutThumb` (block bars), `ZoneBar` (zone distribution), `SessionChart` (live power line), the session UI tiles (`MetricTile`, `MetricsStrip`, `PowerTile`, `CurrentBlockCard`, `SessionTimeline`, `SessionStatsPanel`, `SessionFinishedCard`, `SessionDetailRecap`, `BlocksList`), and the aero UI (`AeroCalibration`, `AeroPanel`).
+
+**Aero position detection (`lib/aero.ts` + `lib/aero.svelte.ts`)** — detects, from a front-facing webcam, whether the rider holds an aero or upright position. `lib/aero.ts` is **pure** (unit-tested like `lib/metrics.ts`): COCO-17 keypoint indices, `extractFeatures` (upper-body only: `headDrop` / `earDrop` / `earSpread`, normalized by shoulder width), `buildCalibration` (per-rider upright→aero axis from two captured clusters via z-scoring), `scoreFrame` (projection to 0..1), plus `Smoother` (~1s sliding average) and `AeroGate` (hysteresis: enter > 0.55, exit < 0.45). `lib/aero.svelte.ts` is the rune store owning the MoveNet/TF.js detector, camera stream, hands-free calibration FSM (prep countdown → capture aero → capture upright → build + self-test), the live scoring loop, and the 1 Hz `report_aero` reporting. The TF.js model is **bundled offline** as a static asset (`/models/movenet-lightning/`), no CDN. The feature is frontend-gated: when the start checkbox is off, the camera never starts and `aero_score`/`aero_pct` stay `NULL`.
 
 ### Tauri bridge
 
-Frontend calls Rust via `invoke('<command>', args)`. Commands are registered in `lib.rs`: `load_workout`, `list_workouts_cmd`, `scan_devices`, `connect_trainer`, `connect_hrm`, `set_target_power`, `get_settings`, `update_settings`, `start_session`, `pause_session`, `resume_session`, `stop_session`, `skip_block`, `get_session_snapshot`, `list_sessions`, `get_session`, `delete_session`, `export_session_tcx`. Rust pushes data via events: `ble_metrics`, `session_metrics`, `ble_error`, `ble_disconnected`. Full contracts are documented in `docs/prd.md`.
+Frontend calls Rust via `invoke('<command>', args)`. Commands are registered in `lib.rs`: `load_workout`, `list_workouts_cmd`, `scan_devices`, `connect_trainer`, `connect_hrm`, `set_target_power`, `get_settings`, `update_settings`, `start_session`, `pause_session`, `resume_session`, `stop_session`, `skip_block`, `get_session_snapshot`, `list_sessions`, `get_session`, `delete_session`, `export_session_tcx`, `report_aero`. Rust pushes data via events: `ble_metrics`, `session_metrics`, `ble_error`, `ble_disconnected`. Full contracts are documented in `docs/prd.md`.
 
 ## Key constraints
 

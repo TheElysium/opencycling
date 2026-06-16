@@ -28,16 +28,26 @@ OpenCycling speaks the standard BLE **FTMS** (trainers) and **HRS** (heart rate)
 
 ## ✨ Features
 
-- **Automatic BLE scanning** on launch, with separate connection status for the trainer and the HRM. The trainer must be connected to start a session; the HRM is optional.
-- **Structured workout support.** Reads `.zwo` files from a folder you configure. Supported blocks: `Warmup`, `SteadyState`, `IntervalsT`, and `Cooldown` (`FreeRide` blocks are skipped). Target watts are computed from each block's `%FTP` and your configured FTP.
-- **ERG control per block.** During a session the app sends the block's target power to the trainer every second. Steady blocks hold a constant target; warmup, cooldown, and ramp blocks follow a linear power progression from start to end watts. An ERG keep-alive resends the current target periodically so the trainer never drops resistance.
-- **Pedal-to-start.** No countdown: a session waits for the rider and begins automatically as soon as you start pedalling.
-- **Live session view.** Current block and its target, actual power, heart rate, cadence, elapsed and remaining time, a block-by-block timeline, and the full workout block list.
-- **Audio cues.** A low beep at start and at the end of the session, a long beep at each block transition, and short beeps counting down the final seconds of a block.
+### BLE scanning & connection
+
+- **Automatic BLE scanning.** Connects the trainer (required) and an optional heart-rate monitor, with separate status for each.
+
+### Session
+
+- **Structured `.zwo` workouts.** Reads workouts from a folder you choose; target watts come from each block's `%FTP` and your FTP.
+- **ERG control per block.** Drives the trainer's target power every second, with linear ramps for warmups and cooldowns and a keep-alive so resistance never drops.
+- **Pedal-to-start.** No countdown; the session begins automatically as soon as you start pedalling.
+- **Live session view.** Current block and target, power, heart rate, cadence, elapsed and remaining time, and a block-by-block timeline.
+- **Audio cues.** Beeps at start, end, each block transition, and counting down a block's final seconds.
 - **Pause, resume, and skip block** during a session.
-- **Automatic recording.** Power, heart rate, and cadence are sampled every second and stored in a local SQLite database, so a session is kept even if it ends early.
-- **Session summary and history.** Browse past sessions as cards (date, duration, averages, intensity badge) and open any one for a detail view with summary stats, a power-over-time graph, the workout blocks, and zone breakdowns. Power uses six zones (Recovery, Endurance, Tempo, Threshold, VO2max, Anaerobic) based on your FTP; heart rate zones use your configured max HR.
-- **TCX export.** Export any recorded session to a standard `.tcx` file from the session detail view. The file carries the per-second power, heart rate, and cadence track plus a note describing the workout structure (warmup, intervals, cooldown), so it can be imported into Strava, Garmin Connect, or any tool that reads TCX.
+- **Automatic recording.** Power, heart rate, and cadence sampled every second to a local SQLite database, so a session survives an early stop.
+- **Session summary and history.** Browse past sessions as cards and open any one for stats, a power graph, and six-zone power and heart-rate breakdowns based on your FTP and max HR.
+
+### Optional settings & third-party integrations
+
+- **Aero position detection (optional, webcam).** After a short calibration, a live indicator on the session screen shows whether you are aero or upright, and your overall time in aero is saved with the session and shown in history. Fully offline and off unless you enable it.
+- **TCX export.** Export any session to a standard `.tcx` (per-second power, HR, and cadence plus a workout-structure note) for Strava, Garmin Connect, or any TCX tool.
+- **Strava upload (optional, manual setup).** Push a finished session straight to Strava as a Virtual Ride. There is no shared account: to keep the app fully open you bring your own Strava app (Strava Premium required) and run a small [auth proxy](https://github.com/TheElysium/opencycling-strava-proxy) (about two minutes, see its [setup guide](https://github.com/TheElysium/opencycling-strava-proxy/blob/main/README.md)).
 
 ## 📸 Screenshots
 
@@ -101,7 +111,7 @@ Please search existing issues first to avoid duplicates.
 ## 🧱 Tech Stack
 
 - **Framework:** [Tauri v2](https://tauri.app/) (desktop shell)
-- **Frontend:** [SvelteKit 5](https://svelte.dev/) (Svelte runes), TypeScript, Vite
+- **Frontend:** [SvelteKit 5](https://svelte.dev/) (Svelte runes), TypeScript, Vite; [TensorFlow.js](https://www.tensorflow.org/js) + MoveNet (bundled offline) for webcam aero detection
 - **Backend:** Rust (edition 2021), Tokio, `rusqlite`, `roxmltree`, `thiserror`, `tracing`
 - **Storage:** SQLite (schema-migrated on startup)
 
@@ -119,6 +129,8 @@ The Rust backend separates **pure parsers** (no I/O, fully unit-tested) from **T
 | `DbActor` | Wraps SQLite for sessions, per-second samples, and settings |
 
 The frontend calls Rust via `invoke('<command>', args)`, and Rust pushes live data back through Tauri events (`ble_metrics`, `session_metrics`, `ble_error`).
+
+Aero detection follows the same split, on the frontend side: pose scoring is done entirely in the webview (`lib/aero.ts` pure functions, unit-tested; `lib/aero.svelte.ts` rune store owning the camera and MoveNet detector). The frontend makes the smoothed, debounced aero/upright decision and reports it over the `report_aero` bridge once per second; Rust stays "dumb" and just stores the value into each 1 Hz sample and averages it into the session's `aero_pct`.
 
 > Note: `docs/prd.md` is an early design document and has drifted from the implementation (for example, it describes a countdown and synthesized ramps that the code does not use). Treat the code as the source of truth.
 
