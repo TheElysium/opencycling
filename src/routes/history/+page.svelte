@@ -7,7 +7,7 @@
   import { toMessage } from '$lib/format';
   import {
     type SessionCard, type SessionGroup,
-    computeSessionMetrics, groupByPeriod,
+    groupByPeriod,
     formatDayNum, formatWeekdayShort, formatHourMinute, formatHmsShort,
   } from '$lib/db';
 
@@ -58,7 +58,6 @@
       </h2>
       <div class="session-list">
         {#each g.sessions as s}
-          {@const m = computeSessionMetrics(s)}
           <button class="session-card" onclick={() => open(s.id)}>
             <div class="day-block">
               <div class="day-num">{formatDayNum(s.started_at)}</div>
@@ -79,9 +78,9 @@
                   <span class="sep">·</span>
                   <span>{formatHmsShort(s.duration_s)}</span>
                 {/if}
-                {#if m.tss > 0}
+                {#if s.tss != null && s.tss > 0}
                   <span class="sep">·</span>
-                  <span>{Math.round(m.tss)} TSS</span>
+                  <span>{Math.round(s.tss)} TSS</span>
                 {/if}
               </div>
             </div>

@@ -121,6 +121,9 @@ mod tests {
             ftp_w_used: 250,
             workout_type: None,
             aero_pct: None,
+            np_w: None,
+            if_: None,
+            tss: None,
             flat_blocks: vec![],
             metrics: vec![],
         }

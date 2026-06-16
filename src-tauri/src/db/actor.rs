@@ -17,6 +17,16 @@ type SessionAggregates = (
     Option<i64>,
 );
 
+/// Metrics derived from the full power series at finalize. All fields are `None`
+/// together when no power was recorded (or FTP is unknown).
+#[derive(Default)]
+struct DerivedMetrics {
+    workout_type: Option<WorkoutType>,
+    np_w: Option<f32>,
+    if_: Option<f32>,
+    tss: Option<f32>,
+}
+
 pub struct DbActor {
     conn: Connection,
     cmd_rx: Receiver<DbCommand>,
@@ -217,7 +227,7 @@ impl DbActor {
             )
             .map_err(|e| AppError::DbError(e.to_string()))?;
 
-        let workout_type = self.compute_workout_type(session_id, ftp_w_used)?;
+        let derived = self.compute_session_metrics(session_id, ftp_w_used, duration_s)?;
 
         // Share of samples spent in aero. The frontend already made the binary
         // aero/upright decision (smoothing + hysteresis) and stored it as 0.0/1.0,
@@ -239,8 +249,9 @@ impl DbActor {
                     avg_power_w = ?3, max_power_w = ?4, \
                     avg_hr_bpm = ?5, max_hr_bpm = ?6, \
                     avg_cadence_rpm = ?7, max_cadence_rpm = ?8, \
-                    workout_type = ?9, aero_pct = ?10 \
-                 WHERE id = ?11",
+                    workout_type = ?9, aero_pct = ?10, \
+                    np_w = ?11, if_ = ?12, tss = ?13 \
+                 WHERE id = ?14",
                 (
                     &ended_at,
                     duration_s,
@@ -250,8 +261,11 @@ impl DbActor {
                     max_hr,
                     avg_cad,
                     max_cad,
-                    workout_type.map(|t| t.as_str()),
+                    derived.workout_type.map(|t| t.as_str()),
                     aero_pct,
+                    derived.np_w,
+                    derived.if_,
+                    derived.tss,
                     session_id,
                 ),
             )
@@ -259,13 +273,18 @@ impl DbActor {
         Ok(())
     }
 
-    fn compute_workout_type(
+    /// Single source of truth for the session's derived metrics, computed once at
+    /// finalize from the full 1 Hz power series against the frozen FTP. Returns all
+    /// `None` when no power was recorded (or FTP is unknown), so the caller stores
+    /// workout_type / NP / IF / TSS as NULL.
+    fn compute_session_metrics(
         &self,
         session_id: i64,
         ftp_w_used: u16,
-    ) -> Result<Option<WorkoutType>, AppError> {
+        duration_s: u32,
+    ) -> Result<DerivedMetrics, AppError> {
         if ftp_w_used == 0 {
-            return Ok(None);
+            return Ok(DerivedMetrics::default());
         }
         let mut stmt = self
             .conn
@@ -288,11 +307,17 @@ impl DbActor {
             series_pcts.push(w as f32 / ftp);
         }
         if series_pcts.is_empty() {
-            return Ok(None);
+            return Ok(DerivedMetrics::default());
         }
         let np_w = (sum4 / series_pcts.len() as f64).powf(0.25) as f32;
         let if_ = np_w / ftp;
-        Ok(Some(classify(&series_pcts, if_)))
+        let tss = (duration_s as f32 / 3600.0) * if_ * if_ * 100.0;
+        Ok(DerivedMetrics {
+            workout_type: Some(classify(&series_pcts, if_)),
+            np_w: Some(np_w),
+            if_: Some(if_),
+            tss: Some(tss),
+        })
     }
 
     fn list_sessions(&self) -> Result<Vec<SessionCard>, AppError> {
@@ -300,7 +325,8 @@ impl DbActor {
             .conn
             .prepare(
                 "SELECT id, started_at, workout_name, duration_s, \
-                        avg_power_w, avg_hr_bpm, avg_cadence_rpm, ftp_w_used, workout_type, aero_pct \
+                        avg_power_w, avg_hr_bpm, avg_cadence_rpm, ftp_w_used, workout_type, aero_pct, \
+                        np_w, if_, tss \
                  FROM sessions \
                  ORDER BY started_at DESC",
             )
@@ -319,6 +345,9 @@ impl DbActor {
                     ftp_w_used: row.get(7)?,
                     workout_type: workout_type_str.as_deref().and_then(WorkoutType::from_str),
                     aero_pct: row.get(9)?,
+                    np_w: row.get(10)?,
+                    if_: row.get(11)?,
+                    tss: row.get(12)?,
                 })
             })
             .map_err(|e| AppError::DbError(e.to_string()))?;
@@ -335,7 +364,7 @@ impl DbActor {
                 "SELECT started_at, ended_at, workout_name, duration_s, \
                         avg_power_w, max_power_w, avg_hr_bpm, max_hr_bpm, \
                         avg_cadence_rpm, max_cadence_rpm, ftp_w_used, \
-                        workout_type, aero_pct, flat_blocks, strava_activity_id \
+                        workout_type, aero_pct, np_w, if_, tss, flat_blocks, strava_activity_id \
                  FROM sessions WHERE id = ?1",
                 [id],
                 |row| {
@@ -357,6 +386,9 @@ impl DbActor {
                         ftp_w_used: row.get("ftp_w_used")?,
                         workout_type: workout_type_str.as_deref().and_then(WorkoutType::from_str),
                         aero_pct: row.get("aero_pct")?,
+                        np_w: row.get("np_w")?,
+                        if_: row.get("if_")?,
+                        tss: row.get("tss")?,
                         flat_blocks: Vec::new(),
                         metrics: Vec::new(),
                     };

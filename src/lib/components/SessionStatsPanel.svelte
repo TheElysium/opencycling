@@ -1,19 +1,17 @@
 <script lang="ts">
   import { Zap, Heart, RotateCw, Flame, Target, Battery, Wind, HelpCircle } from '@lucide/svelte';
-  import { type SessionDetail, computeSessionMetrics } from '$lib/db';
+  import { type SessionDetail } from '$lib/db';
   import MetricsStrip, { type MetricTile } from './MetricsStrip.svelte';
   import SessionChart from './SessionChart.svelte';
 
   let { detail, maxHr }: { detail: SessionDetail; maxHr: number } = $props();
 
-  let m = $derived(computeSessionMetrics(detail));
-
   let metricTiles = $derived<MetricTile[]>([
     { icon: Zap,      label: 'Avg Power',      value: detail.avg_power_w     ?? '—', unit: detail.avg_power_w     != null ? 'W'   : undefined, secondary: { label: 'Max', value: detail.max_power_w     ?? '—', unit: 'W' } },
     { icon: Heart,    label: 'Avg Heart rate', value: detail.avg_hr_bpm      ?? '—', unit: detail.avg_hr_bpm      != null ? 'bpm' : undefined, secondary: { label: 'Max', value: detail.max_hr_bpm      ?? '—' } },
     { icon: RotateCw, label: 'Avg Cadence',    value: detail.avg_cadence_rpm ?? '—', unit: detail.avg_cadence_rpm != null ? 'rpm' : undefined, secondary: { label: 'Max', value: detail.max_cadence_rpm ?? '—' } },
-    { icon: Flame,    label: 'Stress',         value: Math.round(m.tss),                                                                       secondary: { label: 'TSS' } },
-    { icon: Target,   label: 'Intensity',      value: m.if_.toFixed(2),                                                                        secondary: { label: 'IF'  } },
+    { icon: Flame,    label: 'Stress',         value: detail.tss != null ? Math.round(detail.tss) : '—',                                       secondary: { label: 'TSS' } },
+    { icon: Target,   label: 'Intensity',      value: detail.if_ != null ? detail.if_.toFixed(2) : '—',                                        secondary: { label: 'IF'  } },
     { icon: Battery,  label: 'Work',           value: detail.avg_power_w != null && detail.duration_s != null
                                                        ? Math.round(detail.avg_power_w * detail.duration_s / 1000)
                                                        : '—',

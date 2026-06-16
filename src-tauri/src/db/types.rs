@@ -25,6 +25,9 @@ pub struct SessionCard {
     pub ftp_w_used: u16,
     pub workout_type: Option<WorkoutType>,
     pub aero_pct: Option<f32>,
+    pub np_w: Option<f32>,
+    pub if_: Option<f32>,
+    pub tss: Option<f32>,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -53,6 +56,9 @@ pub struct SessionDetail {
     pub ftp_w_used: u16,
     pub workout_type: Option<WorkoutType>,
     pub aero_pct: Option<f32>,
+    pub np_w: Option<f32>,
+    pub if_: Option<f32>,
+    pub tss: Option<f32>,
     pub flat_blocks: Vec<FlatBlock>,
     pub metrics: Vec<Metric>,
 }

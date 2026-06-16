@@ -68,6 +68,12 @@ const MIGRATIONS: &[&str] = &[
     ALTER TABLE sessions ADD COLUMN aero_pct REAL;
     ALTER TABLE settings ADD COLUMN aero_enabled INTEGER NOT NULL DEFAULT 0;
     "#,
+    // v5 -> v6 : persist NP / IF / TSS per session (single source of truth, frozen FTP)
+    r#"
+    ALTER TABLE sessions ADD COLUMN np_w REAL;
+    ALTER TABLE sessions ADD COLUMN if_ REAL;
+    ALTER TABLE sessions ADD COLUMN tss REAL;
+    "#,
 ];
 
 pub fn run(conn: &mut Connection) -> Result<(), AppError> {

@@ -12,6 +12,9 @@ export type SessionCard = {
   ftp_w_used: number;
   workout_type: WorkoutType | null;
   aero_pct: number | null;
+  np_w: number | null;
+  if_: number | null;
+  tss: number | null;
 };
 
 export type MetricSample = {
@@ -40,47 +43,18 @@ export type SessionDetail = {
   ftp_w_used: number;
   workout_type: WorkoutType | null;
   aero_pct: number | null;
+  np_w: number | null;
+  if_: number | null;
+  tss: number | null;
   flat_blocks: FlatBlock[];
   metrics: MetricSample[];
 };
 
-export type SessionMetricsComputed = {
-  tss: number;
-  if_: number;
-  np_w: number;
-};
-
-// Workout type is authoritative on the backend (computed at finalize from the
-// full series). Read it from `s.workout_type` directly — do not infer here.
-export function computeSessionMetrics(s: SessionCard | SessionDetail): SessionMetricsComputed {
-  const ftp = s.ftp_w_used;
-  if (ftp <= 0) return { tss: 0, if_: 0, np_w: 0 };
-
-  if ('metrics' in s && s.metrics.length > 0) {
-    let sum4 = 0;
-    let n = 0;
-    for (const m of s.metrics) {
-      if (m.power_w == null) continue;
-      sum4 += m.power_w ** 4;
-      n++;
-    }
-    if (n > 0) {
-      const np_w = Math.pow(sum4 / n, 0.25);
-      const if_  = np_w / ftp;
-      const dur  = s.duration_s ?? 0;
-      const tss  = (dur / 3600) * if_ * if_ * 100;
-      return { tss, if_, np_w };
-    }
-  }
-
-  // SessionCard fallback: aggregates only. Approximate IF/TSS from avg power.
-  const dur = s.duration_s ?? 0;
-  const avg = s.avg_power_w ?? 0;
-  if (dur <= 0 || avg <= 0) return { tss: 0, if_: 0, np_w: 0 };
-  const if_ = avg / ftp;
-  const tss = (dur / 3600) * if_ * if_ * 100;
-  return { tss, if_, np_w: avg };
-}
+// NP / IF / TSS are computed once on the backend at finalize (from the full 1 Hz
+// series, against the session's frozen FTP) and stored on the row. Read them
+// directly from `s.tss` / `s.if_` / `s.np_w` — never recompute on the frontend,
+// to keep the list and detail views in perfect agreement. Sessions recorded
+// before the v6 migration have these as `null` (shown as "—").
 
 // Power zone distribution Z1..Z6 from samples (returns 6 percentages summing to 1)
 export function powerZoneDistribution(samples: MetricSample[], ftp: number): number[] {
@@ -175,7 +149,7 @@ export function groupByPeriod(sessions: SessionCard[], now: Date = new Date()): 
     let total_tss = 0;
     for (const s of list) {
       total_s += s.duration_s ?? 0;
-      total_tss += computeSessionMetrics(s).tss;
+      total_tss += s.tss ?? 0;
     }
     return {
       label: periodLabel(k),
