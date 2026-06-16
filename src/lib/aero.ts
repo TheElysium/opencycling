@@ -74,7 +74,6 @@ export type Calibration = {
   std: FeatureVec;
   aeroRef: FeatureVec;     // z-scored aero centroid
   uprightRef: FeatureVec;  // z-scored upright centroid
-  cohend: FeatureVec;      // per-feature separation (diagnostic)
   sep: number;             // euclidean centroid separation in z-space
 };
 
@@ -116,7 +115,7 @@ export function buildCalibration(aero: FeatureVec[], upright: FeatureVec[]): Cal
   if (aero.length < MIN_CAPTURE_FRAMES || upright.length < MIN_CAPTURE_FRAMES) return null;
   const all = [...aero, ...upright];
   const meanV = {} as FeatureVec, stdV = {} as FeatureVec;
-  const aeroRef = {} as FeatureVec, uprightRef = {} as FeatureVec, cohend = {} as FeatureVec;
+  const aeroRef = {} as FeatureVec, uprightRef = {} as FeatureVec;
   for (const f of FEATURES) {
     const m = mean(all.map(v => v[f]));
     const s = std(all.map(v => v[f]), m) || 1e-6;
@@ -124,13 +123,10 @@ export function buildCalibration(aero: FeatureVec[], upright: FeatureVec[]): Cal
     const aMu = mean(aero.map(v => v[f])), uMu = mean(upright.map(v => v[f]));
     aeroRef[f] = (aMu - m) / s;
     uprightRef[f] = (uMu - m) / s;
-    const aS = std(aero.map(v => v[f]), aMu), uS = std(upright.map(v => v[f]), uMu);
-    const pooled = Math.sqrt((aS ** 2 + uS ** 2) / 2) || 1e-6;
-    cohend[f] = Math.abs(aMu - uMu) / pooled;
   }
   let sep = 0;
   for (const f of FEATURES) sep += (aeroRef[f] - uprightRef[f]) ** 2;
-  return { mean: meanV, std: stdV, aeroRef, uprightRef, cohend, sep: Math.sqrt(sep) };
+  return { mean: meanV, std: stdV, aeroRef, uprightRef, sep: Math.sqrt(sep) };
 }
 
 // Project a feature vector onto the upright->aero axis. 0 = upright, 1 = aero.

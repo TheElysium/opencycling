@@ -49,6 +49,9 @@ class SessionStore {
   private pendingFtp = 0;
 
   prepare(workout: ParsedWorkout, ftpW: number, aero: boolean): void {
+    // Drop the previous session's display state so the session page doesn't show the
+    // last ride behind the calibration overlay while this one waits to be armed.
+    this.apply(null);
     this.pendingWorkout = workout;
     this.pendingFtp = ftpW;
     this.aeroEnabled = aero;
@@ -71,7 +74,10 @@ class SessionStore {
     await this.loadSnapshot();
   }
 
-  async start(workout: ParsedWorkout, ftpW: number): Promise<void> {
+  // Private: the only supported entry point is prepare() + startPending(). Calling
+  // start_session directly would re-arm the session during aero calibration, which
+  // is exactly what the deferred-start flow exists to prevent.
+  private async start(workout: ParsedWorkout, ftpW: number): Promise<void> {
     await invoke('start_session', { workout, ftpW });
   }
 

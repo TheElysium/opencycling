@@ -11,6 +11,7 @@ export type SessionCard = {
   avg_cadence_rpm: number | null;
   ftp_w_used: number;
   workout_type: WorkoutType | null;
+  aero_pct: number | null;
 };
 
 export type MetricSample = {
@@ -18,6 +19,9 @@ export type MetricSample = {
   power_w: number | null;
   hr_bpm: number | null;
   cadence_rpm: number | null;
+  // Per-sample smoothed aero score (0..1). Not surfaced in any visual yet; kept for
+  // debugging the detector when riders report inaccurate aero tracking.
+  aero_score: number | null;
 };
 
 export type SessionDetail = {
@@ -35,6 +39,7 @@ export type SessionDetail = {
   max_cadence_rpm: number | null;
   ftp_w_used: number;
   workout_type: WorkoutType | null;
+  aero_pct: number | null;
   flat_blocks: FlatBlock[];
   metrics: MetricSample[];
 };

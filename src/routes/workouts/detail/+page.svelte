@@ -476,49 +476,7 @@
     color: var(--muted);
   }
 
-  /* iOS-style toggle switch, matching the Features section in Settings. */
-  .switch {
-    position: relative;
-    display: inline-block;
-    width: 42px;
-    height: 24px;
-    flex-shrink: 0;
-  }
-  .switch input {
-    position: absolute;
-    opacity: 0;
-    width: 0;
-    height: 0;
-  }
-  .slider {
-    position: absolute;
-    inset: 0;
-    background: var(--border);
-    border-radius: 999px;
-    transition: background 0.2s;
-  }
-  .slider::before {
-    content: '';
-    position: absolute;
-    height: 18px;
-    width: 18px;
-    left: 3px;
-    top: 3px;
-    background: #fff;
-    border-radius: 50%;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-    transition: transform 0.2s;
-  }
-  .switch input:checked + .slider {
-    background: var(--accent);
-  }
-  .switch input:checked + .slider::before {
-    transform: translateX(18px);
-  }
-  .switch input:focus-visible + .slider {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
+  /* Shared .switch/.slider styles live in app.css. */
 
   .section-title {
     font-size: 0.85rem;

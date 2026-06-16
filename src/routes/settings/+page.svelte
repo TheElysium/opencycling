@@ -73,13 +73,19 @@
     }
   }
 
+  // Single source of the settings payload, shared by Save, the aero toggle, and the
+  // proxy-URL blur. No-op until every required field is populated.
+  async function persist() {
+    if (ftp === null || maxHr === null || workoutPath === null || stravaProxy === null) return;
+    await updateSettings({ ftp_w: ftp, max_hr_bpm: maxHr, workout_path: workoutPath, strava_proxy_url: stravaProxy, aero_enabled: aeroEnabled });
+  }
+
   // The proxy URL lives in the Strava tile and persists on blur, so it can be
   // set right before clicking Connect without scrolling up to the global Save.
   async function saveProxyUrl() {
-    if (ftp === null || maxHr === null || workoutPath === null || stravaProxy === null) return;
     stravaError = null;
     try {
-      await updateSettings({ ftp_w: ftp, max_hr_bpm: maxHr, workout_path: workoutPath, strava_proxy_url: stravaProxy, aero_enabled: aeroEnabled });
+      await persist();
     } catch (e) {
       stravaError = toMessage(e);
     }
@@ -88,9 +94,8 @@
   // Persist the aero toggle immediately, like the Strava auto-upload switch, so the
   // slider feels instant without waiting for the global Save.
   async function toggleAero() {
-    if (ftp === null || maxHr === null || workoutPath === null || stravaProxy === null) return;
     try {
-      await updateSettings({ ftp_w: ftp, max_hr_bpm: maxHr, workout_path: workoutPath, strava_proxy_url: stravaProxy, aero_enabled: aeroEnabled });
+      await persist();
     } catch (e) {
       error = toMessage(e);
     }
@@ -118,7 +123,7 @@
     error  = null;
     saved  = false;
     try {
-      await updateSettings({ ftp_w: ftp, max_hr_bpm: maxHr, workout_path: workoutPath, strava_proxy_url: stravaProxy, aero_enabled: aeroEnabled });
+      await persist();
       saved = true;
       if (savedTimer) clearTimeout(savedTimer);
       savedTimer = setTimeout(() => saved = false, 2000);
@@ -461,55 +466,8 @@
     line-height: 1.5;
   }
 
-  /* iOS-style toggle switch. */
-  .switch {
-    position: relative;
-    display: inline-block;
-    width: 42px;
-    height: 24px;
-    flex-shrink: 0;
-    cursor: pointer;
+  /* Shared .switch/.slider styles live in app.css; nudge it to align with the title. */
+  .feature-row :global(.switch) {
     margin-top: 0.1rem;
-  }
-
-  .switch input {
-    position: absolute;
-    opacity: 0;
-    width: 0;
-    height: 0;
-  }
-
-  .slider {
-    position: absolute;
-    inset: 0;
-    background: var(--border);
-    border-radius: 999px;
-    transition: background 0.2s;
-  }
-
-  .slider::before {
-    content: '';
-    position: absolute;
-    height: 18px;
-    width: 18px;
-    left: 3px;
-    top: 3px;
-    background: #fff;
-    border-radius: 50%;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-    transition: transform 0.2s;
-  }
-
-  .switch input:checked + .slider {
-    background: var(--accent);
-  }
-
-  .switch input:checked + .slider::before {
-    transform: translateX(18px);
-  }
-
-  .switch input:focus-visible + .slider {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
   }
 </style>

@@ -12,12 +12,10 @@ const FRAME_MS = 100;           // ~10 fps
 const CAPTURE_MS = 3000;        // per-position capture duration (~30 frames > MIN_CAPTURE_FRAMES)
 const PREP_SECONDS = 5;         // get-into-position countdown before each capture
 const REPORT_MS = 1000;         // align reports with the backend's 1 Hz sampling
-const SITUP_ALERT_MS = 3000;    // sit-up alert delay
 
-export type CalibPhase =
-  | 'idle' | 'loading' | 'ready'
-  | 'capturingAero' | 'capturingUpright'
-  | 'calibrated' | 'error';
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+export type CalibPhase = 'idle' | 'loading' | 'ready' | 'calibrated' | 'error';
 
 // Sub-state of the automatic calibration run. `idle` = not started / between runs,
 // `done` = run finished (read `phase`/`sep`/`notSeen` for the verdict). The prep/rec
@@ -37,9 +35,6 @@ class AeroStore {
   error = $state<string | null>(null);
   currentScore = $state<number | null>(null); // smoothed 0..1, for display
   inAero = $state(false);                    // debounced aero/upright state
-  aeroPct = $state(0);                       // live share of valid frames in aero
-  situpAlert = $state(false);                // true while sat up past the delay
-  cohend = $state<FeatureVec | null>(null);  // calibration diagnostic
   sep = $state(0);                           // z-space centroid separation
   strong = $state(false);                    // calibration separates poses enough
 
@@ -56,14 +51,14 @@ class AeroStore {
   private calib: Calibration | null = null;
   private smoother = new Smoother(8);
   private gate = new AeroGate();
-  private aeroFrames = 0;
-  private validFrames = 0;
-  private uprightSinceMs: number | null = null;
   private loopHandle: number | null = null;
-  private previewHandle: number | null = null; // post-calibration self-test loop
-  private reportable: boolean | null = null; // latest decision, null = no usable frame
   private captures = { aero: [] as FeatureVec[], upright: [] as FeatureVec[] };
-  private capturing: 'aero' | 'upright' | null = null;
+  // True while a calibration run is in flight. The run is a long async loop that
+  // outlives the component, so it checks this flag after each await and bails the
+  // moment reset() (called by teardown when leaving the page) clears it, instead of
+  // resuming where it left off. Runs never overlap (the recalibrate button is
+  // disabled mid-run), so a plain flag is enough; no generation counter needed.
+  private calibrating = false;
 
   async init(video: HTMLVideoElement): Promise<void> {
     this.video = video;
@@ -111,25 +106,22 @@ class AeroStore {
   async runCalibration(): Promise<void> {
     if (this.detector == null || this.phase === 'loading' || this.phase === 'error') return;
     this.stopPreview(); // a re-run supersedes any running self-test
+    this.calibrating = true; // cleared by reset() (teardown) to cancel this run
     // Clear any previous result so a re-run starts from a clean slate.
     this.captures = { aero: [], upright: [] };
     this.calib = null;
     this.sep = 0;
-    this.cohend = null;
     this.strong = false;
     this.notSeen = false;
 
-    this.step = 'prepAero';
-    await this.prep(PREP_SECONDS);
-    this.step = 'recAero';
-    this.phase = 'capturingAero';
+    // Each step owns its own `step`/`phase` and bails on its own if cancelled, so the
+    // sequence here stays a flat list of awaits. Once cancelled, every later step is a
+    // no-op, so a single guard before committing the result is all we need.
+    await this.prep('prepAero');
     await this.captureInto('aero');
-
-    this.step = 'prepUpright';
-    await this.prep(PREP_SECONDS);
-    this.step = 'recUpright';
-    this.phase = 'capturingUpright';
+    await this.prep('prepUpright');
     await this.captureInto('upright');
+    if (!this.calibrating) return;
 
     this.step = 'done';
     const c = buildCalibration(this.captures.aero, this.captures.upright);
@@ -140,7 +132,6 @@ class AeroStore {
       return;
     }
     this.sep = c.sep;
-    this.cohend = c.cohend;
     this.strong = isCalibrationStrong(c);
     // Only accept a calibration that separates the two poses; a weak axis is noise.
     if (this.strong) {
@@ -154,14 +145,17 @@ class AeroStore {
 
   // Hold a "get into position" countdown, polling the pose so the UI can show
   // whether the rider is currently in frame before the capture starts.
-  private async prep(seconds: number): Promise<void> {
-    for (let s = seconds; s > 0; s--) {
+  private async prep(step: 'prepAero' | 'prepUpright'): Promise<void> {
+    if (!this.calibrating) return; // cancelled (page left)
+    this.step = step;
+    for (let s = PREP_SECONDS; s > 0; s--) {
+      if (!this.calibrating) return; // cancelled (page left)
       this.countdown = s;
       const until = performance.now() + 1000;
       while (performance.now() < until) {
         const kp = await this.estimate();
         this.liveDetected = !!(kp && extractFeatures(kp));
-        await new Promise((r) => setTimeout(r, 200));
+        await sleep(200);
       }
     }
     this.countdown = 0;
@@ -172,13 +166,15 @@ class AeroStore {
   // more than `LOST_FRAMES` in a row, the partial capture is discarded and the timer
   // restarts from zero so the reference is built from one continuous, in-frame hold.
   private async captureInto(which: 'aero' | 'upright'): Promise<void> {
+    if (!this.calibrating) return; // cancelled (page left)
+    this.step = which === 'aero' ? 'recAero' : 'recUpright';
     const LOST_FRAMES = 6; // ~0.6s out of frame restarts this position
     this.captures[which] = [];
-    this.capturing = which;
     this.captureFrac = 0;
     let start = performance.now();
     let misses = 0;
     while (performance.now() - start < CAPTURE_MS) {
+      if (!this.calibrating) return; // cancelled (page left)
       const kp = await this.estimate();
       const f = kp && extractFeatures(kp);
       this.liveDetected = !!f;
@@ -191,93 +187,71 @@ class AeroStore {
         misses = 0;
       }
       this.captureFrac = Math.min(1, (performance.now() - start) / CAPTURE_MS);
-      await new Promise((r) => setTimeout(r, FRAME_MS));
+      await sleep(FRAME_MS);
     }
     this.captureFrac = 1;
-    this.capturing = null;
   }
 
-  // Start the live scoring loop. Pushes the debounced boolean to Rust ~1 Hz.
-  startLoop(): void {
+  // Score the current frame against the calibration, updating currentScore/inAero
+  // for display. Returns the smoothed score, or null when there is no usable pose
+  // (occlusion / out of frame). Shared by the live loop and the self-test preview.
+  private async scoreOnce(): Promise<number | null> {
+    const kp = await this.estimate();
+    const f = kp && extractFeatures(kp);
+    if (!f || !this.calib) {
+      this.currentScore = null;
+      return null;
+    }
+    const s = this.smoother.push(scoreFrame(f, this.calib));
+    this.currentScore = s;
+    this.inAero = this.gate.update(s);
+    return s;
+  }
+
+  // Single scoring loop. Always updates currentScore/inAero for display; when
+  // `report` is set it also pushes the debounced boolean to Rust ~1 Hz. The session
+  // loop reports; the post-calibration self-test (preview) only displays, so the
+  // rider can verify the aero/upright split before committing to the ride.
+  private startScoring(report: boolean): void {
     if (!this.calib || this.loopHandle != null) return;
-    this.stopPreview();          // hand off cleanly from the self-test loop
-    this.smoother.reset();       // start the session from a clean smoothing/gate state
+    this.smoother.reset();       // start from a clean smoothing/gate state
     this.gate.reset();
     let lastReport = 0;
     const tick = async () => {
-      const kp = await this.estimate();
-      const f = kp && extractFeatures(kp);
-      if (f && this.calib) {
-        const s = this.smoother.push(scoreFrame(f, this.calib));
-        this.currentScore = s;
-        this.inAero = this.gate.update(s);
-        this.reportable = this.inAero;
-        this.validFrames++;
-        if (this.inAero) {
-          this.aeroFrames++;
-          this.uprightSinceMs = null;
-          this.situpAlert = false;
-        } else {
-          if (this.uprightSinceMs == null) this.uprightSinceMs = performance.now();
-          if (performance.now() - this.uprightSinceMs >= SITUP_ALERT_MS) this.situpAlert = true;
+      const s = await this.scoreOnce();
+      if (report) {
+        const now = performance.now();
+        if (now - lastReport >= REPORT_MS) {
+          lastReport = now;
+          // No usable frame: report null so a stalled view does not bias aero_pct.
+          invoke('report_aero', { aero: s != null ? this.inAero : null }).catch(() => {});
         }
-        this.aeroPct = this.validFrames > 0 ? this.aeroFrames / this.validFrames : 0;
-      } else {
-        // No usable frame (occlusion, out of frame): report nothing so a stalled
-        // view does not bias aero_pct.
-        this.currentScore = null;
-        this.reportable = null;
-      }
-
-      const now = performance.now();
-      if (now - lastReport >= REPORT_MS) {
-        lastReport = now;
-        invoke('report_aero', { aero: this.reportable }).catch(() => {});
       }
       this.loopHandle = window.setTimeout(tick, FRAME_MS);
     };
     this.loopHandle = window.setTimeout(tick, FRAME_MS);
   }
 
-  stopLoop(): void {
+  private stopScoring(): void {
     if (this.loopHandle != null) {
       clearTimeout(this.loopHandle);
       this.loopHandle = null;
     }
   }
 
-  // Live self-test loop for the post-calibration check: scores frames and updates
-  // currentScore/inAero for display only. No reporting to Rust and no aeroPct
-  // accumulation (there is no session yet), so the rider can verify the aero/upright
-  // split before committing to the ride.
-  startPreview(): void {
-    if (!this.calib || this.previewHandle != null) return;
-    this.smoother.reset();
-    this.gate.reset();
-    const tick = async () => {
-      const kp = await this.estimate();
-      const f = kp && extractFeatures(kp);
-      if (f && this.calib) {
-        this.currentScore = this.smoother.push(scoreFrame(f, this.calib));
-        this.inAero = this.gate.update(this.currentScore);
-      } else {
-        this.currentScore = null;
-      }
-      this.previewHandle = window.setTimeout(tick, FRAME_MS);
-    };
-    this.previewHandle = window.setTimeout(tick, FRAME_MS);
+  // Session loop: scores + reports to Rust. Supersedes any running self-test.
+  startLoop(): void {
+    this.stopScoring();
+    this.startScoring(true);
   }
+  stopLoop(): void { this.stopScoring(); }
 
-  stopPreview(): void {
-    if (this.previewHandle != null) {
-      clearTimeout(this.previewHandle);
-      this.previewHandle = null;
-    }
-  }
+  // Post-calibration self-test: scores for display only, no reporting.
+  startPreview(): void { this.startScoring(false); }
+  stopPreview(): void { this.stopScoring(); }
 
   teardown(): void {
-    this.stopLoop();
-    this.stopPreview();
+    this.stopScoring();
     this.stream?.getTracks().forEach((t) => t.stop());
     this.stream = null;
     this.detector?.dispose();
@@ -287,14 +261,12 @@ class AeroStore {
   }
 
   reset(): void {
+    this.calibrating = false; // cancel any in-flight calibration run (teardown -> reset on page leave)
     this.phase = 'idle';
     this.error = null;
     this.currentScore = null;
     this.inAero = false;
-    this.aeroPct = 0;
-    this.situpAlert = false;
     this.calib = null;
-    this.cohend = null;
     this.sep = 0;
     this.strong = false;
     this.step = 'idle';
@@ -304,12 +276,7 @@ class AeroStore {
     this.notSeen = false;
     this.smoother.reset();
     this.gate.reset();
-    this.aeroFrames = 0;
-    this.validFrames = 0;
-    this.uprightSinceMs = null;
-    this.reportable = null;
     this.captures = { aero: [], upright: [] };
-    this.capturing = null;
   }
 }
 
