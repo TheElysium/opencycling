@@ -17,6 +17,7 @@
   let maxHr       = $state<number | null>(null);
   let workoutPath = $state<string | null>(null);
   let stravaProxy = $state<string | null>(null);
+  let aeroEnabled = $state(false);
   let loading     = $state(true);
   let saving      = $state(false);
   let saved       = $state(false);
@@ -78,9 +79,20 @@
     if (ftp === null || maxHr === null || workoutPath === null || stravaProxy === null) return;
     stravaError = null;
     try {
-      await updateSettings({ ftp_w: ftp, max_hr_bpm: maxHr, workout_path: workoutPath, strava_proxy_url: stravaProxy });
+      await updateSettings({ ftp_w: ftp, max_hr_bpm: maxHr, workout_path: workoutPath, strava_proxy_url: stravaProxy, aero_enabled: aeroEnabled });
     } catch (e) {
       stravaError = toMessage(e);
+    }
+  }
+
+  // Persist the aero toggle immediately, like the Strava auto-upload switch, so the
+  // slider feels instant without waiting for the global Save.
+  async function toggleAero() {
+    if (ftp === null || maxHr === null || workoutPath === null || stravaProxy === null) return;
+    try {
+      await updateSettings({ ftp_w: ftp, max_hr_bpm: maxHr, workout_path: workoutPath, strava_proxy_url: stravaProxy, aero_enabled: aeroEnabled });
+    } catch (e) {
+      error = toMessage(e);
     }
   }
 
@@ -91,6 +103,7 @@
       maxHr       = s.max_hr_bpm;
       workoutPath = s.workout_path;
       stravaProxy = s.strava_proxy_url;
+      aeroEnabled = s.aero_enabled;
     } catch (e) {
       error = toMessage(e);
     } finally {
@@ -105,7 +118,7 @@
     error  = null;
     saved  = false;
     try {
-      await updateSettings({ ftp_w: ftp, max_hr_bpm: maxHr, workout_path: workoutPath, strava_proxy_url: stravaProxy });
+      await updateSettings({ ftp_w: ftp, max_hr_bpm: maxHr, workout_path: workoutPath, strava_proxy_url: stravaProxy, aero_enabled: aeroEnabled });
       saved = true;
       if (savedTimer) clearTimeout(savedTimer);
       savedTimer = setTimeout(() => saved = false, 2000);
@@ -152,6 +165,25 @@
       <button onclick={save} disabled={saving || ftp === null || maxHr === null || workoutPath === null || stravaProxy === null} class="btn-primary">
         {saving ? 'Saving…' : 'Save'}
       </button>
+    </div>
+
+    <h2>Features</h2>
+    <div class="card feature">
+      <div class="feature-row">
+        <div class="feature-info">
+          <span class="feature-name">Aero position detection</span>
+          <p class="feature-desc">
+            Uses a front-facing webcam to detect when you're in your aero position. After a quick
+            calibration (hold aero, then sit upright) it tracks your head and shoulders and logs how
+            much of each session you ride aero. Everything runs locally on your machine; no video
+            ever leaves the device.
+          </p>
+        </div>
+        <label class="switch">
+          <input type="checkbox" bind:checked={aeroEnabled} onchange={toggleAero} />
+          <span class="slider"></span>
+        </label>
+      </div>
     </div>
 
     <h2>Third-party integrations</h2>
@@ -400,5 +432,84 @@
   .toggle input {
     width: auto;
     cursor: pointer;
+  }
+
+  .feature-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.5rem;
+  }
+
+  .feature-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    min-width: 0;
+  }
+
+  .feature-name {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .feature-desc {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  /* iOS-style toggle switch. */
+  .switch {
+    position: relative;
+    display: inline-block;
+    width: 42px;
+    height: 24px;
+    flex-shrink: 0;
+    cursor: pointer;
+    margin-top: 0.1rem;
+  }
+
+  .switch input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  .slider {
+    position: absolute;
+    inset: 0;
+    background: var(--border);
+    border-radius: 999px;
+    transition: background 0.2s;
+  }
+
+  .slider::before {
+    content: '';
+    position: absolute;
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    top: 3px;
+    background: #fff;
+    border-radius: 50%;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    transition: transform 0.2s;
+  }
+
+  .switch input:checked + .slider {
+    background: var(--accent);
+  }
+
+  .switch input:checked + .slider::before {
+    transform: translateX(18px);
+  }
+
+  .switch input:focus-visible + .slider {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
 </style>

@@ -94,6 +94,21 @@ export function isCalibrationStrong(c: Calibration): boolean {
   return c.sep >= MIN_SEP;
 }
 
+// Above this separation the two poses are cleanly distinct and scoring is robust.
+// Between MIN_SEP and here the axis is usable but noisier (rider barely changed
+// position). Tunable; picked from prototype runs, not a hard statistical bound.
+export const SEP_GOOD = 1.8;
+
+export type CalibQuality = 'poor' | 'fair' | 'good';
+
+// Three-tier verdict for UI feedback. `poor` is rejected by isCalibrationStrong;
+// `fair`/`good` are both accepted, the split is purely advisory.
+export function calibQuality(sep: number): CalibQuality {
+  if (sep >= SEP_GOOD) return 'good';
+  if (sep >= MIN_SEP) return 'fair';
+  return 'poor';
+}
+
 // Build the upright->aero axis from two captured clusters. Null if either is too small.
 // Both clusters are sets of FRONT-facing feature vectors (rider seen head-on); the
 // learned axis is therefore only valid for scoring frames captured from the front.

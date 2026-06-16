@@ -12,6 +12,8 @@
   import { session } from '$lib/session.svelte';
 
   let ftp = $state(200);
+  let aeroFeature = $state(false); // master switch from Settings; gates the per-ride toggle
+  let aeroEnabled = $state(false);
   let starting = $state(false);
   let startError = $state<string | null>(null);
 
@@ -20,7 +22,9 @@
     starting = true;
     startError = null;
     try {
-      await session.start(w, ftp);
+      // Defer start_session to the session page: when aero is on it must run the
+      // calibration first, and the session must stay unarmed until calibration ends.
+      session.prepare(w, ftp, aeroEnabled);
       await goto('/session');
     } catch (e) {
       startError = toMessage(e);
@@ -37,6 +41,10 @@
     try {
       const s = await getSettings();
       ftp = s.ftp_w;
+      // Settings is the master: only expose the per-ride toggle when the feature is
+      // on, pre-checked so it applies by default.
+      aeroFeature = s.aero_enabled;
+      aeroEnabled = s.aero_enabled;
     } catch {
       // fallback ftp already set
     }
@@ -228,6 +236,19 @@
       {/if}
     </div>
 
+    {#if ble.trainerStatus === 'connected' && aeroFeature}
+      <label class="aero-opt">
+        <span class="switch">
+          <input type="checkbox" bind:checked={aeroEnabled} />
+          <span class="slider"></span>
+        </span>
+        <span class="aero-opt-text">
+          <span class="aero-opt-title">Detect aero position</span>
+          <span class="aero-opt-sub">Track how much of this ride you spend in your aero position.</span>
+        </span>
+      </label>
+    {/if}
+
     {#if blockRows.length > 0}
       <h2 class="section-title">Block breakdown</h2>
       <div class="card blocks-card">
@@ -414,7 +435,7 @@
     display: flex;
     align-items: center;
     gap: 0.85rem;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
   }
 
   .btn-start {
@@ -431,6 +452,73 @@
 
   .btn-start:hover { opacity: 0.9; }
   .btn-start:active { transform: scale(0.98); }
+
+  /* Per-ride aero option on its own line below the CTA, not orphaned beside it. */
+  .aero-opt {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.7rem;
+    margin-bottom: 1.5rem;
+    cursor: pointer;
+  }
+  .aero-opt-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+  }
+  .aero-opt-title {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text);
+  }
+  .aero-opt-sub {
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+
+  /* iOS-style toggle switch, matching the Features section in Settings. */
+  .switch {
+    position: relative;
+    display: inline-block;
+    width: 42px;
+    height: 24px;
+    flex-shrink: 0;
+  }
+  .switch input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+  .slider {
+    position: absolute;
+    inset: 0;
+    background: var(--border);
+    border-radius: 999px;
+    transition: background 0.2s;
+  }
+  .slider::before {
+    content: '';
+    position: absolute;
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    top: 3px;
+    background: #fff;
+    border-radius: 50%;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    transition: transform 0.2s;
+  }
+  .switch input:checked + .slider {
+    background: var(--accent);
+  }
+  .switch input:checked + .slider::before {
+    transform: translateX(18px);
+  }
+  .switch input:focus-visible + .slider {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
 
   .section-title {
     font-size: 0.85rem;

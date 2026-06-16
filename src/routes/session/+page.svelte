@@ -1,10 +1,13 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { goto, beforeNavigate } from '$app/navigation';
   import { Pause, Play, Square, ArrowLeft, ArrowRight, RotateCw, Heart } from '@lucide/svelte';
   import { confirm } from '@tauri-apps/plugin-dialog';
   import { session, type SessionMetrics } from '$lib/session.svelte';
+  import { aero } from '$lib/aero.svelte';
+  import AeroCalibration from '$lib/components/AeroCalibration.svelte';
+  import AeroPanel from '$lib/components/AeroPanel.svelte';
   import { beepShort, beepLong, beepLow } from '$lib/audio';
   import { toMessage } from '$lib/format';
   import { type SessionDetail } from '$lib/db';
@@ -18,17 +21,62 @@
   import BlocksList from '$lib/components/BlocksList.svelte';
   import SessionStatsPanel from '$lib/components/SessionStatsPanel.svelte';
 
-  let snapError = $state<string | null>(null);
-  let detail    = $state<SessionDetail | null>(null);
-  let maxHr     = $state(190);
+  let snapError   = $state<string | null>(null);
+  let detail      = $state<SessionDetail | null>(null);
+  let maxHr       = $state(190);
+  let calibrating = $state(false); // aero calibration overlay is up, session not yet armed
+  let aeroActive  = $state(false); // live aero loop running for this session
+
+  async function startSessionFlow() {
+    try {
+      await session.startPending();
+    } catch (e) {
+      snapError = toMessage(e);
+    }
+  }
+
+  // Fired by AeroCalibration for both "Start session" and "Skip aero". The session
+  // is armed only now, so pedaling during calibration could not have started it.
+  async function onCalibrationDone() {
+    calibrating = false;
+    await startSessionFlow();
+    if (aero.phase === 'calibrated') {
+      aeroActive = true;
+      aero.startLoop();
+    } else {
+      // Skipped (or too-weak calibration): release the camera, no reporting.
+      aero.teardown();
+    }
+  }
 
   onMount(async () => {
+    if (session.hasPendingStart) {
+      // Fresh start coming from the workout detail page.
+      if (session.aeroEnabled) {
+        calibrating = true; // start_session happens once calibration closes
+        return;
+      }
+      await startSessionFlow();
+      return;
+    }
+    // No pending start: re-entering an already-running session (e.g. reload).
     try {
       await session.loadSnapshot();
     } catch (e) {
       snapError = toMessage(e);
     }
   });
+
+  // Stop the camera/loop when the session ends.
+  $effect(() => {
+    if (isFinished && aeroActive) {
+      aero.teardown();
+      aeroActive = false;
+    }
+  });
+
+  // Safety net: release the camera if we leave the page for any reason.
+  onDestroy(() => aero.teardown());
 
   let m          = $derived<SessionMetrics | null>(session.metrics);
   let isWaiting  = $derived(m?.state === 'WaitingForRider');
@@ -161,9 +209,10 @@
       {:else}
         <CurrentBlockCard metrics={m} flat_blocks={session.flat_blocks} />
         <PowerTile power_w={m.power_w} target_w={m.target_w} />
-        <div class="metrics">
+        <div class="metrics" class:with-aero={aeroActive}>
           <MetricTile label="Cadence"    value={m.cadence_rpm} unit="rpm" target={m.cadence_target_rpm} icon={RotateCw} />
           <MetricTile label="Heart rate" value={m.hr_bpm}      unit="bpm" icon={Heart} />
+          {#if aeroActive}<AeroPanel />{/if}
         </div>
       {/if}
     </section>
@@ -208,6 +257,10 @@
   {/if}
 </main>
 
+{#if calibrating}
+  <AeroCalibration done={onCalibrationDone} />
+{/if}
+
 <style>
   .session {
     display: grid;
@@ -235,6 +288,10 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 1rem;
+  }
+  /* Cadence + HR + Aero share one row when aero detection is on. */
+  .metrics.with-aero {
+    grid-template-columns: 1fr 1fr 1fr;
   }
 
   .controls {
@@ -296,8 +353,9 @@
   .waiting-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(15, 23, 42, 0.6);
-    backdrop-filter: blur(4px);
+    /* Light scrim so the live session stays visible behind the prompt. */
+    background: rgba(15, 23, 42, 0.25);
+    backdrop-filter: blur(1.5px);
     display: grid;
     place-items: center;
     z-index: 100;
