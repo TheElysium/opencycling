@@ -20,10 +20,13 @@
   import SessionTimeline from '$lib/components/SessionTimeline.svelte';
   import BlocksList from '$lib/components/BlocksList.svelte';
   import SessionStatsPanel from '$lib/components/SessionStatsPanel.svelte';
+  import FtpTestResult from '$lib/components/FtpTestResult.svelte';
 
   let snapError   = $state<string | null>(null);
   let detail      = $state<SessionDetail | null>(null);
   let maxHr       = $state(190);
+  let oldFtp      = $state(0); // the rider's real FTP, captured before the result screen
+
   let calibrating = $state(false); // aero calibration overlay is up, session not yet armed
   let aeroActive  = $state(false); // live aero loop running for this session
 
@@ -140,6 +143,7 @@
           ]);
           detail = d;
           maxHr = s.max_hr_bpm;
+          oldFtp = s.ftp_w;
         } catch (e) {
           snapError = toMessage(e);
         }
@@ -186,6 +190,15 @@
       snapError = toMessage(e);
     }
   }
+
+  // From the FTP-test stop prompt: stop directly (the prompt is already the confirmation).
+  async function confirmStop() {
+    try {
+      await session.confirmStopFromPrompt();
+    } catch (e) {
+      snapError = toMessage(e);
+    }
+  }
 </script>
 
 <main class="session">
@@ -200,11 +213,15 @@
     <!-- LEFT -->
     <section class="left">
       {#if isFinished}
-        <SessionFinishedCard total_active_s={m.total_active_s} />
-        {#if detail}
-          <SessionStatsPanel {detail} {maxHr} />
+        {#if session.isFtpTest && detail}
+          <FtpTestResult {detail} {oldFtp} />
         {:else}
-          <p class="muted">Loading recap…</p>
+          <SessionFinishedCard total_active_s={m.total_active_s} />
+          {#if detail}
+            <SessionStatsPanel {detail} {maxHr} />
+          {:else}
+            <p class="muted">Loading recap…</p>
+          {/if}
         {/if}
       {:else}
         <CurrentBlockCard metrics={m} flat_blocks={session.flat_blocks} />
@@ -248,6 +265,32 @@
       <div class="waiting-card">
         <div class="waiting-title">Start pedaling to begin</div>
         <div class="waiting-sub">The session will start automatically when you start riding.</div>
+      </div>
+    </div>
+  {/if}
+
+  {#if session.dropCountdown != null && !session.stopPromptVisible}
+    <div class="drop-countdown" aria-live="assertive">
+      <div class="drop-count">{session.dropCountdown}</div>
+      <div class="drop-msg">Push the watts or the test stops!</div>
+    </div>
+  {/if}
+
+  {#if session.stopPromptVisible}
+    <div class="stop-prompt-overlay">
+      <div class="stop-prompt-card">
+        <div class="stop-prompt-title">Can't hold the power?</div>
+        <div class="stop-prompt-sub">
+          You've been below target for a few seconds. End the ramp test now, or keep pushing.
+        </div>
+        <div class="stop-prompt-actions">
+          <button class="btn btn-pause" onclick={() => session.dismissStopPrompt()}>
+            Keep going
+          </button>
+          <button class="btn btn-stop" onclick={confirmStop}>
+            <Square size={16} /> Stop test
+          </button>
+        </div>
       </div>
     </div>
   {/if}
@@ -379,4 +422,75 @@
     color: var(--muted);
     font-size: 0.95rem;
   }
+
+  /* Non-blocking countdown shown while the rider is dropping below target. */
+  .drop-countdown {
+    position: fixed;
+    top: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 90;
+    display: grid;
+    justify-items: center;
+    gap: 0.3rem;
+    padding: 1rem 2rem;
+    border-radius: 14px;
+    background: rgba(127, 29, 29, 0.92);
+    color: white;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    pointer-events: none;
+  }
+  .drop-count {
+    font-size: 3rem;
+    font-weight: 800;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    animation: drop-pulse 1s ease-in-out infinite;
+  }
+  .drop-msg {
+    font-size: 0.9rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  @keyframes drop-pulse {
+    0%, 100% { transform: scale(1);   opacity: 1;   }
+    50%      { transform: scale(1.12); opacity: 0.85; }
+  }
+
+  /* Blocking prompt once the grace period elapses: the rider decides. */
+  .stop-prompt-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(2px);
+    display: grid;
+    place-items: center;
+    z-index: 110;
+  }
+  .stop-prompt-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 2rem 2.25rem;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    max-width: 440px;
+  }
+  .stop-prompt-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 0.5rem;
+  }
+  .stop-prompt-sub {
+    color: var(--muted);
+    font-size: 0.95rem;
+    margin-bottom: 1.5rem;
+  }
+  .stop-prompt-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+  .stop-prompt-actions .btn-stop { grid-column: auto; }
 </style>

@@ -1,15 +1,10 @@
 <script lang="ts">
   import type { FlatBlock } from '$lib/workout.svelte';
   import type { MetricSample } from '$lib/db';
+  import { powerScale, POWER_CAP } from '$lib/chart-scale';
 
   type ZoneSlice = { color: string; label: string; pct: number };
   type TimeMark  = { t: number; label: string };
-
-  // Vertical compression: 1.0 = 100% FTP maps to this fraction of the chart height,
-  // leaving headroom on top for the max-power label.
-  const POWER_SCALE = 85;
-  const FTP_Y_PCT   = 100 - 1.0 * POWER_SCALE; // = 15
-  const POWER_CAP   = 99;
 
   const ZONES = [
     { max: 0.55, color: 'var(--z1)', label: 'Z1' },
@@ -147,9 +142,13 @@
   });
 
   let maxPct      = $derived(Math.max(plannedMaxPct, actualMaxPct));
-  let maxY        = $derived(100 - Math.min(maxPct * POWER_SCALE, POWER_CAP));
+  // Vertical scale adapts to the tallest planned/actual fraction so tall charts
+  // (VO2 spikes, the 640% ramp test) fit instead of clipping into a flat wall.
+  let scale       = $derived(powerScale(maxPct));
+  let ftpYPct     = $derived(100 - Math.min(1.0 * scale, POWER_CAP)); // FTP (1.0) line position
+  let maxY        = $derived(100 - Math.min(maxPct * scale, POWER_CAP));
   let maxLabelTop = $derived(Math.round(height * (maxY / 100)));
-  let ftpLabelTop = $derived(Math.round(height * (FTP_Y_PCT / 100)));
+  let ftpLabelTop = $derived(Math.round(height * (ftpYPct / 100)));
   let maxWatts    = $derived(ftpWatts > 0 ? Math.round(maxPct * ftpWatts) : 0);
 
   let xPositions  = $derived.by(() => {
@@ -167,7 +166,7 @@
   // line on screen*, no axis is drawn.
   function yOfPowerW(w: number): number {
     if (ftpWatts <= 0) return 100;
-    return 100 - Math.min((w / ftpWatts) * POWER_SCALE, POWER_CAP);
+    return 100 - Math.min((w / ftpWatts) * scale, POWER_CAP);
   }
   function yOfHr(bpm: number): number {
     // Window driven by athlete max HR (hrLo..hrHi); falls back to 80-200.
@@ -219,8 +218,8 @@
   let targetOpacity = $derived(actualMetrics ? 0.55 : 1);
 
   function blockPoints(b: FlatBlock, x: number): string {
-    const hStart = Math.min(pStart(b) * POWER_SCALE, POWER_CAP);
-    const hEnd   = Math.min(pEnd(b)   * POWER_SCALE, POWER_CAP);
+    const hStart = Math.min(pStart(b) * scale, POWER_CAP);
+    const hEnd   = Math.min(pEnd(b)   * scale, POWER_CAP);
     const w      = b.duration_s;
     return [
       `${x},100`,
@@ -331,7 +330,7 @@
               <polygon points={blockPoints(b, x)} fill="url(#ramp-{uid}-{i})" stroke="var(--chart-gap, var(--bg))" stroke-width="1" vector-effect="non-scaling-stroke" />
             {:else}
               {@const p = pStart(b)}
-              {@const h = Math.min(p * POWER_SCALE, POWER_CAP)}
+              {@const h = Math.min(p * scale, POWER_CAP)}
               <rect x={x} y={100 - h} width={b.duration_s} height={h} fill={zone(p).color} stroke="var(--chart-gap, var(--bg))" stroke-width="1" vector-effect="non-scaling-stroke" />
             {/if}
           {/each}
@@ -339,7 +338,7 @@
       {/if}
 
       {#if showFtpLine}
-        <line x1="0" x2={totalDur} y1={FTP_Y_PCT} y2={FTP_Y_PCT} stroke="rgba(255,255,255,0.5)" stroke-width="1.5" vector-effect="non-scaling-stroke" />
+        <line x1="0" x2={totalDur} y1={ftpYPct} y2={ftpYPct} stroke="rgba(255,255,255,0.5)" stroke-width="1.5" vector-effect="non-scaling-stroke" />
         <line x1="0" x2={totalDur} y1={maxY} y2={maxY} stroke="rgba(255,255,255,0.3)" stroke-width="1" stroke-dasharray="4 3" vector-effect="non-scaling-stroke" />
       {/if}
 

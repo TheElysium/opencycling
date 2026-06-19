@@ -54,6 +54,7 @@ impl SessionActor {
                 let workout_name = workout.name.clone();
                 let workout_author = workout.author.clone();
                 let workout_description = workout.description.clone();
+                let is_ftp_test = workout.is_ftp_test;
                 let flattened_workout = flatten_workout(workout, ftp_w);
                 self.session = Some(Session {
                     blocks: flattened_workout,
@@ -68,6 +69,7 @@ impl SessionActor {
                     workout_name,
                     workout_author,
                     workout_description,
+                    is_ftp_test,
                 });
                 self.state = Some(Box::new(WaitingForRiderState));
                 self.last_power_w = None;
@@ -259,6 +261,7 @@ impl SessionActor {
             workout_author: session.workout_author.clone(),
             workout_description: session.workout_description.clone(),
             metrics: self.build_metrics(),
+            is_ftp_test: session.is_ftp_test,
         })
     }
 
@@ -424,6 +427,7 @@ mod tests {
                     label: Some("Cooldown".to_string()),
                 },
             ],
+            is_ftp_test: false,
         };
 
         let flat = flatten_workout(workout, 200);
@@ -455,6 +459,7 @@ mod tests {
                 cadence_rpm: None,
                 label: Some("Build".to_string()),
             }],
+            is_ftp_test: false,
         };
 
         let flat = flatten_workout(workout, 200);

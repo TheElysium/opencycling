@@ -41,6 +41,35 @@ impl WorkoutType {
     }
 }
 
+/// Normalized Power (Coggan): the 4th root of the mean of the 4th powers of the
+/// 30-second rolling average power, computed over a 1 Hz power series (watts).
+/// Returns `None` for an empty series; falls back to mean power when there are
+/// fewer than 30 samples (one full window).
+pub fn normalized_power(power_w: &[f64]) -> Option<f32> {
+    const WINDOW: usize = 30;
+    if power_w.is_empty() {
+        return None;
+    }
+    if power_w.len() < WINDOW {
+        let mean = power_w.iter().sum::<f64>() / power_w.len() as f64;
+        return Some(mean as f32);
+    }
+
+    // Step 1: 30 s rolling average, maintained with a running sum (O(n)).
+    // Steps 2-3: accumulate each rolling average to the 4th power.
+    let mut window_sum: f64 = power_w[..WINDOW].iter().sum();
+    let mut sum4 = (window_sum / WINDOW as f64).powi(4);
+    let mut count: u32 = 1;
+    for i in WINDOW..power_w.len() {
+        window_sum += power_w[i] - power_w[i - WINDOW];
+        sum4 += (window_sum / WINDOW as f64).powi(4);
+        count += 1;
+    }
+
+    // Step 4: 4th root of the mean.
+    Some((sum4 / count as f64).powf(0.25) as f32)
+}
+
 const ZONE_THRESHOLDS: [f32; 5] = [0.55, 0.75, 0.90, 1.05, 1.20];
 
 fn zone_of(pct: f32) -> usize {
@@ -111,6 +140,35 @@ mod tests {
     fn classify_sweet_spot_band() {
         let series = vec![0.88_f32; 1800];
         assert_eq!(classify(&series, 0.88), WorkoutType::SweetSpot);
+    }
+
+    #[test]
+    fn np_constant_power_equals_that_power() {
+        // Rolling 30s average of a constant series is that constant, so NP == P.
+        let series = vec![200.0_f64; 60];
+        assert_eq!(normalized_power(&series), Some(200.0));
+    }
+
+    #[test]
+    fn np_empty_series_is_none() {
+        assert_eq!(normalized_power(&[]), None);
+    }
+
+    #[test]
+    fn np_short_series_falls_back_to_mean() {
+        // Fewer than 30 samples: not enough for a full window, use mean power.
+        assert_eq!(normalized_power(&[100.0, 200.0, 300.0]), Some(200.0));
+    }
+
+    #[test]
+    fn np_exceeds_mean_for_variable_power() {
+        // 60 s blocks alternating 100/300 W average 200 W, but because the surges
+        // outlast the 30 s smoothing window NP weights them higher than the mean.
+        let series: Vec<f64> = (0..600)
+            .map(|i| if (i / 60) % 2 == 0 { 100.0 } else { 300.0 })
+            .collect();
+        let np = normalized_power(&series).unwrap();
+        assert!(np > 200.0, "NP {np} should exceed the 200 W mean");
     }
 
     #[test]

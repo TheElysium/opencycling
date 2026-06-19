@@ -1,0 +1,41 @@
+<workout_file>
+  <author>OpenCycling</author>
+  <name>FTP Ramp Test</name>
+  <description>Ramp test: power rises 20 W every minute until you cannot continue. FTP is estimated as 75% of your best 1-minute power.</description>
+  <sportType>bike</sportType>
+  <tags>
+    <tag name="ftp-test"/>
+  </tags>
+  <workout>
+    <Warmup Duration="300" PowerLow="0.80" PowerHigh="1.20" Cadence="85"/>
+    <SteadyState Duration="60" Power="1.00" Cadence="85" name="100 W"/>
+    <SteadyState Duration="60" Power="1.20" Cadence="85" name="120 W"/>
+    <SteadyState Duration="60" Power="1.40" Cadence="85" name="140 W"/>
+    <SteadyState Duration="60" Power="1.60" Cadence="85" name="160 W"/>
+    <SteadyState Duration="60" Power="1.80" Cadence="85" name="180 W"/>
+    <SteadyState Duration="60" Power="2.00" Cadence="85" name="200 W"/>
+    <SteadyState Duration="60" Power="2.20" Cadence="85" name="220 W"/>
+    <SteadyState Duration="60" Power="2.40" Cadence="85" name="240 W"/>
+    <SteadyState Duration="60" Power="2.60" Cadence="85" name="260 W"/>
+    <SteadyState Duration="60" Power="2.80" Cadence="85" name="280 W"/>
+    <SteadyState Duration="60" Power="3.00" Cadence="85" name="300 W"/>
+    <SteadyState Duration="60" Power="3.20" Cadence="85" name="320 W"/>
+    <SteadyState Duration="60" Power="3.40" Cadence="85" name="340 W"/>
+    <SteadyState Duration="60" Power="3.60" Cadence="85" name="360 W"/>
+    <SteadyState Duration="60" Power="3.80" Cadence="85" name="380 W"/>
+    <SteadyState Duration="60" Power="4.00" Cadence="85" name="400 W"/>
+    <SteadyState Duration="60" Power="4.20" Cadence="85" name="420 W"/>
+    <SteadyState Duration="60" Power="4.40" Cadence="85" name="440 W"/>
+    <SteadyState Duration="60" Power="4.60" Cadence="85" name="460 W"/>
+    <SteadyState Duration="60" Power="4.80" Cadence="85" name="480 W"/>
+    <SteadyState Duration="60" Power="5.00" Cadence="85" name="500 W"/>
+    <SteadyState Duration="60" Power="5.20" Cadence="85" name="520 W"/>
+    <SteadyState Duration="60" Power="5.40" Cadence="85" name="540 W"/>
+    <SteadyState Duration="60" Power="5.60" Cadence="85" name="560 W"/>
+    <SteadyState Duration="60" Power="5.80" Cadence="85" name="580 W"/>
+    <SteadyState Duration="60" Power="6.00" Cadence="85" name="600 W"/>
+    <SteadyState Duration="60" Power="6.20" Cadence="85" name="620 W"/>
+    <SteadyState Duration="60" Power="6.40" Cadence="85" name="640 W"/>
+    <Cooldown Duration="300" PowerLow="1.20" PowerHigh="0.70" Cadence="85"/>
+  </workout>
+</workout_file>

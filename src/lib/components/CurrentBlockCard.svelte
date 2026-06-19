@@ -2,7 +2,7 @@
   import { SkipForward } from '@lucide/svelte';
   import { session, formatClock, flatBlockAvgPct, type SessionMetrics, type FlatBlock } from '$lib/session.svelte';
   import { zoneOf } from '$lib/metrics';
-  import { tintBg, pctRound } from '$lib/session-visuals';
+  import { tintBg } from '$lib/session-visuals';
   import { toMessage } from '$lib/format';
 
   let { metrics, flat_blocks }: { metrics: SessionMetrics; flat_blocks: FlatBlock[] } = $props();
@@ -12,7 +12,6 @@
   let durationS   = $derived(block?.duration_s ?? 0);
   let progressPct = $derived(durationS > 0 ? Math.min(100, (metrics.current_block_elapsed_s / durationS) * 100) : 0);
   let targetW     = $derived(metrics.target_w);
-  let pctFtp      = $derived(targetW != null && metrics.ftp_w > 0 ? pctRound(targetW / metrics.ftp_w) : null);
   let cadenceT    = $derived(metrics.cadence_target_rpm);
   let zone        = $derived(block ? zoneOf(flatBlockAvgPct(block, metrics.ftp_w)) : 1);
 
@@ -39,7 +38,7 @@
       <div class="label">Current block · {metrics.current_block_idx + 1} / {metrics.blocks_total}</div>
       <h2 class="name">{block.label}</h2>
       <div class="target">
-        {#if pctFtp != null}<strong>{pctFtp}% FTP</strong> · {targetW} W{:else}—{/if}
+        {#if targetW != null}<strong>{targetW} W</strong>{:else}—{/if}
         {#if cadenceT != null} · <strong>{cadenceT} rpm</strong>{/if}
       </div>
     </div>

@@ -1,21 +1,20 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import {
-    formatClock, flatBlockAvgPct, flatBlockStartPct, flatBlockEndPct, isRamp,
+    formatClock, flatBlockAvgPct, isRamp,
     type FlatBlock, type SessionMetrics,
   } from '$lib/session.svelte';
   import { zoneOf } from '$lib/metrics';
-  import { stateClass, zoneBg, tintBg, pctRound } from '$lib/session-visuals';
+  import { stateClass, zoneBg, tintBg } from '$lib/session-visuals';
 
   let { flat_blocks, metrics }: { flat_blocks: FlatBlock[]; metrics: SessionMetrics } = $props();
 
   function metaLine(b: FlatBlock): string {
-    const ftp = metrics.ftp_w;
     const cad = b.cadence_rpm != null ? `${b.cadence_rpm} rpm` : '— rpm';
     if (isRamp(b)) {
-      return `${pctRound(flatBlockStartPct(b, ftp))}% → ${pctRound(flatBlockEndPct(b, ftp))}% FTP · ${cad}`;
+      return `${b.power_start_w} → ${b.power_end_w} W · ${cad}`;
     }
-    return `${pctRound(flatBlockAvgPct(b, ftp))}% FTP · ${cad}`;
+    return `${b.power_start_w} W · ${cad}`;
   }
 
   let listEl = $state<HTMLDivElement | undefined>();

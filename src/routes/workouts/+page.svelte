@@ -7,6 +7,7 @@
   import { workoutSelection, flattenWorkout, type ParsedWorkout } from '$lib/workout.svelte';
   import { formatDuration, totalDuration, displayWorkoutName, toMessage } from '$lib/format';
   import { computeWorkoutMetrics, workoutTypeColor, type WorkoutType } from '$lib/metrics';
+  import { workoutFtp } from '$lib/ftp';
   import { getSettings } from '$lib/settings';
 
   let workoutPath = $state('');
@@ -50,11 +51,16 @@
   // Precompute metrics and display name once so filtering, sorting, and the
   // grid all share the same values instead of recomputing per render.
   let decorated = $derived(
-    workouts.map(w => ({
-      w,
-      m: computeWorkoutMetrics(w.workout_blocks, ftp),
-      name: displayWorkoutName(w.name),
-    }))
+    workouts.map(w => {
+      // A test renders at its reference FTP (watt == %), so metrics/thumb use that.
+      const cardFtp = workoutFtp(w, ftp);
+      return {
+        w,
+        cardFtp,
+        m: computeWorkoutMetrics(w.workout_blocks, cardFtp),
+        name: displayWorkoutName(w.name),
+      };
+    })
   );
 
   let filteredWorkouts = $derived.by(() => {
@@ -164,13 +170,15 @@
     <p class="muted">No workouts match "<strong>{query}</strong>".</p>
   {:else}
     <div class="workout-grid">
-      {#each filteredWorkouts as { w, m, name }}
+      {#each filteredWorkouts as { w, m, name, cardFtp }}
         <button class="workout-card" onclick={() => select(w)}>
           <div class="card-chart">
-            <WorkoutThumb blocks={flattenWorkout(w.workout_blocks, ftp)} ftpWatts={ftp} />
+            <WorkoutThumb blocks={flattenWorkout(w.workout_blocks, cardFtp)} ftpWatts={cardFtp} />
           </div>
           <div class="card-info">
-            {#if m.tss > 0}
+            {#if w.is_ftp_test}
+              <span class="ftp-badge">FTP Test</span>
+            {:else if m.tss > 0}
               <span class="type-badge" style="--type-color: {workoutTypeColor(m.type)}">
                 <span class="type-dot"></span>{m.type}
               </span>
@@ -178,7 +186,7 @@
             <span class="name">{name}</span>
             <div class="card-meta">
               <span>{formatDuration(totalDuration(w.workout_blocks))}</span>
-              {#if m.tss > 0}
+              {#if m.tss > 0 && !w.is_ftp_test}
                 <span class="dot-sep">·</span>
                 <span title="Training Stress Score">{Math.round(m.tss)} TSS</span>
                 <span class="dot-sep">·</span>
@@ -371,6 +379,21 @@
     height: 6px;
     border-radius: 50%;
     background: var(--type-color);
+  }
+
+  .ftp-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    border-radius: 4px;
+    padding: 0.15rem 0.5rem;
+    align-self: flex-start;
+    margin-bottom: 0.35rem;
   }
 
   .name {

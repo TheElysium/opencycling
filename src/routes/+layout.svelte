@@ -59,7 +59,7 @@
     }).then(track);
 
     listen<SessionMetrics>('session_metrics', (e) => {
-      session.metrics = e.payload;
+      session.ingestMetrics(e.payload);
     }).then(track);
 
     listen<string>('ble_disconnected', (e) => {

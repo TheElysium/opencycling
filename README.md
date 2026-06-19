@@ -35,6 +35,7 @@ OpenCycling speaks the standard BLE **FTMS** (trainers) and **HRS** (heart rate)
 ### Session
 
 - **Structured `.zwo` workouts.** Reads workouts from a folder you choose; target watts come from each block's `%FTP` and your FTP.
+- **FTP ramp test.** A built-in ramp test (power rises every minute in ERG) that watches for exhaustion: when you can no longer hold the target it counts down and prompts you to stop, then estimates your new FTP as 75% of your best 1-minute power and lets you apply it in one click.
 - **ERG control per block.** Drives the trainer's target power every second, with linear ramps for warmups and cooldowns and a keep-alive so resistance never drops.
 - **Pedal-to-start.** No countdown; the session begins automatically as soon as you start pedalling.
 - **Live session view.** Current block and target, power, heart rate, cadence, elapsed and remaining time, and a block-by-block timeline.

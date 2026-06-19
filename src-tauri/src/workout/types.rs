@@ -7,6 +7,8 @@ pub struct ParsedWorkout {
     pub description: Option<String>,
     pub sport_type: SportType,
     pub workout_blocks: Vec<WorkoutBlock>,
+    #[serde(default)]
+    pub is_ftp_test: bool,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum WorkoutBlock {

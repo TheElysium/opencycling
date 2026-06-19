@@ -47,7 +47,22 @@ pub(crate) fn parse_zwo(file_content: &str) -> Result<ParsedWorkout, AppError> {
         description,
         sport_type,
         workout_blocks: parsed_blocks,
+        is_ftp_test: has_ftp_test_tag(root),
     })
+}
+
+fn has_ftp_test_tag(root: Node) -> bool {
+    root.children()
+        .find(|n| n.has_tag_name("tags"))
+        .map(|tags| {
+            tags.children().filter(Node::is_element).any(|t| {
+                t.has_tag_name("tag")
+                    && t.attribute("name")
+                        .map(|v| v.eq_ignore_ascii_case("ftp-test"))
+                        .unwrap_or(false)
+            })
+        })
+        .unwrap_or(false)
 }
 
 fn zwo_metadata_text(node: Node, tag: &str) -> Option<String> {
@@ -183,6 +198,20 @@ mod tests {
         let workout = parse_zwo(&content)?;
         assert_eq!(workout.workout_blocks.len(), 6);
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_ftp_test_tag_sets_flag() -> Result<(), AppError> {
+        let xml = r#"<workout_file><sportType>bike</sportType><tags><tag name="ftp-test"/></tags><workout><SteadyState Duration="60" Power="1.0"/></workout></workout_file>"#;
+        assert!(parse_zwo(xml)?.is_ftp_test);
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_without_ftp_test_tag_is_false() -> Result<(), AppError> {
+        let xml = r#"<workout_file><sportType>bike</sportType><workout><SteadyState Duration="300" Power="0.85"/></workout></workout_file>"#;
+        assert!(!parse_zwo(xml)?.is_ftp_test);
         Ok(())
     }
 

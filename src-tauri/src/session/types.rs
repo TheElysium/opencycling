@@ -20,6 +20,7 @@ pub struct Session {
     pub workout_name: Option<String>,
     pub workout_author: Option<String>,
     pub workout_description: Option<String>,
+    pub is_ftp_test: bool,
 }
 
 impl Session {
@@ -132,6 +133,7 @@ pub struct SessionSnapshot {
     pub workout_author: Option<String>,
     pub workout_description: Option<String>,
     pub metrics: Option<SessionMetrics>,
+    pub is_ftp_test: bool,
 }
 
 pub struct SessionActor {

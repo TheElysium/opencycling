@@ -1,7 +1,7 @@
 use crate::db::command::DbCommand;
 use crate::db::{Metric, SessionCard, SessionDetail, Settings, StravaAuth};
 use crate::errors::AppError;
-use crate::metrics::{classify, WorkoutType};
+use crate::metrics::{classify, normalized_power, WorkoutType};
 use crate::session::FlatBlock;
 use rusqlite::Connection;
 use tokio::sync::mpsc::Receiver;
@@ -300,16 +300,15 @@ impl DbActor {
 
         let ftp = ftp_w_used as f32;
         let mut series_pcts: Vec<f32> = Vec::new();
-        let mut sum4: f64 = 0.0;
+        let mut powers: Vec<f64> = Vec::new();
         for r in rows {
             let w = r.map_err(|e| AppError::DbError(e.to_string()))? as f64;
-            sum4 += w.powi(4);
+            powers.push(w);
             series_pcts.push(w as f32 / ftp);
         }
-        if series_pcts.is_empty() {
+        let Some(np_w) = normalized_power(&powers) else {
             return Ok(DerivedMetrics::default());
-        }
-        let np_w = (sum4 / series_pcts.len() as f64).powf(0.25) as f32;
+        };
         let if_ = np_w / ftp;
         let tss = (duration_s as f32 / 3600.0) * if_ * if_ * 100.0;
         Ok(DerivedMetrics {

@@ -403,12 +403,12 @@
   <section id="features">
     <div class="wrap">
       <div class="section-head">
-        <h2>Everything you need for an ERG session</h2>
+        <h2>Everything you need to train efficiently</h2>
         <p>And nothing you don't.</p>
       </div>
       <div class="feature-group">
         <h3>Core features</h3>
-        <p>Everything an ERG session needs, on by default.</p>
+        <p>Everything an indoor session needs, on by default.</p>
       </div>
       <div class="features">
         <div class="feature">
@@ -425,6 +425,11 @@
           <div class="icon" style="background: color-mix(in srgb, #facc15 16%, transparent)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#facc15" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></div>
           <h3>ERG control per block</h3>
           <p>Sends each block's <strong>target power every second</strong> and follows <strong>linear ramps</strong> for warmups and cooldowns. A <strong>keep-alive</strong> resends the target so the trainer never drops resistance.</p>
+        </div>
+        <div class="feature">
+          <div class="icon" style="background: color-mix(in srgb, #2dd4bf 16%, transparent)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#2dd4bf" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg></div>
+          <h3>FTP ramp test</h3>
+          <p>A built-in ramp test that <strong>rises every minute in ERG</strong> and watches for <strong>exhaustion</strong>: when you can no longer hold the target it counts down and <strong>prompts you to stop</strong>, then estimates your new FTP from your <strong>best 1-minute power</strong> and applies it in one click.</p>
         </div>
         <div class="feature">
           <div class="icon" style="background: color-mix(in srgb, #f87171 14%, transparent)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#f87171" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
@@ -511,13 +516,6 @@
           <tr><td>Other HRS straps</td><td>Heart rate monitor</td><td>HRS (0x2A37)</td><td><span class="maybe">○ Should work</span></td></tr>
         </tbody>
       </table>
-      <p class="compat-note">
-        <strong>Requires FTMS Set Target Power.</strong> A trainer without it can't be
-        used (no free-ride / slope mode). A heart-rate monitor is optional.
-        Primary tested platform is <strong>Windows</strong>; devices are filtered by
-        name prefix (<code>D500</code> / <code>Polar</code>) because UUID filtering is
-        unreliable on Windows.
-      </p>
     </div>
   </section>
 

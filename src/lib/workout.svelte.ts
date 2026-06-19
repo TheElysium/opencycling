@@ -20,6 +20,7 @@ export type ParsedWorkout = {
   description: string | null;
   sport_type: 'Bike' | 'Running';
   workout_blocks: WorkoutBlock[];
+  is_ftp_test: boolean;
 };
 
 // Canonical display block: intervals unfolded, power in watts.

@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { ParsedWorkout, FlatBlock } from './workout.svelte';
+import { stepDropDetector, INITIAL_DROP_STATE, type DropState } from './ftp';
 
 export type { FlatBlock };
 
@@ -28,6 +29,7 @@ export type SessionSnapshot = {
   workout_author: string | null;
   workout_description: string | null;
   metrics: SessionMetrics | null;
+  is_ftp_test: boolean;
 };
 
 class SessionStore {
@@ -41,6 +43,16 @@ class SessionStore {
   // Whether aero detection was requested for the pending/active session.
   aeroEnabled         = $state(false);
 
+  // FTP ramp test state. `isFtpTest` is rehydrated from the snapshot in apply(), so
+  // the countdown / stop prompt and the result screen survive a mid-test page reload.
+  isFtpTest           = $state(false);
+  // Exhaustion detector advanced by `stepDropDetector` (see lib/ftp.ts). `countdown`
+  // drives the on-screen countdown; `prompt` drives the stop popup. We never stop
+  // automatically: the rider always decides.
+  private drop        = $state<DropState>(INITIAL_DROP_STATE);
+  get dropCountdown(): number | null { return this.drop.countdown; }
+  get stopPromptVisible(): boolean { return this.drop.prompt; }
+
   // Deferred start: the detail page records the chosen workout here and navigates,
   // but `start_session` is not sent until the session page consumes it (after aero
   // calibration when enabled). This keeps the session unarmed while the rider is
@@ -52,6 +64,8 @@ class SessionStore {
     // Drop the previous session's display state so the session page doesn't show the
     // last ride behind the calibration overlay while this one waits to be armed.
     this.apply(null);
+    // Clear any countdown / prompt left over from a prior test.
+    this.drop = INITIAL_DROP_STATE;
     this.pendingWorkout = workout;
     this.pendingFtp = ftpW;
     this.aeroEnabled = aero;
@@ -98,6 +112,31 @@ class SessionStore {
     this.workout_name        = snap?.workout_name        ?? null;
     this.workout_author      = snap?.workout_author      ?? null;
     this.workout_description = snap?.workout_description ?? null;
+    this.isFtpTest           = snap?.is_ftp_test         ?? false;
+  }
+
+  // Single ingress for session_metrics events. Updates the live metrics and, during
+  // an FTP test, advances the exhaustion detector (see stepDropDetector in lib/ftp.ts).
+  ingestMetrics(m: SessionMetrics): void {
+    this.metrics = m;
+    if (!this.isFtpTest) return;
+    this.drop = stepDropDetector(this.drop, {
+      running: m.state === 'Running',
+      targetW: m.target_w,
+      powerW: m.power_w ?? 0,
+    });
+  }
+
+  // Rider chose to end the test from the prompt: stop and converge on 'Finished',
+  // which the result screen reacts to.
+  async confirmStopFromPrompt(): Promise<void> {
+    this.drop = INITIAL_DROP_STATE;
+    await this.stop();
+  }
+
+  // Rider chose to keep going: dismiss the prompt and restart the grace period.
+  dismissStopPrompt(): void {
+    this.drop = INITIAL_DROP_STATE;
   }
 
   reset(): void {
@@ -105,6 +144,8 @@ class SessionStore {
     this.pendingWorkout = null;
     this.pendingFtp = 0;
     this.aeroEnabled = false;
+    this.isFtpTest = false;
+    this.drop = INITIAL_DROP_STATE;
   }
 }
 

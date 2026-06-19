@@ -157,6 +157,7 @@ mod tests {
             workout_name: None,
             workout_author: None,
             workout_description: None,
+            is_ftp_test: false,
         }
     }
 

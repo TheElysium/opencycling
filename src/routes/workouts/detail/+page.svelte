@@ -8,6 +8,7 @@
   import { ble } from '$lib/ble.svelte';
   import { blockDuration, totalDuration, formatDuration, displayWorkoutName, stripHtml, toMessage } from '$lib/format';
   import { computeWorkoutMetrics, workoutTypeColor, zoneOf } from '$lib/metrics';
+  import { workoutFtp } from '$lib/ftp';
   import { getSettings } from '$lib/settings';
   import { session } from '$lib/session.svelte';
 
@@ -24,7 +25,7 @@
     try {
       // Defer start_session to the session page: when aero is on it must run the
       // calibration first, and the session must stay unarmed until calibration ends.
-      session.prepare(w, ftp, aeroEnabled);
+      session.prepare(w, workoutFtp(w, ftp), aeroEnabled);
       await goto('/session');
     } catch (e) {
       startError = toMessage(e);
@@ -51,6 +52,8 @@
   });
 
   function pwr(pct: number): string {
+    // At FTP = 100 (a test), `% of 100 W` is just the wattage, so show watts only.
+    if (w?.is_ftp_test) return `${Math.round(pct * 100)}W`;
     return `${Math.round(pct * 100)}% · ${Math.round(pct * ftp)}W`;
   }
 
@@ -100,7 +103,9 @@
       return {
         kind: label ?? 'Ramp',
         duration: formatDuration(duration_s),
-        power: `${Math.round(power_start_pct * 100)}→${Math.round(power_end_pct * 100)}% · ${Math.round(power_start_pct * ftp)}→${Math.round(power_end_pct * ftp)}W`,
+        power: w?.is_ftp_test
+          ? `${Math.round(power_start_pct * 100)}→${Math.round(power_end_pct * 100)}W`
+          : `${Math.round(power_start_pct * 100)}→${Math.round(power_end_pct * 100)}% · ${Math.round(power_start_pct * ftp)}→${Math.round(power_end_pct * ftp)}W`,
         cadence: cadence_rpm ? `${cadence_rpm} rpm` : null,
         pill: p.bg,
         pillTitle: p.title,
@@ -126,15 +131,17 @@
   }
 
   let w         = $derived(workoutSelection.workout);
+  // A test runs at its reference FTP, so flatten/chart/metrics for it use that.
+  let effFtp    = $derived(workoutFtp(w, ftp));
   let blockRows = $derived(w ? w.workout_blocks.map(describeBlock) : []);
-  let metrics   = $derived(w ? computeWorkoutMetrics(w.workout_blocks, ftp) : null);
+  let metrics   = $derived(w ? computeWorkoutMetrics(w.workout_blocks, effFtp) : null);
 
   // Duration-weighted avg cadence across blocks that specify one. null if none specified.
   let avgCadence = $derived.by<number | null>(() => {
     if (!w) return null;
     let num = 0;
     let den = 0;
-    for (const f of flattenWorkout(w.workout_blocks, ftp)) {
+    for (const f of flattenWorkout(w.workout_blocks, effFtp)) {
       if (f.cadence_rpm != null) {
         num += f.cadence_rpm * f.duration_s;
         den += f.duration_s;
@@ -171,7 +178,7 @@
     </button>
 
     <header class="hero">
-      {#if metrics && metrics.tss > 0}
+      {#if metrics && metrics.tss > 0 && !w.is_ftp_test}
         <span class="type-badge" style="--type-color: {workoutTypeColor(metrics.type)}">
           <span class="type-dot"></span>{metrics.type}
         </span>
@@ -187,7 +194,7 @@
       {/if}
     </header>
 
-    {#if metrics && metrics.tss > 0}
+    {#if metrics && metrics.tss > 0 && !w.is_ftp_test}
       <MetricsStrip tiles={metricTiles}>
         {#snippet trailing()}
           <div class="metrics-help">
@@ -220,7 +227,7 @@
     {/if}
 
     <div class="chart-section">
-      <WorkoutPreview blocks={flattenWorkout(w.workout_blocks, ftp)} ftpWatts={ftp} />
+      <WorkoutPreview blocks={flattenWorkout(w.workout_blocks, effFtp)} ftpWatts={effFtp} />
     </div>
 
     <div class="cta-row">
