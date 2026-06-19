@@ -5,6 +5,7 @@
   import {Plug, History, Settings, Bike} from '@lucide/svelte';
   import { ble, type BleMetrics, type DeviceStatus } from '$lib/ble.svelte';
   import { session, type SessionMetrics } from '$lib/session.svelte';
+  import { checkForUpdate } from '$lib/updater';
   import '../app.css';
 
   let { children } = $props();
@@ -40,6 +41,8 @@
   let hrmDot     = $derived(dotColor(ble.hrmStatus));
 
   onMount(() => {
+    checkForUpdate();
+
     let cancelled = false;
     const unlisteners: UnlistenFn[] = [];
     const track = (u: UnlistenFn) => {
