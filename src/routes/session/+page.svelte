@@ -5,6 +5,7 @@
   import { Pause, Play, Square, ArrowLeft, ArrowRight, RotateCw, Heart } from '@lucide/svelte';
   import { confirm } from '@tauri-apps/plugin-dialog';
   import { session, type SessionMetrics } from '$lib/session.svelte';
+  import { ble } from '$lib/ble.svelte';
   import { aero } from '$lib/aero.svelte';
   import AeroCalibration from '$lib/components/AeroCalibration.svelte';
   import AeroPanel from '$lib/components/AeroPanel.svelte';
@@ -29,6 +30,14 @@
 
   let calibrating = $state(false); // aero calibration overlay is up, session not yet armed
   let aeroActive  = $state(false); // live aero loop running for this session
+
+  // HR sensor reconnect feedback, shown inline in the Heart rate tile (no toast).
+  // Null while connected -> the tile shows the live bpm value.
+  let hrStatus = $derived(
+    ble.hrmReconnect?.status === 'reconnecting' ? 'Reconnecting…'
+    : ble.hrmReconnect?.status === 'failed'     ? 'Unavailable'
+    : null
+  );
 
   async function startSessionFlow() {
     try {
@@ -199,6 +208,17 @@
       snapError = toMessage(e);
     }
   }
+
+  // From the trainer "failed" reconnect modal: stop directly (the modal is already the
+  // decision point) and clear the affordance. Whatever was recorded is saved.
+  async function stopFromReconnect() {
+    try {
+      await session.stop();
+      ble.clearReconnect('Trainer');
+    } catch (e) {
+      snapError = toMessage(e);
+    }
+  }
 </script>
 
 <main class="session">
@@ -228,7 +248,7 @@
         <PowerTile power_w={m.power_w} target_w={m.target_w} />
         <div class="metrics" class:with-aero={aeroActive}>
           <MetricTile label="Cadence"    value={m.cadence_rpm} unit="rpm" target={m.cadence_target_rpm} icon={RotateCw} />
-          <MetricTile label="Heart rate" value={m.hr_bpm}      unit="bpm" icon={Heart} />
+          <MetricTile label="Heart rate" value={m.hr_bpm}      unit="bpm" icon={Heart} status={hrStatus} />
           {#if aeroActive}<AeroPanel />{/if}
         </div>
       {/if}
@@ -291,6 +311,37 @@
             <Square size={16} /> Stop test
           </button>
         </div>
+      </div>
+    </div>
+  {/if}
+
+  {#if ble.trainerReconnect && isActive}
+    <div class="reconnect-overlay">
+      <div class="reconnect-card">
+        {#if ble.trainerReconnect.status === 'reconnecting'}
+          <div class="reconnect-spinner" aria-hidden="true"></div>
+          <div class="reconnect-title">Trainer disconnected</div>
+          <div class="reconnect-sub">
+            Reconnecting{ble.trainerReconnect.attempt > 0 ? `, attempt ${ble.trainerReconnect.attempt}` : ''}…
+          </div>
+          <div class="reconnect-hint">Your workout is paused and will resume automatically.</div>
+        {:else if ble.trainerReconnect.status === 'reconnected'}
+          <div class="reconnect-title ok">Trainer reconnected</div>
+          <div class="reconnect-sub">Resuming your session…</div>
+        {:else}
+          <div class="reconnect-title fail">Couldn't reconnect the trainer</div>
+          <div class="reconnect-sub">
+            Automatic reconnection gave up. Retry, or stop the session. Everything recorded so far is saved.
+          </div>
+          <div class="reconnect-actions">
+            <button class="btn btn-pause" onclick={() => ble.retryReconnect('Trainer')}>
+              <RotateCw size={16} /> Retry
+            </button>
+            <button class="btn btn-stop" onclick={stopFromReconnect}>
+              <Square size={16} /> Stop session
+            </button>
+          </div>
+        {/if}
       </div>
     </div>
   {/if}
@@ -493,4 +544,64 @@
     gap: 0.75rem;
   }
   .stop-prompt-actions .btn-stop { grid-column: auto; }
+
+  /* Blocking trainer reconnect modal. Highest z-index so it sits above the waiting
+     and stop-prompt overlays. */
+  .reconnect-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(2px);
+    display: grid;
+    place-items: center;
+    z-index: 120;
+  }
+  .reconnect-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 2rem 2.25rem;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    max-width: 440px;
+    display: grid;
+    justify-items: center;
+    gap: 0.5rem;
+  }
+  .reconnect-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .reconnect-title.ok   { color: var(--status-ok, #16a34a); }
+  .reconnect-title.fail { color: var(--danger); }
+  .reconnect-sub {
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+  .reconnect-hint {
+    color: var(--muted);
+    font-size: 0.85rem;
+    opacity: 0.8;
+  }
+  .reconnect-spinner {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    animation: reconnect-spin 0.9s linear infinite;
+    margin-bottom: 0.4rem;
+  }
+  @keyframes reconnect-spin {
+    to { transform: rotate(360deg); }
+  }
+  .reconnect-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+    width: 100%;
+  }
+  .reconnect-actions .btn-stop { grid-column: auto; }
 </style>

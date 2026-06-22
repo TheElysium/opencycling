@@ -3,7 +3,7 @@
 // shoulders are visible, the body is roughly symmetric across the image vertical,
 // and depth (the rider leaning toward/away from the camera) shows up as the head
 // dropping toward the shoulder line and the ears spreading horizontally. None of
-// this holds for a side view — the features below are only meaningful from the front.
+// this holds for a side view; the features below are only meaningful from the front.
 
 // COCO-17 keypoint indices (MoveNet).
 export const KP = {

@@ -3,7 +3,7 @@
   import { onMount } from 'svelte';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import {Plug, History, Settings, Bike} from '@lucide/svelte';
-  import { ble, type BleMetrics, type DeviceStatus } from '$lib/ble.svelte';
+  import { ble, kindFromWire, type BleMetrics, type DeviceStatus, type DeviceWire, type ReconnectStatus } from '$lib/ble.svelte';
   import { session, type SessionMetrics } from '$lib/session.svelte';
   import { checkForUpdate } from '$lib/updater';
   import '../app.css';
@@ -63,7 +63,15 @@
     }).then(track);
 
     listen<string>('ble_disconnected', (e) => {
-      ble.markDisconnected(e.payload === 'trainer' ? 'Trainer' : 'Hrm');
+      const kind = e.payload === 'trainer' ? 'Trainer' : 'Hrm';
+      ble.markDisconnected(kind);
+      // Show the reconnect affordance right away; the first `ble_reconnect` event
+      // (with attempt 1) follows a beat later.
+      ble.markReconnecting(kind);
+    }).then(track);
+
+    listen<{ device: DeviceWire; status: ReconnectStatus; attempt?: number }>('ble_reconnect', (e) => {
+      ble.applyReconnect(kindFromWire(e.payload.device), e.payload.status, e.payload.attempt);
     }).then(track);
 
     return () => {
@@ -105,6 +113,9 @@
     {@render children()}
   </main>
 </div>
+
+<!-- HRM reconnect feedback is shown inline in the Heart rate tile on the session
+     page (see MetricTile `status`), not as a global toast. -->
 
 <style>
   .shell {

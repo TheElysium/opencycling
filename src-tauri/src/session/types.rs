@@ -1,4 +1,4 @@
-use crate::ble::{BleActorHandle, BleMetrics};
+use crate::ble::{BleActorHandle, BleEvent, BleMetrics};
 use crate::db::DbActorHandle;
 use crate::errors::AppError;
 use crate::workout::ParsedWorkout;
@@ -83,11 +83,25 @@ pub trait State: Send + 'static {
     fn resume(self: Box<Self>) -> Box<dyn State>;
     fn stop(self: Box<Self>) -> Box<dyn State>;
     fn skip(self: Box<Self>, session: &mut Session) -> Box<dyn State>;
+    /// A device the session depends on (the trainer) dropped. Running pauses with
+    /// `by_dropout: true` so it can auto-resume; every other state is unchanged.
+    /// A manual `Paused { by_dropout: false }` is deliberately NOT promoted to a
+    /// dropout pause, otherwise a later reconnect would resume a session the rider
+    /// chose to pause.
+    fn device_lost(self: Box<Self>) -> Box<dyn State>;
+    /// The trainer came back. Only a dropout pause auto-resumes; a manual pause and
+    /// every other state stay put.
+    fn device_reconnected(self: Box<Self>) -> Box<dyn State>;
 }
 
 pub struct WaitingForRiderState;
 pub struct RunningState;
-pub struct PausedState;
+pub struct PausedState {
+    /// `true` when the pause was triggered by a trainer dropout (issue 15), which
+    /// makes the session eligible for auto-resume on reconnect. A manual pause keeps
+    /// this `false`.
+    pub by_dropout: bool,
+}
 pub struct FinishedState;
 
 pub enum SessionCommand {
@@ -140,6 +154,10 @@ pub struct SessionActor {
     pub app_handle: AppHandle,
     pub cmd_rx: mpsc::Receiver<SessionCommand>,
     pub ble_metrics_rx: mpsc::Receiver<BleMetrics>,
+    /// Critical BLE lifecycle events (trainer lost / reconnected) that drive the
+    /// pause/auto-resume transitions. Separate from `ble_metrics_rx` because these
+    /// must never be dropped (sent with `send().await`, not `try_send`).
+    pub ble_event_rx: mpsc::Receiver<BleEvent>,
     pub ble_handle: BleActorHandle,
     pub session: Option<Session>,
     pub state: Option<Box<dyn State>>,

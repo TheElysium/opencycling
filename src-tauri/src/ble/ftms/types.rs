@@ -19,7 +19,7 @@ pub struct IndoorBikeData {
 
 pub(crate) const FLAGS_LEN: usize = 2;
 
-// Bit 0: More Data — when 0, Instantaneous Speed is present (inverted logic)
+// Bit 0: More Data, when 0 Instantaneous Speed is present (inverted logic)
 pub(crate) const MORE_DATA_FLAG: u16 = 1 << 0;
 pub(crate) const AVERAGE_SPEED_FLAG: u16 = 1 << 1;
 pub(crate) const INSTANTANEOUS_CADENCE_FLAG: u16 = 1 << 2;

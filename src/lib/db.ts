@@ -52,7 +52,7 @@ export type SessionDetail = {
 
 // NP / IF / TSS are computed once on the backend at finalize (from the full 1 Hz
 // series, against the session's frozen FTP) and stored on the row. Read them
-// directly from `s.tss` / `s.if_` / `s.np_w` — never recompute on the frontend,
+// directly from `s.tss` / `s.if_` / `s.np_w`, never recompute on the frontend,
 // to keep the list and detail views in perfect agreement. Sessions recorded
 // before the v6 migration have these as `null` (shown as "—").
 

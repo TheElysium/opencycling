@@ -1,4 +1,4 @@
-use crate::ble::{BleActorHandle, BleMetrics};
+use crate::ble::{BleActorHandle, BleEvent, BleMetrics};
 use crate::db::DbActorHandle;
 use crate::errors::AppError;
 use crate::session::types::{SessionActor, SessionCommand, SessionSnapshot};
@@ -17,6 +17,7 @@ impl SessionActorHandle {
         app_handle: AppHandle,
         ble_handle: BleActorHandle,
         ble_metrics_rx: Receiver<BleMetrics>,
+        ble_event_rx: Receiver<BleEvent>,
         db_handle: DbActorHandle,
     ) -> Self {
         let (cmd_tx, cmd_rx) = mpsc::channel::<SessionCommand>(16);
@@ -24,6 +25,7 @@ impl SessionActorHandle {
             app_handle,
             cmd_rx,
             ble_metrics_rx,
+            ble_event_rx,
             ble_handle,
             session: None,
             state: None,

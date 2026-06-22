@@ -73,7 +73,7 @@ export function classify(series: number[], if_: number): WorkoutType {
     if (pct >= 0.83 && pct < 0.95) ssTime++;
   }
 
-  // Cascade top-down by intensity priority — the highest-system block wins.
+  // Cascade top-down by intensity priority; the highest-system block wins.
   if (zoneTime[5] / total > 0.05) return 'Anaerobic';
   if (zoneTime[4] / total > 0.10) return 'VO2max';
   if (zoneTime[3] / total > 0.15) return 'Threshold';

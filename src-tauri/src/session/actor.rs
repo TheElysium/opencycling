@@ -1,3 +1,4 @@
+use crate::ble::BleEvent;
 use crate::db::Metric;
 use crate::errors::AppError;
 use crate::session::state::TICK_S;
@@ -32,8 +33,32 @@ impl SessionActor {
                         session.last_cadence_rpm = ble.cadence_rpm;
                     }
                 }
+                Some(event) = self.ble_event_rx.recv() => {
+                    self.handle_ble_event(event);
+                }
             }
         }
+    }
+
+    // Trainer lost/reconnected drives the pause/auto-resume transitions. Auto-resume
+    // is backend-only: the frontend never calls resume from an event listener (it just
+    // reacts to the session reporting Running again), which avoids a race.
+    fn handle_ble_event(&mut self, event: BleEvent) {
+        let Some(state) = self.state.take() else {
+            return;
+        };
+        let next = match event {
+            BleEvent::TrainerLost => {
+                info!("trainer lost, pausing if running");
+                state.device_lost()
+            }
+            BleEvent::TrainerReconnected => {
+                info!("trainer reconnected, resuming if paused by dropout");
+                state.device_reconnected()
+            }
+        };
+        self.state = Some(next);
+        self.emit_metrics();
     }
 
     async fn handle_command(&mut self, cmd: SessionCommand) {
@@ -109,6 +134,9 @@ impl SessionActor {
                     self.state = Some(state.stop());
                 }
                 self.finalize_db_session().await;
+                // Clear the trainer's ERG target so the keep-alive cannot replay it
+                // after the session is over (issue 17).
+                let _ = self.ble_handle.session_ended().await;
                 self.emit_metrics();
             }
             SessionCommand::Skip => {
@@ -215,7 +243,13 @@ impl SessionActor {
             }
             StateKind::Paused => {}
             StateKind::Finished => {
-                self.finalize_db_session().await;
+                // Only act on the transition into Finished; the state then sticks and
+                // this branch runs every tick. finalize_db_session is idempotent, but
+                // signalling the BLE actor each tick would be wasteful.
+                if prev_kind != StateKind::Finished {
+                    self.finalize_db_session().await;
+                    let _ = self.ble_handle.session_ended().await;
+                }
             }
         }
 

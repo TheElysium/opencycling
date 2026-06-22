@@ -5,4 +5,4 @@ mod hrs;
 mod types;
 
 pub use command::BleActorHandle;
-pub use types::{BleMetrics, DeviceInfo};
+pub use types::{BleEvent, BleMetrics, DeviceInfo, DeviceKind};

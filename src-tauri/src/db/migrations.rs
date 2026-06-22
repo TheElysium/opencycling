@@ -2,7 +2,7 @@ use crate::errors::AppError;
 use rusqlite::Connection;
 
 /// Each entry is a self-contained SQL script for migrating from version N to N+1.
-/// Never modify or reorder existing entries — only append new ones.
+/// Never modify or reorder existing entries, only append new ones.
 const MIGRATIONS: &[&str] = &[
     // v0 -> v1 : initial schema
     r#"

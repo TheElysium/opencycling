@@ -151,10 +151,10 @@
   });
 
   let metricTiles = $derived<MetricTile[]>(metrics ? [
-    { icon: Zap,     label: 'Avg Power',   value: Math.round(metrics.np_pct * ftp), unit: 'W',                            secondary: { label: 'NP'  }, title: 'Normalized Power — physiological average' },
+    { icon: Zap,     label: 'Avg Power',   value: Math.round(metrics.np_pct * ftp), unit: 'W',                            secondary: { label: 'NP'  }, title: 'Normalized Power, physiological average' },
     { icon: RotateCw,label: 'Avg Cadence', value: avgCadence ?? '—',                unit: avgCadence != null ? 'rpm' : undefined },
-    { icon: Flame,   label: 'Stress',      value: Math.round(metrics.tss),                                                secondary: { label: 'TSS' }, title: 'Training Stress Score — 100 ≈ 1h at FTP' },
-    { icon: Target,  label: 'Intensity',   value: metrics.if_.toFixed(2),                                                 secondary: { label: 'IF'  }, title: 'Intensity Factor — average intensity (1.0 = FTP)' },
+    { icon: Flame,   label: 'Stress',      value: Math.round(metrics.tss),                                                secondary: { label: 'TSS' }, title: 'Training Stress Score, 100 ≈ 1h at FTP' },
+    { icon: Target,  label: 'Intensity',   value: metrics.if_.toFixed(2),                                                 secondary: { label: 'IF'  }, title: 'Intensity Factor, average intensity (1.0 = FTP)' },
     { icon: Battery, label: 'Work',        value: Math.round(metrics.kj),           unit: 'kJ',                           secondary: { label: 'kJ'  }, title: 'Total energy produced' },
   ] : []);
 
@@ -215,7 +215,7 @@
                   <dt>Intensity <span class="acro">IF</span></dt>
                   <dd>Average intensity relative to FTP. 0.65 = recovery, 0.85 = tempo, 1.0 = threshold, &gt;1.05 = VO2max.</dd>
                   <dt>Avg Power <span class="acro">NP</span></dt>
-                  <dd>Normalized Power — physiologically-weighted average. Smooths spikes to reflect the real cost on the body.</dd>
+                  <dd>Normalized Power, physiologically-weighted average. Smooths spikes to reflect the real cost on the body.</dd>
                   <dt>Work <span class="acro">kJ</span></dt>
                   <dd>Total energy produced. Good calorie proxy (1 kJ ≈ 1 kcal in cycling).</dd>
                 </dl>

@@ -24,7 +24,7 @@ export type ParsedWorkout = {
 };
 
 // Canonical display block: intervals unfolded, power in watts.
-// Mirrors the Rust `FlatBlock` returned by SessionActor — used everywhere we
+// Mirrors the Rust `FlatBlock` returned by SessionActor, used everywhere we
 // render a planned workout (charts, lists, timeline).
 export type FlatBlock = {
   duration_s: number;

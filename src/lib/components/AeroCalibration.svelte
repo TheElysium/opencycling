@@ -137,7 +137,7 @@
       {/if}
     {/if}
 
-    <!-- Live self-test: lean into aero, then sit up — the badge should follow you. -->
+    <!-- Live self-test: lean into aero, then sit up; the badge should follow you. -->
     {#if calibrated}
       <div class="tester">
         <div class="tester-head">Test it: get aero, then sit up. The badge should follow you.</div>
@@ -188,7 +188,7 @@
   .head { display: flex; align-items: center; gap: .5rem; }
   .head h2 { margin: 0; }
 
-  /* Help popover — same treatment as the workout-detail metrics help. */
+  /* Help popover, same treatment as the workout-detail metrics help. */
   .metrics-help { position: relative; }
   .help-btn {
     background: none; border: none; color: var(--muted); padding: 0.15rem;

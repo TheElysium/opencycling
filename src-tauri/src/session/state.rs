@@ -31,6 +31,15 @@ impl State for WaitingForRiderState {
     fn skip(self: Box<Self>, _session: &mut Session) -> Box<dyn State> {
         self
     }
+    fn device_lost(self: Box<Self>) -> Box<dyn State> {
+        // No workout timer is running yet, so there is nothing to pause. The rider
+        // simply has not started; the blocking modal (frontend) still shows while the
+        // trainer reconnects. Stay put.
+        self
+    }
+    fn device_reconnected(self: Box<Self>) -> Box<dyn State> {
+        self
+    }
 }
 
 impl State for RunningState {
@@ -55,7 +64,7 @@ impl State for RunningState {
         self
     }
     fn pause(self: Box<Self>) -> Box<dyn State> {
-        Box::new(PausedState)
+        Box::new(PausedState { by_dropout: false })
     }
     fn resume(self: Box<Self>) -> Box<dyn State> {
         self
@@ -68,6 +77,12 @@ impl State for RunningState {
         if session.is_finished() {
             return Box::new(FinishedState);
         }
+        self
+    }
+    fn device_lost(self: Box<Self>) -> Box<dyn State> {
+        Box::new(PausedState { by_dropout: true })
+    }
+    fn device_reconnected(self: Box<Self>) -> Box<dyn State> {
         self
     }
 }
@@ -95,6 +110,19 @@ impl State for PausedState {
         }
         self
     }
+    fn device_lost(self: Box<Self>) -> Box<dyn State> {
+        // Already paused. Do NOT promote a manual pause (by_dropout: false) into a
+        // dropout pause, otherwise a later reconnect would resume a session the rider
+        // deliberately paused. Keep the existing flag untouched.
+        self
+    }
+    fn device_reconnected(self: Box<Self>) -> Box<dyn State> {
+        if self.by_dropout {
+            Box::new(RunningState)
+        } else {
+            self
+        }
+    }
 }
 
 impl State for FinishedState {
@@ -114,6 +142,12 @@ impl State for FinishedState {
         self
     }
     fn skip(self: Box<Self>, _session: &mut Session) -> Box<dyn State> {
+        self
+    }
+    fn device_lost(self: Box<Self>) -> Box<dyn State> {
+        self
+    }
+    fn device_reconnected(self: Box<Self>) -> Box<dyn State> {
         self
     }
 }
@@ -234,7 +268,7 @@ mod tests {
         s.total_active_s = 10;
         s.last_target_w = Some(150);
 
-        let st: Box<dyn State> = Box::new(PausedState);
+        let st: Box<dyn State> = Box::new(PausedState { by_dropout: false });
         let next = st.tick(&mut s);
 
         assert_eq!(s.current_block_idx, 0);
@@ -286,7 +320,7 @@ mod tests {
         s.total_elapsed_s = 10;
         s.total_active_s = 10;
 
-        let st: Box<dyn State> = Box::new(PausedState);
+        let st: Box<dyn State> = Box::new(PausedState { by_dropout: false });
         let next = st.skip(&mut s);
 
         assert_eq!(s.current_block_idx, 1);
@@ -317,9 +351,62 @@ mod tests {
     fn stop_from_anywhere_becomes_finished() {
         let st: Box<dyn State> = Box::new(RunningState);
         assert_eq!(st.stop().kind(), StateKind::Finished);
-        let st: Box<dyn State> = Box::new(PausedState);
+        let st: Box<dyn State> = Box::new(PausedState { by_dropout: false });
         assert_eq!(st.stop().kind(), StateKind::Finished);
         let st: Box<dyn State> = Box::new(WaitingForRiderState);
         assert_eq!(st.stop().kind(), StateKind::Finished);
+    }
+
+    // --- device_lost / device_reconnected: trainer dropout transitions ---
+
+    #[test]
+    fn running_device_lost_pauses_by_dropout() {
+        let st: Box<dyn State> = Box::new(RunningState);
+        let next = st.device_lost();
+        assert_eq!(next.kind(), StateKind::Paused);
+        // A dropout pause must auto-resume on reconnect.
+        assert_eq!(next.device_reconnected().kind(), StateKind::Running);
+    }
+
+    #[test]
+    fn dropout_paused_resumes_on_reconnect() {
+        let st: Box<dyn State> = Box::new(PausedState { by_dropout: true });
+        assert_eq!(st.device_reconnected().kind(), StateKind::Running);
+    }
+
+    #[test]
+    fn manual_pause_device_lost_keeps_by_dropout_false() {
+        // Rider paused manually, then the trainer drops: the pause must NOT become a
+        // dropout pause, so a later reconnect does not resume the session.
+        let st: Box<dyn State> = Box::new(PausedState { by_dropout: false });
+        let after_lost = st.device_lost();
+        assert_eq!(after_lost.kind(), StateKind::Paused);
+        // Reconnect must leave a manually-paused session paused.
+        assert_eq!(after_lost.device_reconnected().kind(), StateKind::Paused);
+    }
+
+    #[test]
+    fn manual_resume_clears_dropout_flag() {
+        // A manual resume of a dropout pause yields Running; a subsequent reconnect
+        // event is a harmless no-op (already Running).
+        let st: Box<dyn State> = Box::new(PausedState { by_dropout: true });
+        assert_eq!(st.resume().kind(), StateKind::Running);
+    }
+
+    #[test]
+    fn waiting_device_lost_stays_waiting() {
+        // Trainer drops before the rider started pedaling: no timer to pause.
+        let st: Box<dyn State> = Box::new(WaitingForRiderState);
+        assert_eq!(st.device_lost().kind(), StateKind::WaitingForRider);
+        let st: Box<dyn State> = Box::new(WaitingForRiderState);
+        assert_eq!(st.device_reconnected().kind(), StateKind::WaitingForRider);
+    }
+
+    #[test]
+    fn finished_device_lost_and_reconnected_are_noops() {
+        let st: Box<dyn State> = Box::new(FinishedState);
+        assert_eq!(st.device_lost().kind(), StateKind::Finished);
+        let st: Box<dyn State> = Box::new(FinishedState);
+        assert_eq!(st.device_reconnected().kind(), StateKind::Finished);
     }
 }

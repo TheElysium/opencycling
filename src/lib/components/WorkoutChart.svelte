@@ -66,7 +66,7 @@
     actualMetrics?: MetricSample[] | null;
     showToggles?: boolean;
     showTimeAxis?: boolean;
-    /** Athlete max HR — drives the HR overlay window. 0 falls back to 80-200. */
+    /** Athlete max HR, drives the HR overlay window. 0 falls back to 80-200. */
     maxHr?: number;
     /** Cadence window [min, max] for the cadence overlay. */
     cadenceWindow?: [number, number];
@@ -82,7 +82,7 @@
   // Layers visibility (used when showToggles=true). Defaults: show what we have.
   let visible = $state({ target: true, power: true, hr: true, cad: false });
 
-  // %FTP helpers — blocks store watts, the chart's zone/scale logic works in %FTP.
+  // %FTP helpers: blocks store watts, the chart's zone/scale logic works in %FTP.
   function pStart(b: FlatBlock): number { return ftpWatts > 0 ? b.power_start_w / ftpWatts : 0; }
   function pEnd(b: FlatBlock): number   { return ftpWatts > 0 ? b.power_end_w   / ftpWatts : 0; }
   function isRamp(b: FlatBlock): boolean { return b.power_start_w !== b.power_end_w; }
@@ -162,7 +162,7 @@
   });
 
   // Y mapping helpers (viewBox 0..100, top=0). HR/cadence share the power band
-  // mapped linearly to bpm/rpm windows — these are only used to *position the
+  // mapped linearly to bpm/rpm windows; these are only used to *position the
   // line on screen*, no axis is drawn.
   function yOfPowerW(w: number): number {
     if (ftpWatts <= 0) return 100;

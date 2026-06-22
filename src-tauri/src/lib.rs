@@ -1,4 +1,4 @@
-use crate::ble::{BleActorHandle, BleMetrics, DeviceInfo};
+use crate::ble::{BleActorHandle, BleEvent, BleMetrics, DeviceInfo, DeviceKind};
 use crate::db::{DbActorHandle, SessionCard, SessionDetail, Settings, StravaAuth};
 use crate::errors::AppError;
 use crate::session::{SessionActorHandle, SessionSnapshot};
@@ -48,6 +48,14 @@ async fn connect_hrm(
     device_id: String,
 ) -> Result<(), AppError> {
     state.connect_hrm(device_id).await
+}
+
+#[tauri::command]
+async fn retry_reconnect(
+    state: tauri::State<'_, BleActorHandle>,
+    kind: DeviceKind,
+) -> Result<(), AppError> {
+    state.retry_reconnect(kind).await
 }
 
 #[tauri::command]
@@ -247,6 +255,7 @@ pub fn run() {
             scan_devices,
             connect_trainer,
             connect_hrm,
+            retry_reconnect,
             set_target_power,
             get_settings,
             update_settings,
@@ -285,9 +294,13 @@ pub fn run() {
             tracing::info!("logging to {}", log_dir.display());
 
             let (ble_metrics_tx, ble_metrics_rx) = tokio::sync::mpsc::channel::<BleMetrics>(8);
+            // Critical BLE lifecycle events (trainer lost/reconnected). Mirror of the
+            // metrics channel but sent with send().await so they are never dropped.
+            let (ble_event_tx, ble_event_rx) = tokio::sync::mpsc::channel::<BleEvent>(16);
             let ble_handle = tauri::async_runtime::block_on(BleActorHandle::spawn(
                 app.handle().clone(),
                 ble_metrics_tx,
+                ble_event_tx,
             ))
             .expect("BLE init failed");
             let app_data_dir = app.path().app_data_dir().expect("no app data dir");
@@ -299,6 +312,7 @@ pub fn run() {
                 app.handle().clone(),
                 ble_handle.clone(),
                 ble_metrics_rx,
+                ble_event_rx,
                 db_handle.clone(),
             ));
             app.manage(ble_handle);

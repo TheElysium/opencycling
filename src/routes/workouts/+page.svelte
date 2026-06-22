@@ -27,7 +27,7 @@
     { field: 'duration', label: 'Duration' },
   ];
 
-  // Zone order by ascending intensity — drives the "Zone" sort.
+  // Zone order by ascending intensity, drives the "Zone" sort.
   const ZONE_ORDER: Record<WorkoutType, number> = {
     Recovery:     0,
     Endurance:    1,
