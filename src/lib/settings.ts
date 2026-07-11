@@ -1,17 +1,13 @@
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from './bindings';
+import type { Settings } from './bindings';
 
-export type Settings = {
-  ftp_w: number;
-  max_hr_bpm: number;
-  workout_path: string;
-  strava_proxy_url: string;
-  aero_enabled: boolean;
-};
+// Generated from the Rust struct (src-tauri/src/db/types.rs).
+export type { Settings } from './bindings';
 
 export function getSettings(): Promise<Settings> {
-  return invoke<Settings>('get_settings');
+  return commands.getSettings();
 }
 
-export function updateSettings(settings: Settings): Promise<void> {
-  return invoke('update_settings', { settings });
+export async function updateSettings(settings: Settings): Promise<void> {
+  await commands.updateSettings(settings);
 }

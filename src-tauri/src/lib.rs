@@ -1,7 +1,9 @@
 use crate::ble::{BleActorHandle, BleEvent, BleMetrics, DeviceInfo, DeviceKind};
 use crate::db::{DbActorHandle, SessionCard, SessionDetail, Settings, StravaAuth};
 use crate::errors::AppError;
-use crate::session::{SessionActorHandle, SessionSnapshot, StateKind};
+use crate::session::{
+    flatten_workout, FlatBlock, SessionActorHandle, SessionSnapshot, StateKind,
+};
 use crate::strava::types::StravaStatus;
 use crate::workout::{list_workouts, parse_zwo, ParsedWorkout, WorkoutLibrary};
 use tauri::Manager;
@@ -22,12 +24,14 @@ pub mod workout;
 const DB_FILE: &str = "opencycling.db";
 
 #[tauri::command]
+#[specta::specta]
 fn load_workout(path: String) -> Result<ParsedWorkout, AppError> {
     let content = std::fs::read_to_string(path)?;
     parse_zwo(&content)
 }
 
 #[tauri::command]
+#[specta::specta]
 async fn scan_devices(
     state: tauri::State<'_, BleActorHandle>,
 ) -> Result<Vec<DeviceInfo>, AppError> {
@@ -35,6 +39,7 @@ async fn scan_devices(
 }
 
 #[tauri::command]
+#[specta::specta]
 async fn connect_trainer(
     state: tauri::State<'_, BleActorHandle>,
     device_id: String,
@@ -43,6 +48,7 @@ async fn connect_trainer(
 }
 
 #[tauri::command]
+#[specta::specta]
 async fn connect_hrm(
     state: tauri::State<'_, BleActorHandle>,
     device_id: String,
@@ -67,6 +73,7 @@ async fn trainer_session_active(session: &tauri::State<'_, SessionActorHandle>) 
 }
 
 #[tauri::command]
+#[specta::specta]
 async fn disconnect_trainer(
     ble: tauri::State<'_, BleActorHandle>,
     session: tauri::State<'_, SessionActorHandle>,
@@ -83,12 +90,14 @@ async fn disconnect_trainer(
 }
 
 #[tauri::command]
+#[specta::specta]
 async fn disconnect_hrm(ble: tauri::State<'_, BleActorHandle>) -> Result<(), AppError> {
     // The HRM never drives session state, so disconnecting it is always allowed.
     ble.disconnect(DeviceKind::Hrm).await
 }
 
 #[tauri::command]
+#[specta::specta]
 async fn retry_reconnect(
     state: tauri::State<'_, BleActorHandle>,
     kind: DeviceKind,
@@ -97,6 +106,7 @@ async fn retry_reconnect(
 }
 
 #[tauri::command]
+#[specta::specta]
 async fn set_target_power(
     state: tauri::State<'_, BleActorHandle>,
     watts: i16,
@@ -105,11 +115,13 @@ async fn set_target_power(
 }
 
 #[tauri::command]
+#[specta::specta]
 async fn get_settings(state: tauri::State<'_, DbActorHandle>) -> Result<Settings, AppError> {
     state.get_settings().await
 }
 
 #[tauri::command]
+#[specta::specta]
 async fn update_settings(
     state: tauri::State<'_, DbActorHandle>,
     settings: Settings,
@@ -118,11 +130,22 @@ async fn update_settings(
 }
 
 #[tauri::command]
+#[specta::specta]
 fn list_workouts_cmd(folder: String) -> Result<WorkoutLibrary, AppError> {
     list_workouts(&folder)
 }
 
+// Expand a workout into the canonical flat block list (intervals unfolded, power in
+// watts, labels synthesized). Single source of truth for planned-workout rendering:
+// the frontend calls this instead of duplicating the flatten/zone logic.
 #[tauri::command]
+#[specta::specta]
+fn flatten_workout_cmd(workout: ParsedWorkout, ftp_w: u16) -> Vec<FlatBlock> {
+    flatten_workout(workout, ftp_w)
+}
+
+#[tauri::command]
+#[specta::specta]
 async fn start_session(
     state: tauri::State<'_, SessionActorHandle>,
     workout: ParsedWorkout,
@@ -132,26 +155,31 @@ async fn start_session(
 }
 
 #[tauri::command]
+#[specta::specta]
 async fn pause_session(state: tauri::State<'_, SessionActorHandle>) -> Result<(), AppError> {
     state.pause().await
 }
 
 #[tauri::command]
+#[specta::specta]
 async fn resume_session(state: tauri::State<'_, SessionActorHandle>) -> Result<(), AppError> {
     state.resume().await
 }
 
 #[tauri::command]
+#[specta::specta]
 async fn stop_session(state: tauri::State<'_, SessionActorHandle>) -> Result<(), AppError> {
     state.stop().await
 }
 
 #[tauri::command]
+#[specta::specta]
 async fn skip_block(state: tauri::State<'_, SessionActorHandle>) -> Result<(), AppError> {
     state.skip().await
 }
 
 #[tauri::command]
+#[specta::specta]
 async fn report_aero(
     state: tauri::State<'_, SessionActorHandle>,
     aero: Option<bool>,
@@ -160,6 +188,7 @@ async fn report_aero(
 }
 
 #[tauri::command]
+#[specta::specta]
 async fn get_session_snapshot(
     state: tauri::State<'_, SessionActorHandle>,
 ) -> Result<Option<SessionSnapshot>, AppError> {
@@ -167,6 +196,7 @@ async fn get_session_snapshot(
 }
 
 #[tauri::command]
+#[specta::specta]
 async fn list_sessions(
     state: tauri::State<'_, DbActorHandle>,
 ) -> Result<Vec<SessionCard>, AppError> {
@@ -174,6 +204,7 @@ async fn list_sessions(
 }
 
 #[tauri::command]
+#[specta::specta]
 async fn get_session(
     state: tauri::State<'_, DbActorHandle>,
     id: i64,
@@ -182,11 +213,13 @@ async fn get_session(
 }
 
 #[tauri::command]
+#[specta::specta]
 async fn delete_session(state: tauri::State<'_, DbActorHandle>, id: i64) -> Result<(), AppError> {
     state.delete_session(id).await
 }
 
 #[tauri::command]
+#[specta::specta]
 async fn export_session_tcx(
     state: tauri::State<'_, DbActorHandle>,
     id: i64,
@@ -199,6 +232,7 @@ async fn export_session_tcx(
 }
 
 #[tauri::command]
+#[specta::specta]
 async fn strava_status(state: tauri::State<'_, DbActorHandle>) -> Result<StravaStatus, AppError> {
     let auth = state.get_strava_auth().await?;
     let auto_upload = state.get_strava_auto_upload().await?;
@@ -211,6 +245,7 @@ async fn strava_status(state: tauri::State<'_, DbActorHandle>) -> Result<StravaS
 }
 
 #[tauri::command]
+#[specta::specta]
 async fn strava_connect(
     app: tauri::AppHandle,
     state: tauri::State<'_, DbActorHandle>,
@@ -247,11 +282,13 @@ async fn strava_connect(
 }
 
 #[tauri::command]
+#[specta::specta]
 async fn strava_disconnect(state: tauri::State<'_, DbActorHandle>) -> Result<(), AppError> {
     state.delete_strava_auth().await
 }
 
 #[tauri::command]
+#[specta::specta]
 async fn strava_set_auto_upload(
     state: tauri::State<'_, DbActorHandle>,
     enabled: bool,
@@ -260,6 +297,7 @@ async fn strava_set_auto_upload(
 }
 
 #[tauri::command]
+#[specta::specta]
 async fn upload_session_to_strava(
     state: tauri::State<'_, DbActorHandle>,
     session_id: i64,
@@ -282,14 +320,19 @@ async fn upload_session_to_strava(
     Ok(activity_id)
 }
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![
+// Single specta/tauri-specta builder describing every command that crosses the bridge.
+// `run()` uses it to register the invoke handler; `export_typescript_bindings` uses it
+// to generate the typed `src/lib/bindings.ts` the frontend imports. Event payload types
+// (ble_metrics, session_metrics, ble_error, ble_reconnect) are pulled in with `.typ()`
+// so they appear in the bindings even though the events themselves are still driven by
+// manual `listen()` calls on the frontend.
+fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
+    use tauri_specta::{collect_commands, Builder};
+    Builder::<tauri::Wry>::new()
+        .commands(collect_commands![
             load_workout,
             list_workouts_cmd,
+            flatten_workout_cmd,
             scan_devices,
             connect_trainer,
             connect_hrm,
@@ -314,8 +357,37 @@ pub fn run() {
             strava_connect,
             strava_disconnect,
             strava_set_auto_upload,
-            upload_session_to_strava
+            upload_session_to_strava,
         ])
+        .typ::<crate::ble::BleMetrics>()
+        .typ::<crate::ble::BleError>()
+        .typ::<crate::ble::BleReconnect>()
+        .typ::<crate::session::SessionMetrics>()
+        // The frontend has always treated i64/u32 ids and counters as plain `number`
+        // (session ids, athlete ids, durations). Emit `number` instead of `bigint` so
+        // the generated bindings match the existing call sites and JSON round-trips.
+        .dangerously_cast_bigints_to_number()
+        // Throw, not Result-object wrapping: call sites keep the promise-rejection
+        // semantics the whole frontend is written against (try/catch + toMessage).
+        .error_handling(tauri_specta::ErrorHandlingMode::Throw)
+        // Unified serde mode: without it, types whose serialize and deserialize JSON
+        // shapes differ (e.g. skip_serializing_if fields) are split into two exported
+        // types, which nothing in this frontend needs.
+        .disable_serde_phases()
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    let specta = specta_builder();
+    // Keep src/lib/bindings.ts in lock-step with the Rust bridge during development:
+    // every `pnpm tauri dev` run rewrites it, so a changed command signature or shared
+    // type surfaces immediately as a TypeScript error in the frontend.
+    #[cfg(debug_assertions)]
+    export_typescript_bindings();
+    tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .invoke_handler(specta.invoke_handler())
         .setup(|app| {
             let log_dir = app.path().app_log_dir().expect("no app log dir");
             std::fs::create_dir_all(&log_dir).expect("failed to create log dir");
@@ -364,4 +436,23 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+/// Writes the generated TypeScript bindings (commands + shared types) to
+/// `src/lib/bindings.ts` at the repo root, resolved from this crate's manifest dir so
+/// it works regardless of the current working directory. Called on startup in debug
+/// builds (see `run()`) and by the `export_bindings` bin target for one-shot
+/// regeneration (`cargo run --bin export_bindings`).
+///
+/// Not a `#[test]`: instantiating the Wry-typed builder inside a test executable links
+/// the WebView GUI stack, which fails to load without the Windows manifest that
+/// tauri-build only embeds into bin targets (STATUS_ENTRYPOINT_NOT_FOUND).
+pub fn export_typescript_bindings() {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../src/lib/bindings.ts");
+    specta_builder()
+        .export(specta_typescript::Typescript::default(), path)
+        .expect("failed to export TypeScript bindings");
+    // println, not tracing: this runs before the tracing subscriber is initialized
+    // (debug startup) or without one at all (the export_bindings bin).
+    println!("exported TypeScript bindings to {path}");
 }

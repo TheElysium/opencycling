@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use specta::Type;
 
 /// Tokens returned by the proxy /exchange and /refresh routes.
 #[derive(Deserialize, Debug, Clone)]
@@ -14,7 +15,7 @@ pub struct ProxyTokens {
 }
 
 /// Status surfaced to the frontend.
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone, Type)]
 pub struct StravaStatus {
     pub connected: bool,
     pub athlete_id: Option<i64>,

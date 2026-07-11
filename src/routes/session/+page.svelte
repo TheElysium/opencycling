@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { invoke } from '@tauri-apps/api/core';
+  import { commands } from '$lib/bindings';
   import { goto, beforeNavigate } from '$app/navigation';
   import { Pause, Play, Square, ArrowLeft, ArrowRight, RotateCw, Heart } from '@lucide/svelte';
   import { confirm } from '@tauri-apps/plugin-dialog';
@@ -147,7 +147,7 @@
       (async () => {
         try {
           const [d, s] = await Promise.all([
-            invoke<SessionDetail>('get_session', { id }),
+            commands.getSession(id),
             getSettings(),
           ]);
           detail = d;

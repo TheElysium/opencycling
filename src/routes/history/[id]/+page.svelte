@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { invoke } from '@tauri-apps/api/core';
+  import { commands } from '$lib/bindings';
   import { confirm } from '@tauri-apps/plugin-dialog';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
@@ -27,7 +27,7 @@
   onMount(async () => {
     try {
       const [d, s] = await Promise.all([
-        invoke<SessionDetail>('get_session', { id }),
+        commands.getSession(id),
         getSettings(),
       ]);
       detail = d;
@@ -89,7 +89,7 @@
     });
     if (!ok) return;
     try {
-      await invoke('delete_session', { id: detail.id });
+      await commands.deleteSession(detail.id);
       await goto('/history');
     } catch (e) {
       error = toMessage(e);

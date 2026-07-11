@@ -1,8 +1,9 @@
 use crate::metrics::WorkoutType;
 use crate::session::FlatBlock;
 use serde::{Deserialize, Serialize};
+use specta::Type;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Type)]
 pub struct Settings {
     pub ftp_w: u16,
     pub max_hr_bpm: u16,
@@ -13,7 +14,7 @@ pub struct Settings {
     pub aero_enabled: bool,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone, Type)]
 pub struct SessionCard {
     pub id: i64,
     pub started_at: String,
@@ -30,7 +31,7 @@ pub struct SessionCard {
     pub tss: Option<f32>,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone, Type)]
 pub struct Metric {
     pub t_offset_s: u32,
     pub power_w: Option<u16>,
@@ -39,7 +40,7 @@ pub struct Metric {
     pub aero_score: Option<f32>,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone, Type)]
 pub struct SessionDetail {
     pub id: i64,
     pub strava_activity_id: Option<i64>,

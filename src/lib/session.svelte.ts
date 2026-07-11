@@ -1,36 +1,10 @@
-import { invoke } from '@tauri-apps/api/core';
-import type { ParsedWorkout, FlatBlock } from './workout.svelte';
+import { commands } from './bindings';
+import type { FlatBlock, ParsedWorkout, SessionMetrics, SessionSnapshot } from './bindings';
 import { stepDropDetector, INITIAL_DROP_STATE, type DropState } from './ftp';
 
-export type { FlatBlock };
-
-export type SessionStateKind = 'WaitingForRider' | 'Running' | 'Paused' | 'Finished';
-
-export type SessionMetrics = {
-  state: SessionStateKind;
-  total_elapsed_s: number;
-  total_active_s: number;
-  current_block_idx: number;
-  current_block_elapsed_s: number;
-  target_w: number | null;
-  cadence_target_rpm: number | null;
-  power_w: number | null;
-  hr_bpm: number | null;
-  cadence_rpm: number | null;
-  ftp_w: number;
-  blocks_total: number;
-  session_id: number | null;
-};
-
-export type SessionSnapshot = {
-  flat_blocks: FlatBlock[];
-  ftp_w: number;
-  workout_name: string | null;
-  workout_author: string | null;
-  workout_description: string | null;
-  metrics: SessionMetrics | null;
-  is_ftp_test: boolean;
-};
+// All bridge types are generated from the Rust structs (src/lib/bindings.ts);
+// re-exported so existing import sites keep working.
+export type { FlatBlock, SessionMetrics, SessionSnapshot, StateKind } from './bindings';
 
 class SessionStore {
   metrics             = $state<SessionMetrics | null>(null);
@@ -92,16 +66,16 @@ class SessionStore {
   // start_session directly would re-arm the session during aero calibration, which
   // is exactly what the deferred-start flow exists to prevent.
   private async start(workout: ParsedWorkout, ftpW: number): Promise<void> {
-    await invoke('start_session', { workout, ftpW });
+    await commands.startSession(workout, ftpW);
   }
 
-  pause():  Promise<void> { return invoke('pause_session'); }
-  resume(): Promise<void> { return invoke('resume_session'); }
-  stop():   Promise<void> { return invoke('stop_session'); }
-  skip():   Promise<void> { return invoke('skip_block'); }
+  async pause():  Promise<void> { await commands.pauseSession(); }
+  async resume(): Promise<void> { await commands.resumeSession(); }
+  async stop():   Promise<void> { await commands.stopSession(); }
+  async skip():   Promise<void> { await commands.skipBlock(); }
 
   async loadSnapshot(): Promise<void> {
-    const snap = await invoke<SessionSnapshot | null>('get_session_snapshot');
+    const snap = await commands.getSessionSnapshot();
     this.apply(snap);
   }
 

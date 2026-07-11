@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
+use specta::Type;
 
-/// Must mirror the TypeScript `WorkoutType` in src/lib/metrics.ts.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Bridge enum shared with the frontend via generated bindings (src/lib/bindings.ts).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 pub enum WorkoutType {
     Recovery,
     Endurance,
@@ -106,15 +107,48 @@ pub fn derive_metrics(powers: &[f64], ftp_w: u16, duration_s: u32) -> DerivedMet
     }
 }
 
+/// Power zone upper bounds as fractions of FTP. Index i is the upper bound of
+/// zone i+1; anything at or above the last bound is zone 6 (anaerobic).
 const ZONE_THRESHOLDS: [f32; 5] = [0.55, 0.75, 0.90, 1.05, 1.20];
 
-fn zone_of(pct: f32) -> usize {
+/// Power zone (1..=6) for a fraction of FTP. Single source of truth for zone
+/// boundaries on the Rust side, used by `classify` and by block labeling.
+pub fn zone_of(pct: f32) -> u8 {
     for (i, t) in ZONE_THRESHOLDS.iter().enumerate() {
         if pct < *t {
-            return i + 1;
+            return (i as u8) + 1;
         }
     }
     6
+}
+
+/// Human-readable name for a power zone (1..=6). Used for synthesized block labels.
+pub fn zone_name(z: u8) -> &'static str {
+    match z {
+        1 => "Recovery",
+        2 => "Endurance",
+        3 => "Tempo",
+        4 => "Threshold",
+        5 => "VO2max",
+        _ => "Anaerobic",
+    }
+}
+
+/// Fallback label for a flattened block that carries no explicit name: describes
+/// whether it is steady or a ramp and the zone(s) it spans. Matches the zone
+/// boundaries above so the frontend and backend agree.
+pub fn fallback_label(start_w: u16, end_w: u16, ftp_w: u16) -> String {
+    if ftp_w == 0 {
+        return "Block".to_string();
+    }
+    let ftp = ftp_w as f32;
+    let zs = zone_of(start_w as f32 / ftp);
+    let ze = zone_of(end_w as f32 / ftp);
+    if zs != ze {
+        format!("Ramp {}→{}", zone_name(zs), zone_name(ze))
+    } else {
+        format!("Steady {}", zone_name(zs))
+    }
 }
 
 /// Must mirror the TypeScript `classify` in src/lib/metrics.ts.
@@ -127,7 +161,7 @@ pub fn classify(series: &[f32], if_: f32) -> WorkoutType {
     let mut zone_time = [0u32; 6];
     let mut ss_time = 0u32;
     for &pct in series {
-        zone_time[zone_of(pct) - 1] += 1;
+        zone_time[zone_of(pct) as usize - 1] += 1;
         if (0.83..0.95).contains(&pct) {
             ss_time += 1;
         }
@@ -158,6 +192,29 @@ pub fn classify(series: &[f32], if_: f32) -> WorkoutType {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn zone_of_pins_boundaries() {
+        // Zone upper bounds are exclusive: exactly at a threshold means the next zone.
+        assert_eq!(zone_of(0.0), 1);
+        assert_eq!(zone_of(0.54), 1);
+        assert_eq!(zone_of(0.55), 2);
+        assert_eq!(zone_of(0.75), 3);
+        assert_eq!(zone_of(0.90), 4);
+        assert_eq!(zone_of(1.05), 5);
+        assert_eq!(zone_of(1.20), 6);
+        assert_eq!(zone_of(2.0), 6);
+    }
+
+    #[test]
+    fn fallback_label_steady_ramp_and_zero_ftp() {
+        // 150 W at 200 W FTP = 75% -> zone 3 (Tempo); same start/end means Steady.
+        assert_eq!(fallback_label(150, 150, 200), "Steady Tempo");
+        // 100 W -> 50% (Recovery) up to 200 W -> 100% (Threshold): a cross-zone Ramp.
+        assert_eq!(fallback_label(100, 200, 200), "Ramp Recovery→Threshold");
+        // FTP 0 cannot be classified.
+        assert_eq!(fallback_label(100, 200, 0), "Block");
+    }
 
     #[test]
     fn classify_low_intensity_is_recovery() {

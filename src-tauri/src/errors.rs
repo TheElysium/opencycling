@@ -54,3 +54,12 @@ impl serde::Serialize for AppError {
         serializer.serialize_str(&self.to_string())
     }
 }
+
+// AppError serializes to a bare string at the Tauri boundary (see the Serialize impl
+// above), so its specta type is just `String`. This makes command error types resolve
+// to `string` in the generated bindings, matching what the frontend actually receives.
+impl specta::Type for AppError {
+    fn definition(types: &mut specta::Types) -> specta::datatype::DataType {
+        <String as specta::Type>::definition(types)
+    }
+}

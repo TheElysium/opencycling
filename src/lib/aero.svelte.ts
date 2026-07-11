@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from './bindings';
 import * as poseDetection from '@tensorflow-models/pose-detection';
 import * as tf from '@tensorflow/tfjs-core';
 import '@tensorflow/tfjs-backend-webgl';
@@ -224,7 +224,7 @@ class AeroStore {
         if (now - lastReport >= REPORT_MS) {
           lastReport = now;
           // No usable frame: report null so a stalled view does not bias aero_pct.
-          invoke('report_aero', { aero: s != null ? this.inAero : null }).catch(() => {});
+          commands.reportAero(s != null ? this.inAero : null).catch(() => {});
         }
       }
       this.loopHandle = window.setTimeout(tick, FRAME_MS);
