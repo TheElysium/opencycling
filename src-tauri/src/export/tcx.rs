@@ -202,4 +202,63 @@ mod tests {
         assert_eq!(xml.matches("<ns3:Watts>").count(), 1);
         assert_eq!(xml.matches("<Trackpoint>").count(), 2);
     }
+
+    // Defensive branch at tcx.rs:57 -- a garbled started_at string must produce a
+    // well-formed document with an empty track rather than panicking.
+    #[test]
+    fn invalid_started_at_yields_empty_track() {
+        let mut s = base_session();
+        s.started_at = "not-a-date".to_string();
+        s.metrics = vec![Metric {
+            t_offset_s: 0,
+            power_w: Some(200),
+            hr_bpm: None,
+            cadence_rpm: None,
+            aero_score: None,
+        }];
+        let xml = build_tcx(&s);
+        // Document structure must be valid even with a bad timestamp.
+        assert!(xml.contains("<TrainingCenterDatabase"));
+        assert!(xml.trim_end().ends_with("</TrainingCenterDatabase>"));
+        // No trackpoints should be emitted when the base time cannot be parsed.
+        assert!(!xml.contains("<Trackpoint>"));
+    }
+
+    // Workout name containing XML-special characters must be escaped in <Notes>.
+    // workout_description() formats the flat_blocks; the escaping happens in
+    // build_tcx before writing <Notes>. This test also verifies that a workout
+    // whose name would be unsafe is handled gracefully via the label path.
+    #[test]
+    fn xml_special_chars_in_block_label_are_escaped_in_notes() {
+        use crate::session::FlatBlock;
+        let mut s = base_session();
+        s.flat_blocks = vec![FlatBlock {
+            duration_s: 60,
+            power_start_w: 200,
+            power_end_w: 200,
+            cadence_rpm: None,
+            label: "Zone 3 & <Tempo>".to_string(),
+        }];
+        let xml = build_tcx(&s);
+        assert!(xml.contains("Zone 3 &amp; &lt;Tempo&gt;"));
+        // Raw unescaped forms must not appear inside the Notes element.
+        assert!(!xml.contains("<Tempo>"));
+    }
+
+    // A session with metrics but no HR or cadence must not emit those elements.
+    #[test]
+    fn power_only_sample_omits_hr_and_cadence_elements() {
+        let mut s = base_session();
+        s.metrics = vec![Metric {
+            t_offset_s: 0,
+            power_w: Some(150),
+            hr_bpm: None,
+            cadence_rpm: None,
+            aero_score: None,
+        }];
+        let xml = build_tcx(&s);
+        assert!(xml.contains("<ns3:Watts>150</ns3:Watts>"));
+        assert!(!xml.contains("<HeartRateBpm>"));
+        assert!(!xml.contains("<Cadence>"));
+    }
 }
