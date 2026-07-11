@@ -33,18 +33,14 @@ pub async fn upload_tcx(
         .bearer_auth(access_token)
         .multipart(form)
         .send()
-        .await
-        .map_err(|e| AppError::StravaUpload(e.to_string()))?;
+        .await?;
 
     if !resp.status().is_success() {
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
         return Err(AppError::StravaUpload(format!("upload {status}: {body}")));
     }
-    let upload: UploadStatus = resp
-        .json()
-        .await
-        .map_err(|e| AppError::StravaUpload(e.to_string()))?;
+    let upload: UploadStatus = resp.json().await?;
     if let Some(err) = upload.error {
         return Err(AppError::StravaUpload(err));
     }
@@ -64,17 +60,13 @@ async fn poll_activity_id(
             .get(&url)
             .bearer_auth(access_token)
             .send()
-            .await
-            .map_err(|e| AppError::StravaUpload(e.to_string()))?;
+            .await?;
         if !resp.status().is_success() {
             let code = resp.status();
             let body = resp.text().await.unwrap_or_default();
             return Err(AppError::StravaUpload(format!("poll {code}: {body}")));
         }
-        let status: UploadStatus = resp
-            .json()
-            .await
-            .map_err(|e| AppError::StravaUpload(e.to_string()))?;
+        let status: UploadStatus = resp.json().await?;
         if let Some(err) = status.error {
             return Err(AppError::StravaUpload(err));
         }

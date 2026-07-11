@@ -91,8 +91,8 @@ impl DbActorHandle {
         self.sender
             .send(DbCommand::QuerySettings { reply: tx })
             .await
-            .map_err(|e| AppError::DbError(e.to_string()))?;
-        rx.await.map_err(|e| AppError::DbError(e.to_string()))?
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
     }
 
     pub async fn update_settings(&self, settings: Settings) -> Result<(), AppError> {
@@ -103,8 +103,8 @@ impl DbActorHandle {
                 settings,
             })
             .await
-            .map_err(|e| AppError::DbError(e.to_string()))?;
-        rx.await.map_err(|e| AppError::DbError(e.to_string()))?
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
     }
 
     pub async fn insert_session(
@@ -124,8 +124,8 @@ impl DbActorHandle {
                 reply: tx,
             })
             .await
-            .map_err(|e| AppError::DbError(e.to_string()))?;
-        rx.await.map_err(|e| AppError::DbError(e.to_string()))?
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
     }
 
     pub async fn insert_metric(&self, session_id: i64, metric: Metric) {
@@ -157,8 +157,8 @@ impl DbActorHandle {
         self.sender
             .send(DbCommand::ListSessions { reply: tx })
             .await
-            .map_err(|e| AppError::DbError(e.to_string()))?;
-        rx.await.map_err(|e| AppError::DbError(e.to_string()))?
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
     }
 
     pub async fn get_session(&self, id: i64) -> Result<SessionDetail, AppError> {
@@ -166,8 +166,8 @@ impl DbActorHandle {
         self.sender
             .send(DbCommand::GetSession { id, reply: tx })
             .await
-            .map_err(|e| AppError::DbError(e.to_string()))?;
-        rx.await.map_err(|e| AppError::DbError(e.to_string()))?
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
     }
 
     pub async fn delete_session(&self, id: i64) -> Result<(), AppError> {
@@ -175,8 +175,8 @@ impl DbActorHandle {
         self.sender
             .send(DbCommand::DeleteSession { id, reply: tx })
             .await
-            .map_err(|e| AppError::DbError(e.to_string()))?;
-        rx.await.map_err(|e| AppError::DbError(e.to_string()))?
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
     }
 
     pub async fn upsert_strava_auth(&self, auth: StravaAuth) -> Result<(), AppError> {
@@ -184,8 +184,8 @@ impl DbActorHandle {
         self.sender
             .send(DbCommand::UpsertStravaAuth { auth, reply: tx })
             .await
-            .map_err(|e| AppError::DbError(e.to_string()))?;
-        rx.await.map_err(|e| AppError::DbError(e.to_string()))?
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
     }
 
     pub async fn get_strava_auth(&self) -> Result<Option<StravaAuth>, AppError> {
@@ -193,8 +193,8 @@ impl DbActorHandle {
         self.sender
             .send(DbCommand::GetStravaAuth { reply: tx })
             .await
-            .map_err(|e| AppError::DbError(e.to_string()))?;
-        rx.await.map_err(|e| AppError::DbError(e.to_string()))?
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
     }
 
     pub async fn delete_strava_auth(&self) -> Result<(), AppError> {
@@ -202,8 +202,8 @@ impl DbActorHandle {
         self.sender
             .send(DbCommand::DeleteStravaAuth { reply: tx })
             .await
-            .map_err(|e| AppError::DbError(e.to_string()))?;
-        rx.await.map_err(|e| AppError::DbError(e.to_string()))?
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
     }
 
     pub async fn get_strava_auto_upload(&self) -> Result<bool, AppError> {
@@ -211,8 +211,8 @@ impl DbActorHandle {
         self.sender
             .send(DbCommand::GetStravaAutoUpload { reply: tx })
             .await
-            .map_err(|e| AppError::DbError(e.to_string()))?;
-        rx.await.map_err(|e| AppError::DbError(e.to_string()))?
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
     }
 
     pub async fn set_strava_auto_upload(&self, enabled: bool) -> Result<(), AppError> {
@@ -220,8 +220,8 @@ impl DbActorHandle {
         self.sender
             .send(DbCommand::SetStravaAutoUpload { enabled, reply: tx })
             .await
-            .map_err(|e| AppError::DbError(e.to_string()))?;
-        rx.await.map_err(|e| AppError::DbError(e.to_string()))?
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
     }
 
     pub async fn set_session_strava_activity(
@@ -237,7 +237,7 @@ impl DbActorHandle {
                 reply: tx,
             })
             .await
-            .map_err(|e| AppError::DbError(e.to_string()))?;
-        rx.await.map_err(|e| AppError::DbError(e.to_string()))?
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
     }
 }

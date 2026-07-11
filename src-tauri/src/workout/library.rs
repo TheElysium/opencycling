@@ -21,7 +21,7 @@ pub struct WorkoutLibrary {
 }
 
 pub(crate) fn list_workouts(folder: &str) -> Result<WorkoutLibrary, AppError> {
-    let entries = read_dir(folder).map_err(|e| AppError::Other(e.to_string()))?;
+    let entries = read_dir(folder)?;
 
     let mut workouts = Vec::new();
     let mut errors = Vec::new();

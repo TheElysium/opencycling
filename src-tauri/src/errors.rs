@@ -24,12 +24,18 @@ pub enum AppError {
     CharacteristicNotFound(String),
     #[error("Actor channel closed")]
     ChannelClosed,
+    /// Wraps a rusqlite error directly, preserving the source for logging.
     #[error("Database error: {0}")]
-    DbError(String),
+    DbError(#[from] rusqlite::Error),
     #[error("Session already active")]
     SessionAlreadyActive,
+    /// Wraps a std::io::Error directly, preserving the source for logging.
     #[error("I/O error: {0}")]
-    Io(String),
+    Io(#[from] std::io::Error),
+    /// Wraps a reqwest::Error directly for pure HTTP transport failures.
+    /// Use StravaAuth / StravaUpload for errors with constructed context messages.
+    #[error("HTTP error: {0}")]
+    Http(#[from] reqwest::Error),
     #[error("Strava auth error: {0}")]
     StravaAuth(String),
     #[error("Strava API error: {0}")]
