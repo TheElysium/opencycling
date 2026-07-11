@@ -1,7 +1,9 @@
 use crate::errors::AppError;
+use btleplug::api::Characteristic;
 use btleplug::platform::{Adapter, Manager, Peripheral};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use std::time::Instant;
 use tauri::AppHandle;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::{oneshot, Mutex};
@@ -122,6 +124,10 @@ pub struct BleActor {
     pub adapter: Adapter,
     pub _manager: Manager,
     pub trainer: Option<Peripheral>,
+    // FTMS control-point characteristic for the connected trainer, cached at connect
+    // time so send_erg / the keep-alive do not rescan characteristics() on every write.
+    // Kept in lock-step with `trainer`: set together, cleared together.
+    pub trainer_control_point: Option<Characteristic>,
     pub hrm: Option<Peripheral>,
     pub trainer_task: Option<AbortHandle>,
     pub hrm_task: Option<AbortHandle>,
@@ -134,6 +140,12 @@ pub struct BleActor {
     pub last_power_w: Option<i16>, // actual power measured by trainer (incoming notification)
     pub last_cadence_rpm: Option<u16>,
     pub last_hr_bpm: Option<u16>,
+    // Timestamp of the last parsed notification per device, set when the actor drains
+    // the parsed value off notif_rx. Used by emit_metrics to null out frozen values
+    // once a connected-but-silent device exceeds STALE_AFTER. Reset to None whenever
+    // the device is torn down so a reconnect starts fresh.
+    pub last_trainer_notif: Option<Instant>,
+    pub last_hrm_notif: Option<Instant>,
     pub metrics_tx: Sender<BleMetrics>, // fan-out to SessionActor every second
     // Critical lifecycle events (trainer lost/reconnected) → SessionActor.
     pub ble_event_tx: Sender<BleEvent>,

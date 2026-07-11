@@ -6,13 +6,13 @@ use crate::ble::types::{
     ParsedNotifications, ReconnectMsg,
 };
 use crate::errors::AppError;
-use btleplug::api::{Central, CentralEvent, Peripheral, ScanFilter, WriteType};
+use btleplug::api::{Central, CentralEvent, Characteristic, Peripheral, ScanFilter, WriteType};
 use btleplug::platform;
 use btleplug::platform::Adapter;
 use futures::{Stream, StreamExt};
 use std::pin::Pin;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
 use tokio::sync::mpsc::Sender as MpscSender;
 use tokio::sync::oneshot::Sender;
@@ -41,6 +41,11 @@ const RECONNECT_SCAN_DWELL_MS: u64 = 1500;
 // in a row (at most one keep-alive apart, so ~10-20 s) means the link is genuinely
 // down, not a one-off glitch.
 const ERG_FAILURE_THRESHOLD: u32 = 2;
+// A connected device that stops notifying (sleep, radio glitch, or a session with no
+// ERG writes) would otherwise leave the last power/cadence/hr frozen on screen forever.
+// After this many seconds of silence the corresponding values are reported as None so
+// the UI shows "no data" instead of a stale reading.
+const STALE_AFTER: Duration = Duration::from_secs(5);
 
 impl BleActor {
     pub async fn run(mut self) {
@@ -95,9 +100,13 @@ impl BleActor {
                         ParsedNotifications::TrainerData{ power_w, cadence_rpm } => {
                             self.last_power_w = power_w;
                             self.last_cadence_rpm = cadence_rpm;
+                            // Timestamp on receipt in the actor (same path the parsed
+                            // value takes) so emit_metrics can age it out.
+                            self.last_trainer_notif = Some(Instant::now());
                         }
                         ParsedNotifications::HRMData{ hr_bpm } => {
                             self.last_hr_bpm = Some(hr_bpm);
+                            self.last_hrm_notif = Some(Instant::now());
                         }
                         ParsedNotifications::ParseError { device_kind, error } => {
                             let device = match device_kind {
@@ -151,6 +160,7 @@ impl BleActor {
             info!("hrm disconnected");
             self.hrm = None;
             self.last_hr_bpm = None;
+            self.last_hrm_notif = None;
             let _ = self.app_handle.emit("ble_disconnected", "hrm");
             // HRM loss never touches session state, so no BleEvent is sent.
             self.start_reconnect(Hrm);
@@ -165,8 +175,10 @@ impl BleActor {
             return;
         }
         self.trainer = None;
+        self.trainer_control_point = None;
         self.last_power_w = None;
         self.last_cadence_rpm = None;
+        self.last_trainer_notif = None;
         // Reset so a transient failure right after reconnect does not re-trip the cap.
         self.consecutive_erg_failures = 0;
         // last_target_w is intentionally kept so it can be replayed on reconnect;
@@ -181,10 +193,11 @@ impl BleActor {
     // outcome so a dropped trainer is detected from consecutive failures. No-op when
     // no trainer is connected.
     async fn send_erg_tracked(&mut self, watts: i16, label: &str) {
-        let Some(trainer) = &self.trainer else {
+        let (Some(trainer), Some(control_point)) = (&self.trainer, &self.trainer_control_point)
+        else {
             return;
         };
-        let res = send_erg(trainer, watts).await;
+        let res = send_erg(trainer, control_point, watts).await;
         self.note_erg_result(res, label).await;
     }
 
@@ -260,8 +273,10 @@ impl BleActor {
         // retained id so start_reconnect has nothing to relaunch against.
         match kind {
             Trainer => {
+                self.trainer_control_point = None;
                 self.last_power_w = None;
                 self.last_cadence_rpm = None;
+                self.last_trainer_notif = None;
                 self.last_trainer_id = None;
                 // Stop the ERG keep-alive from retransmitting onto a future trainer.
                 self.last_target_w = None;
@@ -269,6 +284,7 @@ impl BleActor {
             }
             Hrm => {
                 self.last_hr_bpm = None;
+                self.last_hrm_notif = None;
                 self.last_hrm_id = None;
             }
         }
@@ -406,13 +422,17 @@ impl BleActor {
         if let Some(handle) = self.trainer_task.take() {
             handle.abort();
             self.trainer = None;
+            self.trainer_control_point = None;
         }
         info!("connecting trainer: {device_id}");
         // Retain the id up front so a manual retry can relaunch reconnection even if
         // this attempt fails partway through.
         self.last_trainer_id = Some(device_id.clone());
         let trainer = self.connect_peripheral(device_id, INDOOR_BIKE_DATA).await?;
-        request_control(&trainer).await?;
+        // Cache the control-point characteristic so ERG writes / keep-alive do not
+        // rescan characteristics() every time. request_control also does the initial
+        // subscribe + request-control write over it.
+        let control_point = request_control(&trainer).await?;
         // The btleplug notification stream cannot be polled directly inside select!
         // because holding a mutable reference to the stream would conflict with
         // &mut self on the other branches. Instead we spawn a dedicated task that
@@ -444,6 +464,7 @@ impl BleActor {
         });
         self.trainer_task = Some(handle.abort_handle());
         self.trainer = Some(trainer);
+        self.trainer_control_point = Some(control_point);
         info!("trainer connected");
         Ok(())
     }
@@ -500,10 +521,25 @@ impl BleActor {
         if self.trainer.is_none() && self.hrm.is_none() {
             return;
         }
+        // Report None for a device whose last notification is older than STALE_AFTER,
+        // so a frozen (connected but silent) trainer or HRM does not display a stale
+        // value indefinitely. A device that never notified (None timestamp) is also
+        // treated as stale.
+        let now = Instant::now();
+        let trainer_fresh = self
+            .last_trainer_notif
+            .is_some_and(|t| now.duration_since(t) < STALE_AFTER);
+        let hrm_fresh = self
+            .last_hrm_notif
+            .is_some_and(|t| now.duration_since(t) < STALE_AFTER);
         let ble_metric = BleMetrics {
-            power_w: self.last_power_w,
-            hr_bpm: self.last_hr_bpm,
-            cadence_rpm: self.last_cadence_rpm,
+            power_w: if trainer_fresh { self.last_power_w } else { None },
+            hr_bpm: if hrm_fresh { self.last_hr_bpm } else { None },
+            cadence_rpm: if trainer_fresh {
+                self.last_cadence_rpm
+            } else {
+                None
+            },
         };
         let _ = self.app_handle.emit("ble_metrics", &ble_metric);
         let _ = self.metrics_tx.try_send(ble_metric);
@@ -695,7 +731,10 @@ fn get_device_kind(services: Vec<Uuid>, name: &str) -> Option<DeviceKind> {
     None
 }
 
-async fn request_control(trainer: &platform::Peripheral) -> Result<(), AppError> {
+// Locate, subscribe to, and take control of the FTMS control point. Returns the
+// characteristic so the caller can cache it (send_erg reuses it instead of rescanning
+// characteristics() on every write).
+async fn request_control(trainer: &platform::Peripheral) -> Result<Characteristic, AppError> {
     let control_point = trainer
         .characteristics()
         .into_iter()
@@ -715,23 +754,19 @@ async fn request_control(trainer: &platform::Peripheral) -> Result<(), AppError>
     trainer
         .write(&control_point, &payload, WriteType::WithResponse)
         .await
-        .map_err(|e| AppError::BLECommandError(e.to_string()))
+        .map_err(|e| AppError::BLECommandError(e.to_string()))?;
+
+    Ok(control_point)
 }
 
-async fn send_erg(trainer: &platform::Peripheral, watts: i16) -> Result<(), AppError> {
-    let control_point = trainer
-        .characteristics()
-        .into_iter()
-        .find(|c| c.uuid == FTMS_CONTROL_POINT)
-        .ok_or_else(|| {
-            AppError::BLECommandError(
-                "Failed to find FTMS_CONTROL_POINT characteristic".to_string(),
-            )
-        })?;
-
+async fn send_erg(
+    trainer: &platform::Peripheral,
+    control_point: &Characteristic,
+    watts: i16,
+) -> Result<(), AppError> {
     let payload = build_set_target_power_command(watts);
     trainer
-        .write(&control_point, &payload, WriteType::WithResponse)
+        .write(control_point, &payload, WriteType::WithResponse)
         .await
         .map_err(|e| AppError::BLECommandError(e.to_string()))
 }
