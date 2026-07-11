@@ -7,6 +7,16 @@ use rusqlite::Connection;
 use tokio::sync::mpsc::Receiver;
 use tracing::info;
 
+/// Compute the ISO-8601 `ended_at` timestamp for a session given its
+/// `started_at` string (RFC 3339) and the reconstructed `duration_s`.
+///
+/// This is a pure function so it can be unit-tested without a database.
+pub(crate) fn ended_at_from_parts(started_at: &str, duration_s: u32) -> Option<String> {
+    use chrono::{DateTime, Duration, Utc};
+    let start: DateTime<Utc> = started_at.parse().ok()?;
+    Some((start + Duration::seconds(duration_s as i64)).to_rfc3339())
+}
+
 /// Aggregated session metrics: (avg_power, max_power, avg_hr, max_hr, avg_cad, max_cad).
 type SessionAggregates = (
     Option<i64>,
@@ -116,6 +126,87 @@ impl DbActor {
                 },
             }
         }
+    }
+
+    /// Finalize any sessions left open by a previous crash, power loss, or forced
+    /// close. Runs once at startup, synchronously, before the actor loop begins
+    /// and before `SessionActor` can start anything -- so no live session can
+    /// exist during this pass.
+    ///
+    /// For each orphan (ended_at IS NULL):
+    ///   duration_s = MAX(t_offset_s) + 1 over its samples.
+    ///   ended_at   = started_at + duration_s (approximation: samples carry only
+    ///                active seconds; the true wall-clock end is unknowable after
+    ///                the fact, so we reconstruct it from the last recorded offset).
+    ///   Then the normal finalize_session path runs, computing aggregates / NP /
+    ///   IF / TSS exactly as for a cleanly-stopped session.
+    ///
+    /// Edge case -- zero samples: the session is deleted. A session with no data
+    /// at all provides no value in history and cannot be meaningfully finalized.
+    pub(crate) fn finalize_orphaned_sessions(&mut self) -> Result<(), AppError> {
+        // Collect orphan ids and started_at strings first to avoid holding the
+        // query open while we mutate rows inside the loop.
+        let orphans: Vec<(i64, String)> = {
+            let mut stmt = self
+                .conn
+                .prepare("SELECT id, started_at FROM sessions WHERE ended_at IS NULL")
+                .map_err(|e| AppError::DbError(e.to_string()))?;
+            let rows = stmt
+                .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)))
+                .map_err(|e| AppError::DbError(e.to_string()))?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .map_err(|e| AppError::DbError(e.to_string()))?
+        };
+
+        for (session_id, started_at) in orphans {
+            // Compute duration from sample offsets. MAX returns NULL when there
+            // are no rows, which maps to None via rusqlite's Option handling.
+            let max_offset: Option<u32> = self
+                .conn
+                .query_row(
+                    "SELECT MAX(t_offset_s) FROM session_metrics WHERE session_id = ?1",
+                    [session_id],
+                    |row| row.get(0),
+                )
+                .map_err(|e| AppError::DbError(e.to_string()))?;
+
+            match max_offset {
+                None => {
+                    // No samples recorded -- session has no data. Delete it rather
+                    // than leaving a hollow stub in history.
+                    tracing::warn!(
+                        session_id,
+                        "orphaned session has no samples -- deleting"
+                    );
+                    self.conn
+                        .execute("DELETE FROM sessions WHERE id = ?1", [session_id])
+                        .map_err(|e| AppError::DbError(e.to_string()))?;
+                }
+                Some(max_t) => {
+                    let duration_s = max_t + 1;
+                    let ended_at = match ended_at_from_parts(&started_at, duration_s) {
+                        Some(ts) => ts,
+                        None => {
+                            tracing::error!(
+                                session_id,
+                                started_at,
+                                "orphaned session has unparseable started_at -- skipping"
+                            );
+                            continue;
+                        }
+                    };
+                    tracing::info!(
+                        session_id,
+                        duration_s,
+                        "finalizing orphaned session"
+                    );
+                    if let Err(e) = self.finalize_session(session_id, ended_at, duration_s) {
+                        tracing::error!(session_id, "finalize_orphaned_sessions failed: {e}");
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     fn query_settings(&self) -> Result<Settings, AppError> {
@@ -521,5 +612,37 @@ impl DbActor {
             )
             .map_err(|e| AppError::DbError(e.to_string()))?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ended_at_from_parts;
+
+    #[test]
+    fn ended_at_adds_duration_to_started_at() {
+        // A session started at midnight UTC; 90 seconds later should land at 00:01:30.
+        let result = ended_at_from_parts("2024-01-15T00:00:00+00:00", 90);
+        assert!(result.is_some(), "should produce a timestamp");
+        let ts = result.unwrap();
+        // The returned string must be parseable as RFC 3339 and encode the
+        // correct instant (90 s after the start).
+        let parsed: chrono::DateTime<chrono::Utc> =
+            ts.parse().expect("result must be valid RFC 3339");
+        assert_eq!(parsed.timestamp(), 1705276890); // 2024-01-15T00:01:30Z
+    }
+
+    #[test]
+    fn ended_at_duration_zero_equals_start() {
+        let result = ended_at_from_parts("2024-06-01T12:00:00+00:00", 0);
+        assert!(result.is_some());
+        let parsed: chrono::DateTime<chrono::Utc> =
+            result.unwrap().parse().expect("valid RFC 3339");
+        assert_eq!(parsed.timestamp(), 1717243200); // 2024-06-01T12:00:00Z
+    }
+
+    #[test]
+    fn ended_at_rejects_garbage_started_at() {
+        assert!(ended_at_from_parts("not-a-date", 100).is_none());
     }
 }

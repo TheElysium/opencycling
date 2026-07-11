@@ -74,7 +74,14 @@ impl DbActorHandle {
         // Sized for ~1 Hz metric writes + occasional UI reads; backpressure via
         // send().await is preferred over silent try_send drops.
         let (cmd_tx, cmd_rx) = channel::<DbCommand>(256);
-        let db_actor = DbActor::new(cmd_rx, db_path)?;
+        let mut db_actor = DbActor::new(cmd_rx, db_path)?;
+        // Finalize sessions that were interrupted by a crash, power loss, or
+        // forced close on a previous run. This runs before the actor loop starts
+        // and before SessionActor can be created, so no live session can exist
+        // during this pass -- the invariant is structural, not just by convention.
+        if let Err(e) = db_actor.finalize_orphaned_sessions() {
+            tracing::error!("finalize_orphaned_sessions failed: {e}");
+        }
         tokio::spawn(db_actor.run());
         Ok(DbActorHandle { sender: cmd_tx })
     }
