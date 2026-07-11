@@ -1,7 +1,7 @@
 use crate::db::command::DbCommand;
 use crate::db::{Metric, SessionCard, SessionDetail, Settings, StravaAuth};
 use crate::errors::AppError;
-use crate::metrics::{classify, normalized_power, WorkoutType};
+use crate::metrics::{derive_metrics, WorkoutType};
 use crate::session::FlatBlock;
 use rusqlite::Connection;
 use tokio::sync::mpsc::Receiver;
@@ -27,15 +27,8 @@ type SessionAggregates = (
     Option<i64>,
 );
 
-/// Metrics derived from the full power series at finalize. All fields are `None`
-/// together when no power was recorded (or FTP is unknown).
-#[derive(Default)]
-struct DerivedMetrics {
-    workout_type: Option<WorkoutType>,
-    np_w: Option<f32>,
-    if_: Option<f32>,
-    tss: Option<f32>,
-}
+// Re-use the pure DerivedMetrics type from metrics.rs; the actor only holds the SQL.
+use crate::metrics::DerivedMetrics;
 
 pub struct DbActor {
     conn: Connection,
@@ -343,6 +336,8 @@ impl DbActor {
     /// finalize from the full 1 Hz power series against the frozen FTP. Returns all
     /// `None` when no power was recorded (or FTP is unknown), so the caller stores
     /// workout_type / NP / IF / TSS as NULL.
+    /// Fetches the power series from the DB and delegates all math to the pure
+    /// `derive_metrics` function in `metrics.rs`.
     fn compute_session_metrics(
         &self,
         session_id: i64,
@@ -359,25 +354,11 @@ impl DbActor {
         )?;
         let rows = stmt.query_map([session_id], |row| row.get::<_, i64>(0))?;
 
-        let ftp = ftp_w_used as f32;
-        let mut series_pcts: Vec<f32> = Vec::new();
         let mut powers: Vec<f64> = Vec::new();
         for r in rows {
-            let w = r? as f64;
-            powers.push(w);
-            series_pcts.push(w as f32 / ftp);
+            powers.push(r? as f64);
         }
-        let Some(np_w) = normalized_power(&powers) else {
-            return Ok(DerivedMetrics::default());
-        };
-        let if_ = np_w / ftp;
-        let tss = (duration_s as f32 / 3600.0) * if_ * if_ * 100.0;
-        Ok(DerivedMetrics {
-            workout_type: Some(classify(&series_pcts, if_)),
-            np_w: Some(np_w),
-            if_: Some(if_),
-            tss: Some(tss),
-        })
+        Ok(derive_metrics(&powers, ftp_w_used, duration_s))
     }
 
     fn list_sessions(&self) -> Result<Vec<SessionCard>, AppError> {

@@ -511,6 +511,66 @@ mod tests {
         assert_eq!(flat[7].label, "Cooldown");
     }
 
+    // Pin current behavior for IntervalsT containing a Ramp on block (e.g. an
+    // over-under interval that ramps up before the off-block). Verifies that
+    // t_offset boundaries and per-block targets are preserved across repeats.
+    #[test]
+    fn flatten_intervals_t_with_ramp_on_block_pins_offsets_and_targets() {
+        // 2 repeats: each rep = Ramp ON (60 s, 80%->110% FTP) + Steady OFF (30 s, 55% FTP).
+        let workout = ParsedWorkout {
+            author: None,
+            name: None,
+            description: None,
+            sport_type: SportType::Bike,
+            workout_blocks: vec![WorkoutBlock::IntervalsT {
+                repeat: 2,
+                on: Box::new(WorkoutBlock::Ramp {
+                    duration_s: 60,
+                    power_start_pct: 0.80,
+                    power_end_pct: 1.10,
+                    cadence_rpm: None,
+                    label: None,
+                }),
+                off: Box::new(WorkoutBlock::SteadyState {
+                    duration_s: 30,
+                    power_pct: 0.55,
+                    cadence_rpm: None,
+                    label: None,
+                }),
+            }],
+            is_ftp_test: false,
+            file_name: None,
+        };
+
+        let flat = flatten_workout(workout, 200);
+
+        // 2 repeats * (1 ramp ON + 1 steady OFF) = 4 blocks.
+        assert_eq!(flat.len(), 4);
+
+        // Rep 1 ON: synthesised label, ramp power bounds.
+        assert_eq!(flat[0].label, "Interval 1/2 ON");
+        assert_eq!(flat[0].duration_s, 60);
+        assert_eq!(flat[0].power_start_w, 160); // 0.80 * 200 = 160
+        assert_eq!(flat[0].power_end_w, 220);   // 1.10 * 200 = 220
+
+        // Rep 1 OFF: synthesised label, steady recovery power.
+        assert_eq!(flat[1].label, "Interval 1/2 OFF");
+        assert_eq!(flat[1].duration_s, 30);
+        assert_eq!(flat[1].power_start_w, 110); // 0.55 * 200 = 110
+        assert_eq!(flat[1].power_end_w, 110);
+
+        // Rep 2 ON/OFF: same structure, different label indices.
+        assert_eq!(flat[2].label, "Interval 2/2 ON");
+        assert_eq!(flat[2].power_start_w, 160);
+        assert_eq!(flat[2].power_end_w, 220);
+        assert_eq!(flat[3].label, "Interval 2/2 OFF");
+        assert_eq!(flat[3].power_start_w, 110);
+
+        // Cumulative duration: (60 + 30) * 2 = 180 s total.
+        let total_s: u32 = flat.iter().map(|b| b.duration_s).sum();
+        assert_eq!(total_s, 180);
+    }
+
     #[test]
     fn flatten_workout_ramp_interpolates_power_bounds() {
         let workout = ParsedWorkout {

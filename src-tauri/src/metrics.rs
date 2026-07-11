@@ -70,6 +70,42 @@ pub fn normalized_power(power_w: &[f64]) -> Option<f32> {
     Some((sum4 / count as f64).powf(0.25) as f32)
 }
 
+/// Derived performance metrics computed from the full 1 Hz power series.
+/// All fields are `None` together when no power was recorded or FTP is zero.
+#[derive(Debug, Default, PartialEq)]
+pub struct DerivedMetrics {
+    pub workout_type: Option<WorkoutType>,
+    /// Normalized Power in watts (Coggan).
+    pub np_w: Option<f32>,
+    /// Intensity Factor: NP / FTP.
+    pub if_: Option<f32>,
+    /// Training Stress Score: (duration_h) * IF^2 * 100.
+    pub tss: Option<f32>,
+}
+
+/// Pure computation of NP, IF, TSS, and workout classification from a 1 Hz
+/// power series (watts as f64), the frozen FTP (watts), and the active session
+/// duration. Returns `DerivedMetrics::default()` (all `None`) when `powers` is
+/// empty or `ftp_w` is zero.
+pub fn derive_metrics(powers: &[f64], ftp_w: u16, duration_s: u32) -> DerivedMetrics {
+    if ftp_w == 0 || powers.is_empty() {
+        return DerivedMetrics::default();
+    }
+    let ftp = ftp_w as f32;
+    let Some(np_w) = normalized_power(powers) else {
+        return DerivedMetrics::default();
+    };
+    let if_ = np_w / ftp;
+    let tss = (duration_s as f32 / 3600.0) * if_ * if_ * 100.0;
+    let series_pcts: Vec<f32> = powers.iter().map(|&w| w as f32 / ftp).collect();
+    DerivedMetrics {
+        workout_type: Some(classify(&series_pcts, if_)),
+        np_w: Some(np_w),
+        if_: Some(if_),
+        tss: Some(tss),
+    }
+}
+
 const ZONE_THRESHOLDS: [f32; 5] = [0.55, 0.75, 0.90, 1.05, 1.20];
 
 fn zone_of(pct: f32) -> usize {
@@ -175,5 +211,83 @@ mod tests {
     fn workout_type_serializes_sweet_spot_with_space() {
         let s = serde_json::to_string(&WorkoutType::SweetSpot).unwrap();
         assert_eq!(s, "\"Sweet Spot\"");
+    }
+
+    // --- derive_metrics tests ---
+
+    #[test]
+    fn derive_metrics_empty_powers_returns_all_none() {
+        let d = derive_metrics(&[], 250, 3600);
+        assert!(d.np_w.is_none());
+        assert!(d.if_.is_none());
+        assert!(d.tss.is_none());
+        assert!(d.workout_type.is_none());
+    }
+
+    #[test]
+    fn derive_metrics_ftp_zero_returns_all_none() {
+        let powers = vec![200.0_f64; 60];
+        let d = derive_metrics(&powers, 0, 3600);
+        assert!(d.np_w.is_none());
+        assert!(d.if_.is_none());
+        assert!(d.tss.is_none());
+        assert!(d.workout_type.is_none());
+    }
+
+    #[test]
+    fn derive_metrics_constant_power_np_equals_power() {
+        // For a constant power series NP == that constant.
+        let powers = vec![200.0_f64; 60];
+        let d = derive_metrics(&powers, 250, 3600);
+        let np = d.np_w.unwrap();
+        // Allow 1 W rounding from f32 precision.
+        assert!((np - 200.0).abs() < 1.0, "NP {np} expected ~200 W");
+    }
+
+    #[test]
+    fn derive_metrics_if_equals_np_over_ftp() {
+        let powers = vec![250.0_f64; 60];
+        let d = derive_metrics(&powers, 250, 3600);
+        let np = d.np_w.unwrap();
+        let if_ = d.if_.unwrap();
+        let expected_if = np / 250.0;
+        assert!((if_ - expected_if).abs() < 1e-4, "IF {if_} expected {expected_if}");
+    }
+
+    #[test]
+    fn derive_metrics_tss_formula_one_hour_at_ftp() {
+        // One hour at FTP: IF = 1.0, TSS = 100.
+        let powers = vec![250.0_f64; 3600];
+        let d = derive_metrics(&powers, 250, 3600);
+        let tss = d.tss.unwrap();
+        // TSS = (3600 / 3600) * 1.0^2 * 100 = 100. Allow small f32 rounding.
+        assert!((tss - 100.0).abs() < 0.5, "TSS {tss} expected ~100");
+    }
+
+    #[test]
+    fn derive_metrics_shorter_than_30s_uses_mean_power_as_np() {
+        // With fewer than 30 samples normalized_power falls back to mean.
+        // Pin that current behavior here so a future refactor cannot silently break it.
+        let powers = vec![100.0_f64, 200.0, 300.0]; // mean = 200 W
+        let d = derive_metrics(&powers, 200, 3);
+        let np = d.np_w.unwrap();
+        assert!((np - 200.0).abs() < 1.0, "NP {np} expected ~200 W (mean fallback)");
+    }
+
+    #[test]
+    fn derive_metrics_classifies_threshold_effort() {
+        // 30 min at FTP produces IF ~1.0, which classify sees as Threshold.
+        let powers = vec![250.0_f64; 1800];
+        let d = derive_metrics(&powers, 250, 1800);
+        assert_eq!(d.workout_type, Some(WorkoutType::Threshold));
+    }
+
+    #[test]
+    fn derive_metrics_tss_scales_with_duration() {
+        // Half an hour at FTP: TSS = 0.5 * 1.0 * 100 = 50.
+        let powers = vec![250.0_f64; 1800];
+        let d = derive_metrics(&powers, 250, 1800);
+        let tss = d.tss.unwrap();
+        assert!((tss - 50.0).abs() < 0.5, "TSS {tss} expected ~50");
     }
 }
