@@ -76,6 +76,7 @@ impl BleActor {
                                 self.send_erg_tracked(watts, "set_target_power").await;
                             }
                             BleCommand::RetryReconnect { kind } => self.handle_retry_reconnect(kind),
+                            BleCommand::Disconnect { kind, reply } => self.handle_disconnect(kind, reply).await,
                             BleCommand::SessionEnded => {
                                 // Session is over: drop the ERG target so the keep-alive
                                 // cannot replay it onto a trainer that reconnects later.
@@ -213,6 +214,65 @@ impl BleActor {
     // Manual retry from the UI: relaunch a reconnect task for the retained id.
     fn handle_retry_reconnect(&mut self, kind: DeviceKind) {
         self.start_reconnect(kind);
+    }
+
+    // User-initiated disconnect from the UI. Unlike handle_trainer_lost / an adapter
+    // disconnect event, this tears the device down for good: it clears the retained id
+    // and aborts any reconnect task so auto-reconnect cannot resurrect it. It does not
+    // emit `ble_disconnected` (that event is paired with auto-reconnect on the frontend);
+    // the caller updates the store directly. Always succeeds: peripheral.disconnect()
+    // errors are logged, not propagated.
+    async fn handle_disconnect(
+        &mut self,
+        kind: DeviceKind,
+        reply: Sender<Result<(), AppError>>,
+    ) {
+        info!("disconnecting {} (user request)", kind.as_str());
+        // Stop any in-flight reconnect first so it cannot re-add the device we clear.
+        let reconnect_task = match kind {
+            Trainer => self.trainer_reconnect_task.take(),
+            Hrm => self.hrm_reconnect_task.take(),
+        };
+        if let Some(task) = reconnect_task {
+            task.abort();
+        }
+        // Abort the notif task and take the peripheral so we can disconnect it.
+        let peripheral = match kind {
+            Trainer => {
+                if let Some(task) = self.trainer_task.take() {
+                    task.abort();
+                }
+                self.trainer.take()
+            }
+            Hrm => {
+                if let Some(task) = self.hrm_task.take() {
+                    task.abort();
+                }
+                self.hrm.take()
+            }
+        };
+        if let Some(peripheral) = peripheral {
+            if let Err(e) = peripheral.disconnect().await {
+                error!("{} disconnect failed (best effort): {e}", kind.as_str());
+            }
+        }
+        // Clear cached metrics so emit_metrics stops reporting stale values, and drop the
+        // retained id so start_reconnect has nothing to relaunch against.
+        match kind {
+            Trainer => {
+                self.last_power_w = None;
+                self.last_cadence_rpm = None;
+                self.last_trainer_id = None;
+                // Stop the ERG keep-alive from retransmitting onto a future trainer.
+                self.last_target_w = None;
+                self.consecutive_erg_failures = 0;
+            }
+            Hrm => {
+                self.last_hr_bpm = None;
+                self.last_hrm_id = None;
+            }
+        }
+        let _ = reply.send(Ok(()));
     }
 
     // Spawn one reconnect task for `kind`, unless one is already running (which also

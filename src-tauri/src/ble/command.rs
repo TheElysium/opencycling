@@ -133,6 +133,17 @@ impl BleActorHandle {
             .map_err(|_| AppError::ChannelClosed)
     }
 
+    // User-initiated disconnect: tear the device down for good so auto-reconnect does
+    // not resurrect it. Request-reply so the caller knows the actor processed it.
+    pub async fn disconnect(&self, kind: DeviceKind) -> Result<(), AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(BleCommand::Disconnect { kind, reply: tx })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
     // Fire-and-forget: clear the retained ERG target when a session ends so the
     // keep-alive cannot resurrect it on a later reconnect (issue 17).
     pub async fn session_ended(&self) -> Result<(), AppError> {

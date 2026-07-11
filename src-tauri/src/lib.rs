@@ -1,7 +1,7 @@
 use crate::ble::{BleActorHandle, BleEvent, BleMetrics, DeviceInfo, DeviceKind};
 use crate::db::{DbActorHandle, SessionCard, SessionDetail, Settings, StravaAuth};
 use crate::errors::AppError;
-use crate::session::{SessionActorHandle, SessionSnapshot};
+use crate::session::{SessionActorHandle, SessionSnapshot, StateKind};
 use crate::strava::types::StravaStatus;
 use crate::workout::{list_workouts, parse_zwo, ParsedWorkout, WorkoutLibrary};
 use tauri::Manager;
@@ -48,6 +48,44 @@ async fn connect_hrm(
     device_id: String,
 ) -> Result<(), AppError> {
     state.connect_hrm(device_id).await
+}
+
+// A session that is not yet finalized (WaitingForRider / Running / Paused) still holds
+// the trainer under ERG control, so disconnecting it mid-session would leave the session
+// driving a phantom trainer. `Finished` is inert, so it does not block. `None` metrics
+// means no session at all.
+async fn trainer_session_active(session: &tauri::State<'_, SessionActorHandle>) -> bool {
+    match session.snapshot().await {
+        Ok(Some(snapshot)) => match snapshot.metrics {
+            Some(metrics) => metrics.state != StateKind::Finished,
+            None => false,
+        },
+        // No snapshot (or the query failed): treat as not active so a stuck query never
+        // wedges the disconnect affordance.
+        _ => false,
+    }
+}
+
+#[tauri::command]
+async fn disconnect_trainer(
+    ble: tauri::State<'_, BleActorHandle>,
+    session: tauri::State<'_, SessionActorHandle>,
+) -> Result<(), AppError> {
+    // Blocked during an active session: the trainer is under ERG control, so the rider
+    // must stop the session first. Decided in the command layer to keep BleActor and
+    // SessionActor decoupled.
+    if trainer_session_active(&session).await {
+        return Err(AppError::Other(
+            "Stop the current session before disconnecting the trainer".to_string(),
+        ));
+    }
+    ble.disconnect(DeviceKind::Trainer).await
+}
+
+#[tauri::command]
+async fn disconnect_hrm(ble: tauri::State<'_, BleActorHandle>) -> Result<(), AppError> {
+    // The HRM never drives session state, so disconnecting it is always allowed.
+    ble.disconnect(DeviceKind::Hrm).await
 }
 
 #[tauri::command]
@@ -255,6 +293,8 @@ pub fn run() {
             scan_devices,
             connect_trainer,
             connect_hrm,
+            disconnect_trainer,
+            disconnect_hrm,
             retry_reconnect,
             set_target_power,
             get_settings,
