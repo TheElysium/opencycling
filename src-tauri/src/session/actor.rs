@@ -58,6 +58,10 @@ impl SessionActor {
             }
         };
         self.state = Some(next);
+        // A trainer drop/reconnect may flip Running<->Paused; clear the ERG write
+        // tracker so the first tick after auto-resume rewrites the target to the
+        // (possibly freshly reconnected) trainer even if the value is unchanged.
+        self.last_sent_target_w = None;
         self.emit_metrics();
     }
 
@@ -103,6 +107,7 @@ impl SessionActor {
                 self.current_session_id = None;
                 self.last_session_id = None;
                 self.last_aero = None;
+                self.last_sent_target_w = None;
                 if let Some(s) = self.session.as_ref() {
                     info!(
                         workout = s.workout_name.as_deref().unwrap_or("Untitled"),
@@ -119,6 +124,9 @@ impl SessionActor {
                 if let Some(state) = self.state.take() {
                     self.state = Some(state.pause())
                 }
+                // Clear the ERG write tracker so resume rewrites the target even when
+                // it matches the last value sent before pausing.
+                self.last_sent_target_w = None;
                 self.emit_metrics();
             }
             SessionCommand::Resume => {
@@ -126,6 +134,7 @@ impl SessionActor {
                 if let Some(state) = self.state.take() {
                     self.state = Some(state.resume())
                 }
+                self.last_sent_target_w = None;
                 self.emit_metrics();
             }
             SessionCommand::Stop => {
@@ -133,6 +142,7 @@ impl SessionActor {
                 if let Some(state) = self.state.take() {
                     self.state = Some(state.stop());
                 }
+                self.last_sent_target_w = None;
                 self.finalize_db_session().await;
                 // Clear the trainer's ERG target so the keep-alive cannot replay it
                 // after the session is over (issue 17).
@@ -144,6 +154,9 @@ impl SessionActor {
                 if let (Some(state), Some(session)) = (self.state.take(), self.session.as_mut()) {
                     self.state = Some(state.skip(session))
                 }
+                // A skip moves to a new block whose target may differ; clear the tracker
+                // so the next tick writes the new block's target.
+                self.last_sent_target_w = None;
                 self.emit_metrics();
             }
             SessionCommand::ReportAero { aero } => {
@@ -177,6 +190,9 @@ impl SessionActor {
 
         if kind != prev_kind {
             info!(from = ?prev_kind, to = ?kind, "state transition");
+            // Force the next ERG write regardless of value: e.g. resuming into a steady
+            // block whose target equals the last one sent must still rewrite it.
+            self.last_sent_target_w = None;
         }
         if kind == StateKind::Running && block_idx != prev_block_idx {
             let label = self
@@ -235,9 +251,24 @@ impl SessionActor {
                         )
                         .await;
                 }
+                // Write the ERG target only when it changes. Block transitions and
+                // ramps (recomputed every second) still produce a new value and thus a
+                // write; a steady block sends once and then relies on the BLE actor's
+                // 10 s keep-alive for retention. Interaction with ERG-failure-based drop
+                // detection (audit 2.4): with fewer writes, a trainer that drops during
+                // a steady block is detected more slowly, but the keep-alive still writes
+                // every 10 s, so two consecutive failures bound detection to about 20 s,
+                // which is acceptable. last_sent_target_w is cleared on every state
+                // transition (pause/resume/skip/start/stop) so resume rewrites the
+                // target even when the number is unchanged.
                 if let Some(target) = target_w {
-                    if let Err(e) = self.ble_handle.set_target_power(target as i16).await {
-                        tracing::error!("set_target_power failed: {e}");
+                    let target = target as i16;
+                    if self.last_sent_target_w != Some(target) {
+                        if let Err(e) = self.ble_handle.set_target_power(target).await {
+                            tracing::error!("set_target_power failed: {e}");
+                        } else {
+                            self.last_sent_target_w = Some(target);
+                        }
                     }
                 }
             }

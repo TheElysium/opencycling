@@ -36,6 +36,7 @@ impl SessionActorHandle {
             current_session_id: None,
             last_session_id: None,
             last_aero: None,
+            last_sent_target_w: None,
         };
         tokio::spawn(actor.run());
         Self { sender: cmd_tx }

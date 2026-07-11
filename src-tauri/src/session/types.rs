@@ -173,4 +173,10 @@ pub struct SessionActor {
     /// then yields `None` instead of re-writing the last value into every 1 Hz
     /// sample, which would bias `aero_pct`.
     pub last_aero: Option<bool>,
+    /// Last ERG target actually written to the BLE actor. The tick path skips the write
+    /// when the recomputed target is unchanged, so steady blocks stop re-sending the
+    /// same value every second (the BLE keep-alive covers retention). Cleared on every
+    /// state transition (start, pause, resume, stop, skip) so resuming or crossing a
+    /// block boundary always rewrites, even if the numeric target happens to match.
+    pub last_sent_target_w: Option<i16>,
 }
