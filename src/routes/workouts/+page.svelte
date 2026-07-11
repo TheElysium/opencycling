@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { invoke } from '@tauri-apps/api/core';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { Search, X, ArrowUp, ArrowDown } from '@lucide/svelte';
   import WorkoutThumb from '$lib/components/WorkoutThumb.svelte';
-  import { workoutSelection, flattenWorkout, type ParsedWorkout, type WorkoutLibrary, type WorkoutFileError } from '$lib/workout.svelte';
+  import { commands, type FlatBlock } from '$lib/bindings';
+  import { workoutSelection, type ParsedWorkout, type WorkoutFileError } from '$lib/workout.svelte';
   import { formatDuration, totalDuration, displayWorkoutName, toMessage } from '$lib/format';
   import { computeWorkoutMetrics, workoutTypeColor, type WorkoutType } from '$lib/metrics';
   import { workoutFtp } from '$lib/ftp';
@@ -13,6 +13,9 @@
   let workoutPath    = $state('');
   let ftp            = $state(200);
   let workouts       = $state<ParsedWorkout[]>([]);
+  // Flat blocks per workout (same index as `workouts`), fetched from the Rust
+  // flatten_workout command right after loading; drives the card thumbnails.
+  let flats          = $state<FlatBlock[][]>([]);
   let parseErrors    = $state<WorkoutFileError[]>([]);
   let showParseErrors = $state(true);
   let loading        = $state(true);
@@ -53,12 +56,13 @@
   // Precompute metrics and display name once so filtering, sorting, and the
   // grid all share the same values instead of recomputing per render.
   let decorated = $derived(
-    workouts.map(w => {
+    workouts.map((w, i) => {
       // A test renders at its reference FTP (watt == %), so metrics/thumb use that.
       const cardFtp = workoutFtp(w, ftp);
       return {
         w,
         cardFtp,
+        flat: flats[i] ?? [],
         m: computeWorkoutMetrics(w.workout_blocks, cardFtp),
         name: displayWorkoutName(w.name),
       };
@@ -94,7 +98,12 @@
       workoutPath = s.workout_path;
       ftp = s.ftp_w;
       if (workoutPath) {
-        const lib = await invoke<WorkoutLibrary>('list_workouts_cmd', { folder: workoutPath });
+        const lib = await commands.listWorkoutsCmd(workoutPath);
+        // Flatten every workout on the backend before rendering, so the thumbnails
+        // use the same canonical FlatBlock list as the session (labels included).
+        flats = await Promise.all(
+          lib.workouts.map(w => commands.flattenWorkoutCmd(w, workoutFtp(w, ftp)))
+        );
         workouts = lib.workouts;
         parseErrors = lib.errors;
       }
@@ -186,10 +195,10 @@
     <p class="muted">No workouts match "<strong>{query}</strong>".</p>
   {:else}
     <div class="workout-grid">
-      {#each filteredWorkouts as { w, m, name, cardFtp }}
+      {#each filteredWorkouts as { w, m, name, cardFtp, flat }}
         <button class="workout-card" onclick={() => select(w)}>
           <div class="card-chart">
-            <WorkoutThumb blocks={flattenWorkout(w.workout_blocks, cardFtp)} ftpWatts={cardFtp} />
+            <WorkoutThumb blocks={flat} ftpWatts={cardFtp} />
           </div>
           <div class="card-info">
             {#if w.is_ftp_test}

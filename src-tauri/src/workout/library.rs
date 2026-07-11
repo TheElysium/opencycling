@@ -1,11 +1,12 @@
 use crate::errors::AppError;
 use crate::workout::{parse_zwo, ParsedWorkout};
 use serde::Serialize;
+use specta::Type;
 use std::ffi::OsStr;
 use std::fs::{read_dir, read_to_string};
 
 /// A file that could not be read or parsed, returned alongside successful workouts.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Type)]
 pub struct WorkoutFileError {
     pub file_name: String,
     pub message: String,
@@ -14,7 +15,7 @@ pub struct WorkoutFileError {
 /// Result of listing a workout folder: successfully parsed workouts plus any
 /// files that failed (parse errors, unreadable files), so the frontend can
 /// show a warning without hiding the workouts that did load.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Type)]
 pub struct WorkoutLibrary {
     pub workouts: Vec<ParsedWorkout>,
     pub errors: Vec<WorkoutFileError>,

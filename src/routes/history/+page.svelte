@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { invoke } from '@tauri-apps/api/core';
+  import { commands } from '$lib/bindings';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { Zap, Heart, RotateCw } from '@lucide/svelte';
@@ -19,7 +19,7 @@
 
   onMount(async () => {
     try {
-      sessions = await invoke<SessionCard[]>('list_sessions');
+      sessions = await commands.listSessions();
     } catch (e) {
       error = toMessage(e);
     } finally {

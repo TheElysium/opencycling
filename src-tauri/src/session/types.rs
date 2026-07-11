@@ -3,6 +3,7 @@ use crate::db::DbActorHandle;
 use crate::errors::AppError;
 use crate::workout::ParsedWorkout;
 use serde::{Deserialize, Serialize};
+use specta::Type;
 use tauri::AppHandle;
 use tokio::sync::{mpsc, oneshot};
 
@@ -59,7 +60,7 @@ impl Session {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct FlatBlock {
     pub duration_s: u32,
     pub power_start_w: u16,
@@ -68,7 +69,7 @@ pub struct FlatBlock {
     pub label: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
 pub enum StateKind {
     WaitingForRider,
     Running,
@@ -122,7 +123,7 @@ pub enum SessionCommand {
     },
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Type)]
 pub struct SessionMetrics {
     pub state: StateKind,
     pub total_elapsed_s: u32,
@@ -139,7 +140,7 @@ pub struct SessionMetrics {
     pub session_id: Option<i64>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Type)]
 pub struct SessionSnapshot {
     pub flat_blocks: Vec<FlatBlock>,
     pub ftp_w: u16,

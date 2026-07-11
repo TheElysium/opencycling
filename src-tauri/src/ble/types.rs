@@ -2,6 +2,7 @@ use crate::errors::AppError;
 use btleplug::api::Characteristic;
 use btleplug::platform::{Adapter, Manager, Peripheral};
 use serde::{Deserialize, Serialize};
+use specta::Type;
 use std::sync::Arc;
 use std::time::Instant;
 use tauri::AppHandle;
@@ -9,14 +10,14 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::{oneshot, Mutex};
 use tokio::task::AbortHandle;
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Type)]
 pub struct DeviceInfo {
     pub id: String,
     pub name: String,
     pub kind: Option<DeviceKind>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Type)]
 pub enum DeviceKind {
     Trainer,
     Hrm,
@@ -32,14 +33,14 @@ impl DeviceKind {
     }
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Type)]
 pub struct BleMetrics {
     pub power_w: Option<i16>,
     pub hr_bpm: Option<u16>,
     pub cadence_rpm: Option<u16>,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Type)]
 pub struct BleError {
     pub device: String,
     pub message: String,
@@ -47,11 +48,13 @@ pub struct BleError {
 
 /// Structured payload for the `ble_reconnect` event. `attempt` is only meaningful
 /// while `status == "reconnecting"`.
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Type)]
 pub struct BleReconnect {
     pub device: String,
     pub status: String, // "reconnecting" | "reconnected" | "failed"
-    #[serde(skip_serializing_if = "Option::is_none")]
+    // Serialized as an explicit null when absent (no skip_serializing_if): consumers
+    // read it with `attempt ?? 0`, and a single JSON shape keeps the generated
+    // TypeScript type from splitting into serialize/deserialize variants.
     pub attempt: Option<u32>,
 }
 

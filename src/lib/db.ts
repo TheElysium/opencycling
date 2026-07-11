@@ -1,54 +1,9 @@
-import type { FlatBlock } from './session.svelte';
-import { zoneOf, type WorkoutType } from './metrics';
+import type { Metric as MetricSample, SessionCard } from './bindings';
+import { zoneOf } from './metrics';
 
-export type SessionCard = {
-  id: number;
-  started_at: string;
-  workout_name: string;
-  duration_s: number | null;
-  avg_power_w: number | null;
-  avg_hr_bpm: number | null;
-  avg_cadence_rpm: number | null;
-  ftp_w_used: number;
-  workout_type: WorkoutType | null;
-  aero_pct: number | null;
-  np_w: number | null;
-  if_: number | null;
-  tss: number | null;
-};
-
-export type MetricSample = {
-  t_offset_s: number;
-  power_w: number | null;
-  hr_bpm: number | null;
-  cadence_rpm: number | null;
-  // Per-sample smoothed aero score (0..1). Not surfaced in any visual yet; kept for
-  // debugging the detector when riders report inaccurate aero tracking.
-  aero_score: number | null;
-};
-
-export type SessionDetail = {
-  id: number;
-  strava_activity_id: number | null;
-  started_at: string;
-  ended_at: string | null;
-  workout_name: string;
-  duration_s: number | null;
-  avg_power_w: number | null;
-  max_power_w: number | null;
-  avg_hr_bpm: number | null;
-  max_hr_bpm: number | null;
-  avg_cadence_rpm: number | null;
-  max_cadence_rpm: number | null;
-  ftp_w_used: number;
-  workout_type: WorkoutType | null;
-  aero_pct: number | null;
-  np_w: number | null;
-  if_: number | null;
-  tss: number | null;
-  flat_blocks: FlatBlock[];
-  metrics: MetricSample[];
-};
+// All bridge types are generated from the Rust structs (src/lib/bindings.ts). The Rust
+// struct is named `Metric`; the frontend keeps its historical `MetricSample` name.
+export type { SessionCard, SessionDetail, Metric as MetricSample } from './bindings';
 
 // NP / IF / TSS are computed once on the backend at finalize (from the full 1 Hz
 // series, against the session's frozen FTP) and stored on the row. Read them

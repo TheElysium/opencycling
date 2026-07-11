@@ -1,20 +1,23 @@
 use serde::{Deserialize, Serialize};
+use specta::Type;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Type)]
 pub struct ParsedWorkout {
     pub author: Option<String>,
     pub name: Option<String>,
     pub description: Option<String>,
     pub sport_type: SportType,
     pub workout_blocks: Vec<WorkoutBlock>,
-    #[serde(default)]
+    // No #[serde(default)] on the two fields below: ParsedWorkout is only ever
+    // deserialized at the Tauri boundary, where the generated bindings guarantee the
+    // frontend sends complete objects, and defaults would export them as optional
+    // (`field?:`) in TypeScript.
     pub is_ftp_test: bool,
     /// Source file name (basename only). None when parsed from raw content
     /// without a file context (e.g. tests or load_workout command).
-    #[serde(default)]
     pub file_name: Option<String>,
 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub enum WorkoutBlock {
     SteadyState {
         duration_s: u32,
@@ -48,7 +51,7 @@ impl WorkoutBlock {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Type)]
 pub enum SportType {
     Bike,
     Running,

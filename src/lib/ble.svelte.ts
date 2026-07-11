@@ -1,7 +1,9 @@
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from './bindings';
+import type { BleMetrics, DeviceKind } from './bindings';
 import { toMessage } from '$lib/format';
 
-export type DeviceKind = 'Trainer' | 'Hrm';
+// Generated from the Rust types (src-tauri/src/ble/types.rs).
+export type { BleMetrics, DeviceKind } from './bindings';
 
 export type DeviceStatus = 'scanning' | 'not_found' | 'detected' | 'connecting' | 'connected' | 'disconnected' | 'error';
 
@@ -16,12 +18,6 @@ export type DeviceWire = 'trainer' | 'hrm';
 export function kindFromWire(device: DeviceWire): DeviceKind {
   return device === 'trainer' ? 'Trainer' : 'Hrm';
 }
-
-export type BleMetrics = {
-  power_w: number | null;
-  hr_bpm: number | null;
-  cadence_rpm: number | null;
-};
 
 // How long the "reconnected" success state lingers before the affordance clears.
 const RECONNECTED_LINGER_MS = 1800;
@@ -80,7 +76,7 @@ class BleState {
 
   async retryReconnect(kind: DeviceKind): Promise<void> {
     this.applyReconnect(kind, 'reconnecting', 0);
-    await invoke('retry_reconnect', { kind });
+    await commands.retryReconnect(kind);
   }
 
   // Clear the reconnect affordance for a device (e.g. when the user stops the session
@@ -123,7 +119,7 @@ export async function disconnectDevice(kind: DeviceKind): Promise<void> {
   // connected state and surface the error. The backend does not emit `ble_disconnected`
   // for a manual disconnect, so we update the store here.
   try {
-    await invoke(kind === 'Trainer' ? 'disconnect_trainer' : 'disconnect_hrm');
+    await (kind === 'Trainer' ? commands.disconnectTrainer() : commands.disconnectHrm());
   } catch (e) {
     ble.setError(kind, toMessage(e));
     return;

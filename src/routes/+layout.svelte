@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import {Plug, History, Settings, Bike} from '@lucide/svelte';
+  import type { BleError } from '$lib/bindings';
   import { ble, kindFromWire, type BleMetrics, type DeviceStatus, type DeviceWire, type ReconnectStatus } from '$lib/ble.svelte';
   import { session, type SessionMetrics } from '$lib/session.svelte';
   import { checkForUpdate } from '$lib/updater';
@@ -54,7 +55,7 @@
       ble.metrics = e.payload;
     }).then(track);
 
-    listen<{ device: string; message: string }>('ble_error', (e) => {
+    listen<BleError>('ble_error', (e) => {
       ble.setError(e.payload.device === 'trainer' ? 'Trainer' : 'Hrm', e.payload.message);
     }).then(track);
 

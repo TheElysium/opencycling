@@ -1,13 +1,7 @@
-import type { WorkoutBlock } from './workout.svelte';
+import type { WorkoutBlock, WorkoutType } from './bindings';
 
-export type WorkoutType =
-  | 'Recovery'
-  | 'Endurance'
-  | 'Tempo'
-  | 'Sweet Spot'
-  | 'Threshold'
-  | 'VO2max'
-  | 'Anaerobic';
+// Generated from the Rust enum (src-tauri/src/metrics.rs); re-exported for display code.
+export type { WorkoutType } from './bindings';
 
 export type WorkoutMetrics = {
   duration_s: number;
@@ -43,16 +37,22 @@ export function workoutTypeColor(t: WorkoutType): string {
 function flattenToSeconds(blocks: WorkoutBlock[]): number[] {
   const out: number[] = [];
   for (const b of blocks) {
-    if ('SteadyState' in b) {
-      const { duration_s, power_pct } = b.SteadyState;
+    // Truthiness checks, not `'X' in b`: see blockDuration in format.ts. Generated
+    // float fields are `number | null` (NaN serializes to null in JSON); a missing
+    // power is treated as 0% FTP.
+    if (b.SteadyState) {
+      const { duration_s } = b.SteadyState;
+      const power_pct = b.SteadyState.power_pct ?? 0;
       for (let i = 0; i < duration_s; i++) out.push(power_pct);
-    } else if ('Ramp' in b) {
-      const { duration_s, power_start_pct, power_end_pct } = b.Ramp;
+    } else if (b.Ramp) {
+      const { duration_s } = b.Ramp;
+      const power_start_pct = b.Ramp.power_start_pct ?? 0;
+      const power_end_pct = b.Ramp.power_end_pct ?? 0;
       for (let i = 0; i < duration_s; i++) {
         const t = duration_s > 1 ? i / (duration_s - 1) : 0;
         out.push(power_start_pct + (power_end_pct - power_start_pct) * t);
       }
-    } else if ('IntervalsT' in b) {
+    } else if (b.IntervalsT) {
       const { repeat, on, off } = b.IntervalsT;
       for (let r = 0; r < repeat; r++) {
         out.push(...flattenToSeconds([on, off]));

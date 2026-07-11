@@ -1,5 +1,5 @@
 import { save } from '@tauri-apps/plugin-dialog';
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from './bindings';
 
 /** Opens a save dialog and writes the session as a .tcx file. */
 export async function exportSessionTcx(
@@ -15,5 +15,5 @@ export async function exportSessionTcx(
     filters: [{ name: 'TCX', extensions: ['tcx'] }],
   });
   if (!path) return; // cancelled
-  await invoke('export_session_tcx', { id, path });
+  await commands.exportSessionTcx(id, path);
 }

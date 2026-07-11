@@ -1,6 +1,7 @@
 use crate::ble::BleEvent;
 use crate::db::Metric;
 use crate::errors::AppError;
+use crate::metrics::fallback_label;
 use crate::session::state::TICK_S;
 use crate::session::types::{
     FlatBlock, Session, SessionActor, SessionCommand, SessionMetrics, SessionSnapshot, StateKind,
@@ -347,7 +348,7 @@ impl SessionActor {
     }
 }
 
-fn flatten_workout(parsed_workout: ParsedWorkout, ftp_w: u16) -> Vec<FlatBlock> {
+pub fn flatten_workout(parsed_workout: ParsedWorkout, ftp_w: u16) -> Vec<FlatBlock> {
     let mut out = Vec::new();
     for block in parsed_workout.workout_blocks {
         flatten_block(block, ftp_w, &mut out);
@@ -412,42 +413,6 @@ fn flatten_block_with_label(
                 flatten_block_with_label(*off.clone(), ftp_w, Some(off_label), flattened);
             }
         }
-    }
-}
-
-const ZONE_THRESHOLDS: [f32; 5] = [0.55, 0.75, 0.90, 1.05, 1.20];
-
-fn zone_of(pct: f32) -> u8 {
-    for (i, t) in ZONE_THRESHOLDS.iter().enumerate() {
-        if pct < *t {
-            return (i as u8) + 1;
-        }
-    }
-    6
-}
-
-fn zone_name(z: u8) -> &'static str {
-    match z {
-        1 => "Recovery",
-        2 => "Endurance",
-        3 => "Tempo",
-        4 => "Threshold",
-        5 => "VO2max",
-        _ => "Anaerobic",
-    }
-}
-
-fn fallback_label(start_w: u16, end_w: u16, ftp_w: u16) -> String {
-    if ftp_w == 0 {
-        return "Block".to_string();
-    }
-    let ftp = ftp_w as f32;
-    let zs = zone_of(start_w as f32 / ftp);
-    let ze = zone_of(end_w as f32 / ftp);
-    if zs != ze {
-        format!("Ramp {}→{}", zone_name(zs), zone_name(ze))
-    } else {
-        format!("Steady {}", zone_name(zs))
     }
 }
 

@@ -1,9 +1,11 @@
 import type { WorkoutBlock } from './workout.svelte';
 
 export function blockDuration(b: WorkoutBlock): number {
-  if ('SteadyState' in b) return b.SteadyState.duration_s;
-  if ('Ramp' in b)        return b.Ramp.duration_s;
-  if ('IntervalsT' in b) {
+  // Truthiness checks, not `'X' in b`: the generated WorkoutBlock union marks the
+  // other variants' keys as `?: never`, so `in` does not narrow the property itself.
+  if (b.SteadyState) return b.SteadyState.duration_s;
+  if (b.Ramp)        return b.Ramp.duration_s;
+  if (b.IntervalsT) {
     const { repeat, on, off } = b.IntervalsT;
     return repeat * (blockDuration(on) + blockDuration(off));
   }

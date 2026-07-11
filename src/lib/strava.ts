@@ -1,26 +1,23 @@
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from './bindings';
+import type { StravaStatus } from './bindings';
 
-export type StravaStatus = {
-  connected: boolean;
-  athlete_id: number | null;
-  athlete_name: string | null;
-  auto_upload: boolean;
-};
+// Generated from the Rust struct (src-tauri/src/strava/types.rs).
+export type { StravaStatus } from './bindings';
 
 export function stravaStatus(): Promise<StravaStatus> {
-  return invoke<StravaStatus>('strava_status');
+  return commands.stravaStatus();
 }
 
 export function stravaConnect(): Promise<StravaStatus> {
-  return invoke<StravaStatus>('strava_connect');
+  return commands.stravaConnect();
 }
 
-export function stravaDisconnect(): Promise<void> {
-  return invoke('strava_disconnect');
+export async function stravaDisconnect(): Promise<void> {
+  await commands.stravaDisconnect();
 }
 
-export function stravaSetAutoUpload(enabled: boolean): Promise<void> {
-  return invoke('strava_set_auto_upload', { enabled });
+export async function stravaSetAutoUpload(enabled: boolean): Promise<void> {
+  await commands.stravaSetAutoUpload(enabled);
 }
 
 /**
@@ -29,7 +26,7 @@ export function stravaSetAutoUpload(enabled: boolean): Promise<void> {
  * Returns the created Strava activity id.
  */
 export function uploadSessionToStrava(sessionId: number, force = false): Promise<number> {
-  return invoke<number>('upload_session_to_strava', { sessionId, force });
+  return commands.uploadSessionToStrava(sessionId, force);
 }
 
 export function activityUrl(activityId: number): string {

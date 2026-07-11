@@ -1,13 +1,11 @@
 <script lang="ts">
-  import { invoke } from '@tauri-apps/api/core';
   import { onMount } from 'svelte';
   import { fade, slide } from 'svelte/transition';
   import { goto } from '$app/navigation';
   import { Search, LoaderCircle, Plug2, Heart, Activity, Gauge } from '@lucide/svelte';
+  import { commands } from '$lib/bindings';
   import { ble, disconnectDevice, type DeviceKind, type DeviceStatus } from '$lib/ble.svelte';
   import { toMessage } from '$lib/format';
-
-  type DeviceInfo = { id: string; name: string; kind: DeviceKind | null };
 
   let trainerId  = $state<string | null>(null);
   let hrmId      = $state<string | null>(null);
@@ -50,7 +48,7 @@
     }
 
     try {
-      const devices = await invoke<DeviceInfo[]>('scan_devices');
+      const devices = await commands.scanDevices();
       const trainer = devices.find(d => d.kind === 'Trainer');
       const hrm     = devices.find(d => d.kind === 'Hrm');
 
@@ -85,8 +83,7 @@
     setStatus('connecting');
     setError(null);
     try {
-      const cmd = isTrainer ? 'connect_trainer' : 'connect_hrm';
-      await invoke(cmd, { deviceId: id });
+      await (isTrainer ? commands.connectTrainer(id) : commands.connectHrm(id));
       setStatus('connected');
     } catch (e) {
       setStatus('error');

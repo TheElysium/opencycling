@@ -4,7 +4,8 @@
   import { ArrowLeft, HelpCircle, Flame, Target, Zap, Battery, RotateCw } from '@lucide/svelte';
   import WorkoutPreview from '$lib/components/WorkoutPreview.svelte';
   import MetricsStrip, { type MetricTile } from '$lib/components/MetricsStrip.svelte';
-  import { workoutSelection, flattenWorkout, type WorkoutBlock } from '$lib/workout.svelte';
+  import { commands, type FlatBlock } from '$lib/bindings';
+  import { workoutSelection, type WorkoutBlock } from '$lib/workout.svelte';
   import { ble } from '$lib/ble.svelte';
   import { blockDuration, totalDuration, formatDuration, displayWorkoutName, stripHtml, toMessage } from '$lib/format';
   import { computeWorkoutMetrics, workoutTypeColor, zoneOf } from '$lib/metrics';
@@ -59,14 +60,16 @@
 
   type BlockRow = { kind: string; duration: string; power: string; cadence: string | null; pill: string; pillTitle: string };
 
+  // Generated float fields are `number | null` (NaN serializes to null in JSON);
+  // a missing power is treated as 0% FTP throughout this page.
   function pillFor(b: WorkoutBlock): { bg: string; title: string } {
-    if ('SteadyState' in b) {
-      const z = zoneOf(b.SteadyState.power_pct);
+    if (b.SteadyState) {
+      const z = zoneOf(b.SteadyState.power_pct ?? 0);
       return { bg: `var(--z${z})`, title: `Zone ${z}` };
     }
-    if ('Ramp' in b) {
-      const zS = zoneOf(b.Ramp.power_start_pct);
-      const zE = zoneOf(b.Ramp.power_end_pct);
+    if (b.Ramp) {
+      const zS = zoneOf(b.Ramp.power_start_pct ?? 0);
+      const zE = zoneOf(b.Ramp.power_end_pct ?? 0);
       if (zS === zE) return { bg: `var(--z${zS})`, title: `Zone ${zS}` };
       return {
         bg: `linear-gradient(to right, var(--z${zS}), var(--z${zE}))`,
@@ -74,8 +77,8 @@
       };
     }
     const { on, off } = b.IntervalsT;
-    const onPct  = 'SteadyState' in on  ? on.SteadyState.power_pct  : 'Ramp' in on  ? on.Ramp.power_start_pct  : 0;
-    const offPct = 'SteadyState' in off ? off.SteadyState.power_pct : 'Ramp' in off ? off.Ramp.power_start_pct : 0;
+    const onPct  = (on.SteadyState  ? on.SteadyState.power_pct  : on.Ramp  ? on.Ramp.power_start_pct  : 0) ?? 0;
+    const offPct = (off.SteadyState ? off.SteadyState.power_pct : off.Ramp ? off.Ramp.power_start_pct : 0) ?? 0;
     const zOn = zoneOf(onPct);
     const zOff = zoneOf(offPct);
     if (zOn === zOff) return { bg: `var(--z${zOn})`, title: `Zone ${zOn}` };
@@ -87,19 +90,21 @@
 
   function describeBlock(b: WorkoutBlock): BlockRow {
     const p = pillFor(b);
-    if ('SteadyState' in b) {
-      const { duration_s, power_pct, cadence_rpm, label } = b.SteadyState;
+    if (b.SteadyState) {
+      const { duration_s, cadence_rpm, label } = b.SteadyState;
       return {
         kind: label ?? 'Steady',
         duration: formatDuration(duration_s),
-        power: pwr(power_pct),
+        power: pwr(b.SteadyState.power_pct ?? 0),
         cadence: cadence_rpm ? `${cadence_rpm} rpm` : null,
         pill: p.bg,
         pillTitle: p.title,
       };
     }
-    if ('Ramp' in b) {
-      const { duration_s, power_start_pct, power_end_pct, cadence_rpm, label } = b.Ramp;
+    if (b.Ramp) {
+      const { duration_s, cadence_rpm, label } = b.Ramp;
+      const power_start_pct = b.Ramp.power_start_pct ?? 0;
+      const power_end_pct = b.Ramp.power_end_pct ?? 0;
       return {
         kind: label ?? 'Ramp',
         duration: formatDuration(duration_s),
@@ -112,10 +117,10 @@
       };
     }
     const { repeat, on, off } = b.IntervalsT;
-    const onPct  = 'SteadyState' in on  ? on.SteadyState.power_pct  : 'Ramp' in on  ? on.Ramp.power_start_pct  : 0;
-    const offPct = 'SteadyState' in off ? off.SteadyState.power_pct : 'Ramp' in off ? off.Ramp.power_start_pct : 0;
-    const onCad  = 'SteadyState' in on  ? on.SteadyState.cadence_rpm  : 'Ramp' in on  ? on.Ramp.cadence_rpm  : null;
-    const offCad = 'SteadyState' in off ? off.SteadyState.cadence_rpm : 'Ramp' in off ? off.Ramp.cadence_rpm : null;
+    const onPct  = (on.SteadyState  ? on.SteadyState.power_pct  : on.Ramp  ? on.Ramp.power_start_pct  : 0) ?? 0;
+    const offPct = (off.SteadyState ? off.SteadyState.power_pct : off.Ramp ? off.Ramp.power_start_pct : 0) ?? 0;
+    const onCad  = on.SteadyState  ? on.SteadyState.cadence_rpm  : on.Ramp  ? on.Ramp.cadence_rpm  : null;
+    const offCad = off.SteadyState ? off.SteadyState.cadence_rpm : off.Ramp ? off.Ramp.cadence_rpm : null;
     let cadence: string | null = null;
     if (onCad != null && offCad != null) cadence = `${onCad} rpm on / ${offCad} rpm off`;
     else if (onCad != null) cadence = `${onCad} rpm on`;
@@ -136,12 +141,30 @@
   let blockRows = $derived(w ? w.workout_blocks.map(describeBlock) : []);
   let metrics   = $derived(w ? computeWorkoutMetrics(w.workout_blocks, effFtp) : null);
 
+  // Canonical flat block list from the Rust flatten_workout command (async, so a
+  // $state refreshed by an effect rather than a $derived). Drives the preview chart
+  // and the cadence average below.
+  let flat = $state<FlatBlock[]>([]);
+  $effect(() => {
+    const workout = w;
+    const ftpW = effFtp;
+    if (!workout) {
+      flat = [];
+      return;
+    }
+    commands.flattenWorkoutCmd(workout, ftpW).then(blocks => {
+      // Ignore a stale response if the workout or FTP changed meanwhile.
+      if (workoutSelection.workout === workout && workoutFtp(workout, ftp) === ftpW) {
+        flat = blocks;
+      }
+    });
+  });
+
   // Duration-weighted avg cadence across blocks that specify one. null if none specified.
   let avgCadence = $derived.by<number | null>(() => {
-    if (!w) return null;
     let num = 0;
     let den = 0;
-    for (const f of flattenWorkout(w.workout_blocks, effFtp)) {
+    for (const f of flat) {
       if (f.cadence_rpm != null) {
         num += f.cadence_rpm * f.duration_s;
         den += f.duration_s;
@@ -227,7 +250,7 @@
     {/if}
 
     <div class="chart-section">
-      <WorkoutPreview blocks={flattenWorkout(w.workout_blocks, effFtp)} ftpWatts={effFtp} />
+      <WorkoutPreview blocks={flat} ftpWatts={effFtp} />
     </div>
 
     <div class="cta-row">
