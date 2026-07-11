@@ -23,7 +23,7 @@ const DB_FILE: &str = "opencycling.db";
 
 #[tauri::command]
 fn load_workout(path: String) -> Result<ParsedWorkout, AppError> {
-    let content = std::fs::read_to_string(path).map_err(|e| AppError::Io(e.to_string()))?;
+    let content = std::fs::read_to_string(path)?;
     parse_zwo(&content)
 }
 
@@ -194,7 +194,7 @@ async fn export_session_tcx(
 ) -> Result<(), AppError> {
     let detail = state.get_session(id).await?;
     let tcx = export::tcx::build_tcx(&detail);
-    std::fs::write(&path, tcx).map_err(|e| AppError::Io(e.to_string()))?;
+    std::fs::write(&path, tcx)?;
     Ok(())
 }
 

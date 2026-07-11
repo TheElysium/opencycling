@@ -77,14 +77,13 @@ const MIGRATIONS: &[&str] = &[
 ];
 
 pub fn run(conn: &mut Connection) -> Result<(), AppError> {
-    conn.execute_batch("PRAGMA foreign_keys = ON;")
-        .map_err(|e| AppError::DbError(e.to_string()))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")?;
 
-    let mut current: u32 = conn
-        .query_row("SELECT user_version FROM pragma_user_version", [], |r| {
-            r.get(0)
-        })
-        .map_err(|e| AppError::DbError(e.to_string()))?;
+    let mut current: u32 = conn.query_row(
+        "SELECT user_version FROM pragma_user_version",
+        [],
+        |r| r.get(0),
+    )?;
 
     tracing::info!(
         "DB schema at version {current}, latest = {}",
@@ -94,14 +93,10 @@ pub fn run(conn: &mut Connection) -> Result<(), AppError> {
     for (idx, sql) in MIGRATIONS.iter().enumerate().skip(current as usize) {
         let target = (idx + 1) as u32;
         tracing::info!("applying migration v{current} -> v{target}");
-        let tx = conn
-            .transaction()
-            .map_err(|e| AppError::DbError(e.to_string()))?;
-        tx.execute_batch(sql)
-            .map_err(|e| AppError::DbError(e.to_string()))?;
-        tx.pragma_update(None, "user_version", target)
-            .map_err(|e| AppError::DbError(e.to_string()))?;
-        tx.commit().map_err(|e| AppError::DbError(e.to_string()))?;
+        let tx = conn.transaction()?;
+        tx.execute_batch(sql)?;
+        tx.pragma_update(None, "user_version", target)?;
+        tx.commit()?;
         current = target;
     }
     Ok(())

@@ -220,10 +220,7 @@ async fn proxy_post(
         .send()
         .await
         .map_err(|e| AppError::StravaAuth(format!("proxy {path}: {e}")))?;
-    let text = resp
-        .text()
-        .await
-        .map_err(|e| AppError::StravaAuth(e.to_string()))?;
+    let text = resp.text().await?;
     serde_json::from_str::<ProxyTokens>(&text)
         .map_err(|_| AppError::StravaAuth(format!("proxy {path} returned: {text}")))
 }
