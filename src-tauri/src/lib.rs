@@ -3,7 +3,7 @@ use crate::db::{DbActorHandle, SessionCard, SessionDetail, Settings, StravaAuth}
 use crate::errors::AppError;
 use crate::session::{SessionActorHandle, SessionSnapshot};
 use crate::strava::types::StravaStatus;
-use crate::workout::{list_workouts, parse_zwo, ParsedWorkout};
+use crate::workout::{list_workouts, parse_zwo, ParsedWorkout, WorkoutLibrary};
 use tauri::Manager;
 use tauri_plugin_opener::OpenerExt;
 use tracing::metadata::LevelFilter;
@@ -80,7 +80,7 @@ async fn update_settings(
 }
 
 #[tauri::command]
-fn list_workouts_cmd(folder: String) -> Result<Vec<ParsedWorkout>, AppError> {
+fn list_workouts_cmd(folder: String) -> Result<WorkoutLibrary, AppError> {
     list_workouts(&folder)
 }
 

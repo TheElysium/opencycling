@@ -6,12 +6,13 @@ mod zwo;
 
 #[cfg(test)]
 pub use types::SportType;
+pub use library::{WorkoutFileError, WorkoutLibrary};
 pub use types::{ParsedWorkout, WorkoutBlock};
 
 pub fn parse_zwo(file_content: &str) -> Result<ParsedWorkout, AppError> {
     zwo::parse_zwo(file_content)
 }
 
-pub fn list_workouts(folder: &str) -> Result<Vec<ParsedWorkout>, AppError> {
+pub fn list_workouts(folder: &str) -> Result<WorkoutLibrary, AppError> {
     library::list_workouts(folder)
 }

@@ -4,18 +4,20 @@
   import { goto } from '$app/navigation';
   import { Search, X, ArrowUp, ArrowDown } from '@lucide/svelte';
   import WorkoutThumb from '$lib/components/WorkoutThumb.svelte';
-  import { workoutSelection, flattenWorkout, type ParsedWorkout } from '$lib/workout.svelte';
+  import { workoutSelection, flattenWorkout, type ParsedWorkout, type WorkoutLibrary, type WorkoutFileError } from '$lib/workout.svelte';
   import { formatDuration, totalDuration, displayWorkoutName, toMessage } from '$lib/format';
   import { computeWorkoutMetrics, workoutTypeColor, type WorkoutType } from '$lib/metrics';
   import { workoutFtp } from '$lib/ftp';
   import { getSettings } from '$lib/settings';
 
-  let workoutPath = $state('');
-  let ftp         = $state(200);
-  let workouts    = $state<ParsedWorkout[]>([]);
-  let loading     = $state(true);
-  let error       = $state<string | null>(null);
-  let query       = $state('');
+  let workoutPath    = $state('');
+  let ftp            = $state(200);
+  let workouts       = $state<ParsedWorkout[]>([]);
+  let parseErrors    = $state<WorkoutFileError[]>([]);
+  let showParseErrors = $state(true);
+  let loading        = $state(true);
+  let error          = $state<string | null>(null);
+  let query          = $state('');
 
   type SortField = 'name' | 'zone' | 'duration';
   let sortField = $state<SortField>('name');
@@ -92,7 +94,9 @@
       workoutPath = s.workout_path;
       ftp = s.ftp_w;
       if (workoutPath) {
-        workouts = await invoke<ParsedWorkout[]>('list_workouts_cmd', { folder: workoutPath });
+        const lib = await invoke<WorkoutLibrary>('list_workouts_cmd', { folder: workoutPath });
+        workouts = lib.workouts;
+        parseErrors = lib.errors;
       }
     } catch (e) {
       error = toMessage(e);
@@ -151,6 +155,18 @@
           </button>
         {/if}
       </div>
+    </div>
+  {/if}
+
+  {#if parseErrors.length > 0 && showParseErrors}
+    <div class="warn-box">
+      <span>
+        {parseErrors.length} file{parseErrors.length > 1 ? 's' : ''} could not be parsed:
+        {parseErrors.map(e => e.file_name).join(', ')}
+      </span>
+      <button class="dismiss-btn" onclick={() => showParseErrors = false} aria-label="Dismiss warning">
+        <X size={14} />
+      </button>
     </div>
   {/if}
 
@@ -417,6 +433,35 @@
 
   .dot-sep {
     opacity: 0.6;
+  }
+
+  .warn-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.65rem 1rem;
+    background: color-mix(in srgb, var(--warning) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+    border-radius: 8px;
+    color: color-mix(in srgb, var(--warning) 80%, var(--text));
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
+  }
+
+  .dismiss-btn {
+    background: none;
+    border: none;
+    color: inherit;
+    padding: 0.1rem;
+    display: inline-flex;
+    cursor: pointer;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+
+  .dismiss-btn:hover {
+    background: color-mix(in srgb, var(--warning) 20%, transparent);
   }
 
   .skeleton-card {
