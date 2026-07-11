@@ -182,7 +182,7 @@ async fn strava_connect(
     let csrf_state = uuid::Uuid::new_v4().to_string();
     // Bind the loopback listener before opening the browser so the callback
     // can never race ahead of us listening.
-    let listener = strava::oauth::bind_loopback()?;
+    let listener = strava::oauth::bind_loopback().await?;
     let authorize = strava::oauth::authorize_url(&proxy_url, &csrf_state).await?;
     app.opener()
         .open_url(authorize, None::<&str>)
