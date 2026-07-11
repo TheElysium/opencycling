@@ -462,6 +462,7 @@ mod tests {
                 },
             ],
             is_ftp_test: false,
+            file_name: None,
         };
 
         let flat = flatten_workout(workout, 200);
@@ -494,6 +495,7 @@ mod tests {
                 label: Some("Build".to_string()),
             }],
             is_ftp_test: false,
+            file_name: None,
         };
 
         let flat = flatten_workout(workout, 200);

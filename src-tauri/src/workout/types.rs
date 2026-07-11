@@ -9,6 +9,10 @@ pub struct ParsedWorkout {
     pub workout_blocks: Vec<WorkoutBlock>,
     #[serde(default)]
     pub is_ftp_test: bool,
+    /// Source file name (basename only). None when parsed from raw content
+    /// without a file context (e.g. tests or load_workout command).
+    #[serde(default)]
+    pub file_name: Option<String>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum WorkoutBlock {

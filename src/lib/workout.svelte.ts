@@ -21,6 +21,18 @@ export type ParsedWorkout = {
   sport_type: 'Bike' | 'Running';
   workout_blocks: WorkoutBlock[];
   is_ftp_test: boolean;
+  /** Source file name (basename). Null when parsed without a file context. */
+  file_name: string | null;
+};
+
+export type WorkoutFileError = {
+  file_name: string;
+  message: string;
+};
+
+export type WorkoutLibrary = {
+  workouts: ParsedWorkout[];
+  errors: WorkoutFileError[];
 };
 
 // Canonical display block: intervals unfolded, power in watts.

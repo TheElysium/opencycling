@@ -35,9 +35,13 @@ pub(crate) fn parse_zwo(file_content: &str) -> Result<ParsedWorkout, AppError> {
             }
             "SteadyState" => parsed_blocks.push(steady_state_to_workout_block(block)?),
             "IntervalsT" => parsed_blocks.push(intervals_t_to_workout_blocks(block)?),
-            "FreeRide" => {}
+            "Ramp" => parsed_blocks.push(ramp_to_workout_block(block, None)?),
             "Cooldown" => parsed_blocks.push(ramp_to_workout_block(block, Some("Cooldown"))?),
-            _ => {}
+            // FreeRide: intentionally skipped until product work adds free-ride support.
+            "FreeRide" => {}
+            tag => {
+                tracing::warn!("zwo: skipping unknown block type \"{}\"", tag);
+            }
         }
     }
 
@@ -48,6 +52,7 @@ pub(crate) fn parse_zwo(file_content: &str) -> Result<ParsedWorkout, AppError> {
         sport_type,
         workout_blocks: parsed_blocks,
         is_ftp_test: has_ftp_test_tag(root),
+        file_name: None,
     })
 }
 
@@ -340,5 +345,68 @@ mod tests {
             parse_fixture("tests/fixtures/errors/invalid_duration.zwo"),
             Err(ZWOFileParseError(_))
         ));
+    }
+
+    #[test]
+    fn test_parse_ramp_block_produces_ramp() -> Result<(), AppError> {
+        let xml = r#"<workout_file><sportType>bike</sportType><workout><Ramp Duration="300" PowerLow="0.50" PowerHigh="0.80"/></workout></workout_file>"#;
+        let workout = parse_zwo(xml)?;
+        assert_eq!(workout.workout_blocks.len(), 1);
+        match &workout.workout_blocks[0] {
+            WorkoutBlock::Ramp {
+                duration_s,
+                power_start_pct,
+                power_end_pct,
+                cadence_rpm,
+                label,
+            } => {
+                assert_eq!(*duration_s, 300);
+                assert!((power_start_pct - 0.50).abs() < 0.001);
+                assert!((power_end_pct - 0.80).abs() < 0.001);
+                assert_eq!(*cadence_rpm, None);
+                assert_eq!(*label, None);
+            }
+            _ => panic!("Expected Ramp block"),
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_ramp_block_with_cadence_and_name() -> Result<(), AppError> {
+        let xml = r#"<workout_file><sportType>bike</sportType><workout><Ramp Duration="120" PowerLow="0.60" PowerHigh="0.90" Cadence="85" name="Build"/></workout></workout_file>"#;
+        let workout = parse_zwo(xml)?;
+        match &workout.workout_blocks[0] {
+            WorkoutBlock::Ramp {
+                cadence_rpm,
+                label,
+                ..
+            } => {
+                assert_eq!(*cadence_rpm, Some(85));
+                assert_eq!(label.as_deref(), Some("Build"));
+            }
+            _ => panic!("Expected Ramp block"),
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_unknown_block_type_does_not_error_and_produces_no_blocks() -> Result<(), AppError>
+    {
+        let xml = r#"<workout_file><sportType>bike</sportType><workout><UnknownFutureBlock Duration="60" Power="0.75"/><SteadyState Duration="300" Power="0.85"/></workout></workout_file>"#;
+        let workout = parse_zwo(xml)?;
+        // Only the SteadyState should be in the output; the unknown tag is skipped.
+        assert_eq!(workout.workout_blocks.len(), 1);
+        assert!(matches!(workout.workout_blocks[0], WorkoutBlock::SteadyState { .. }));
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_free_ride_is_intentionally_skipped() -> Result<(), AppError> {
+        let xml = r#"<workout_file><sportType>bike</sportType><workout><FreeRide Duration="600"/><SteadyState Duration="300" Power="0.75"/></workout></workout_file>"#;
+        let workout = parse_zwo(xml)?;
+        // FreeRide is an explicit intentional skip; only the SteadyState appears.
+        assert_eq!(workout.workout_blocks.len(), 1);
+        assert!(matches!(workout.workout_blocks[0], WorkoutBlock::SteadyState { .. }));
+        Ok(())
     }
 }
