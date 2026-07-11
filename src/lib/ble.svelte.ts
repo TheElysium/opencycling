@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { toMessage } from '$lib/format';
 
 export type DeviceKind = 'Trainer' | 'Hrm';
 
@@ -116,12 +117,16 @@ class BleState {
 export const ble = new BleState();
 
 export async function disconnectDevice(kind: DeviceKind): Promise<void> {
-  // TODO(rust): expose `disconnect_trainer` / `disconnect_hrm` commands in src-tauri/src/lib.rs.
-  // Until then, this is a UI-side reset only; the BLE actor still holds the connection.
+  // The backend actually tears the device down (aborts the notif task, drops the
+  // retained id so auto-reconnect cannot resurrect it). Only reset the store once it
+  // resolves; on failure (e.g. trainer blocked during an active session) keep the
+  // connected state and surface the error. The backend does not emit `ble_disconnected`
+  // for a manual disconnect, so we update the store here.
   try {
     await invoke(kind === 'Trainer' ? 'disconnect_trainer' : 'disconnect_hrm');
-  } catch {
-    // command not yet registered, fall through to local reset
+  } catch (e) {
+    ble.setError(kind, toMessage(e));
+    return;
   }
   if (kind === 'Trainer') {
     ble.trainerStatus = 'disconnected';

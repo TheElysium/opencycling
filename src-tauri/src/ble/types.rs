@@ -99,6 +99,14 @@ pub enum BleCommand {
     /// cannot push a stale target onto a trainer that reconnects after the session is
     /// over (issue 17).
     SessionEnded,
+    /// Explicit user-initiated disconnect from the UI. Tears the device down for good:
+    /// aborts its notif task, disconnects the peripheral (best effort), clears cached
+    /// metrics and the retained id so auto-reconnect cannot resurrect it, and aborts any
+    /// running reconnect task. For the trainer it also clears `last_target_w`.
+    Disconnect {
+        kind: DeviceKind,
+        reply: oneshot::Sender<Result<(), AppError>>,
+    },
 }
 
 pub struct BleActor {
