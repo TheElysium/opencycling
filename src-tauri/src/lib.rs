@@ -60,6 +60,7 @@ async fn connect_hrm(
 // the trainer under ERG control, so disconnecting it mid-session would leave the session
 // driving a phantom trainer. `Finished` is inert, so it does not block. `None` metrics
 // means no session at all.
+// Internal helper only (not a registered command): used by disconnect_trainer.
 async fn trainer_session_active(session: &tauri::State<'_, SessionActorHandle>) -> bool {
     match session.snapshot().await {
         Ok(Some(snapshot)) => match snapshot.metrics {
@@ -131,8 +132,8 @@ async fn update_settings(
 
 #[tauri::command]
 #[specta::specta]
-fn list_workouts_cmd(folder: String) -> Result<WorkoutLibrary, AppError> {
-    list_workouts(&folder)
+fn list_workouts_cmd(folder: String, ftp_w: u16) -> Result<WorkoutLibrary, AppError> {
+    list_workouts(&folder, ftp_w)
 }
 
 // Expand a workout into the canonical flat block list (intervals unfolded, power in

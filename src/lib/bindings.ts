@@ -5,7 +5,7 @@ import { invoke as __TAURI_INVOKE } from "@tauri-apps/api/core";
 /** Commands */
 export const commands = {
 	loadWorkout: (path: string) => __TAURI_INVOKE<ParsedWorkout>("load_workout", { path }),
-	listWorkoutsCmd: (folder: string) => __TAURI_INVOKE<WorkoutLibrary>("list_workouts_cmd", { folder }),
+	listWorkoutsCmd: (folder: string, ftpW: number) => __TAURI_INVOKE<WorkoutLibrary>("list_workouts_cmd", { folder, ftpW }),
 	flattenWorkoutCmd: (workout: ParsedWorkout, ftpW: number) => __TAURI_INVOKE<FlatBlock[]>("flatten_workout_cmd", { workout, ftpW }),
 	scanDevices: () => __TAURI_INVOKE<DeviceInfo[]>("scan_devices"),
 	connectTrainer: (deviceId: string) => __TAURI_INVOKE<null>("connect_trainer", { deviceId }),
@@ -219,6 +219,11 @@ export type WorkoutFileError = {
  */
 export type WorkoutLibrary = {
 	workouts: ParsedWorkout[],
+	/**
+	 *  Flat blocks parallel to `workouts`, flattened at each card's FTP (reference
+	 *  FTP for tests) so thumbnails render exactly what the session will run.
+	 */
+	flats: FlatBlock[][],
 	errors: WorkoutFileError[],
 };
 

@@ -57,6 +57,12 @@ jobs:
         working-directory: src-tauri
         run: cargo test
 
+      # Regenerate the bridge bindings and fail if the committed copy drifted
+      # (e.g. a command signature changed without re-exporting).
+      - name: Check TypeScript bindings are up to date
+        working-directory: src-tauri
+        run: cargo run --bin export_bindings && git diff --exit-code -- ../src/lib/bindings.ts
+
   frontend:
     name: Frontend (svelte-check)
     runs-on: ubuntu-22.04

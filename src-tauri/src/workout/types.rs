@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-#[derive(Debug, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct ParsedWorkout {
     pub author: Option<String>,
     pub name: Option<String>,
@@ -51,7 +51,7 @@ impl WorkoutBlock {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 pub enum SportType {
     Bike,
     Running,

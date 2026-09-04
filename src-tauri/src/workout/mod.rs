@@ -13,6 +13,6 @@ pub fn parse_zwo(file_content: &str) -> Result<ParsedWorkout, AppError> {
     zwo::parse_zwo(file_content)
 }
 
-pub fn list_workouts(folder: &str) -> Result<WorkoutLibrary, AppError> {
-    library::list_workouts(folder)
+pub fn list_workouts(folder: &str, ftp_w: u16) -> Result<WorkoutLibrary, AppError> {
+    library::list_workouts(folder, ftp_w)
 }

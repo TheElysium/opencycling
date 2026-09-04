@@ -157,7 +157,7 @@
       if (workoutSelection.workout === workout && workoutFtp(workout, ftp) === ftpW) {
         flat = blocks;
       }
-    });
+    }).catch(() => { flat = []; });
   });
 
   // Duration-weighted avg cadence across blocks that specify one. null if none specified.

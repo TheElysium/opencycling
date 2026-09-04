@@ -13,8 +13,8 @@
   let workoutPath    = $state('');
   let ftp            = $state(200);
   let workouts       = $state<ParsedWorkout[]>([]);
-  // Flat blocks per workout (same index as `workouts`), fetched from the Rust
-  // flatten_workout command right after loading; drives the card thumbnails.
+  // Flat blocks per workout (same index as `workouts`), returned by
+  // list_workouts_cmd; drives the card thumbnails.
   let flats          = $state<FlatBlock[][]>([]);
   let parseErrors    = $state<WorkoutFileError[]>([]);
   let showParseErrors = $state(true);
@@ -98,13 +98,11 @@
       workoutPath = s.workout_path;
       ftp = s.ftp_w;
       if (workoutPath) {
-        const lib = await commands.listWorkoutsCmd(workoutPath);
-        // Flatten every workout on the backend before rendering, so the thumbnails
-        // use the same canonical FlatBlock list as the session (labels included).
-        flats = await Promise.all(
-          lib.workouts.map(w => commands.flattenWorkoutCmd(w, workoutFtp(w, ftp)))
-        );
+        const lib = await commands.listWorkoutsCmd(workoutPath, ftp);
+        // Flats come pre-flattened from the backend (one round-trip), parallel to
+        // `workouts` and at each card's FTP, so thumbnails match the session exactly.
         workouts = lib.workouts;
+        flats = lib.flats;
         parseErrors = lib.errors;
       }
     } catch (e) {

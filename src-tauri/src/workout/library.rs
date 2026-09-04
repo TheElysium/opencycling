@@ -1,9 +1,14 @@
 use crate::errors::AppError;
+use crate::session::{FlatBlock, flatten_workout};
 use crate::workout::{parse_zwo, ParsedWorkout};
 use serde::Serialize;
 use specta::Type;
 use std::ffi::OsStr;
 use std::fs::{read_dir, read_to_string};
+
+/// FTP used to flatten FTP-test workouts, so watts equal percent on their cards.
+/// Must match FTP_TEST_REFERENCE_W in src/lib/ftp.ts.
+const FTP_TEST_REFERENCE_W: u16 = 100;
 
 /// A file that could not be read or parsed, returned alongside successful workouts.
 #[derive(Debug, Serialize, Type)]
@@ -18,13 +23,17 @@ pub struct WorkoutFileError {
 #[derive(Debug, Serialize, Type)]
 pub struct WorkoutLibrary {
     pub workouts: Vec<ParsedWorkout>,
+    /// Flat blocks parallel to `workouts`, flattened at each card's FTP (reference
+    /// FTP for tests) so thumbnails render exactly what the session will run.
+    pub flats: Vec<Vec<FlatBlock>>,
     pub errors: Vec<WorkoutFileError>,
 }
 
-pub(crate) fn list_workouts(folder: &str) -> Result<WorkoutLibrary, AppError> {
+pub(crate) fn list_workouts(folder: &str, ftp_w: u16) -> Result<WorkoutLibrary, AppError> {
     let entries = read_dir(folder)?;
 
     let mut workouts = Vec::new();
+    let mut flats = Vec::new();
     let mut errors = Vec::new();
 
     for entry in entries.flatten() {
@@ -52,6 +61,8 @@ pub(crate) fn list_workouts(folder: &str) -> Result<WorkoutLibrary, AppError> {
         match parse_zwo(&content) {
             Ok(mut w) => {
                 w.file_name = Some(file_name);
+                let card_ftp = if w.is_ftp_test { FTP_TEST_REFERENCE_W } else { ftp_w };
+                flats.push(flatten_workout(w.clone(), card_ftp));
                 workouts.push(w);
             }
             Err(e) => {
@@ -63,5 +74,5 @@ pub(crate) fn list_workouts(folder: &str) -> Result<WorkoutLibrary, AppError> {
         }
     }
 
-    Ok(WorkoutLibrary { workouts, errors })
+    Ok(WorkoutLibrary { workouts, flats, errors })
 }
