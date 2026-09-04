@@ -238,7 +238,10 @@ mod tests {
     #[test]
     fn header_end_none_without_terminator() {
         // A partial request (no blank line yet) must not be treated as complete.
-        assert_eq!(header_end(b"GET /callback?code=x HTTP/1.1\r\nHost: loc"), None);
+        assert_eq!(
+            header_end(b"GET /callback?code=x HTTP/1.1\r\nHost: loc"),
+            None
+        );
     }
 
     #[test]
@@ -246,7 +249,6 @@ mod tests {
         let req = b"GET / HTTP/1.1\r\n\r\nBODYBYTES";
         assert_eq!(header_end(req), Some(req.len() - "BODYBYTES".len()));
     }
-
 
     const REQ: &str =
         "GET /callback?code=abc123&state=nonce42&scope=read HTTP/1.1\r\nHost: localhost\r\n\r\n";

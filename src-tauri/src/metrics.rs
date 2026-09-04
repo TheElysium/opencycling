@@ -308,7 +308,10 @@ mod tests {
         let np = d.np_w.unwrap();
         let if_ = d.if_.unwrap();
         let expected_if = np / 250.0;
-        assert!((if_ - expected_if).abs() < 1e-4, "IF {if_} expected {expected_if}");
+        assert!(
+            (if_ - expected_if).abs() < 1e-4,
+            "IF {if_} expected {expected_if}"
+        );
     }
 
     #[test]
@@ -328,7 +331,10 @@ mod tests {
         let powers = vec![100.0_f64, 200.0, 300.0]; // mean = 200 W
         let d = derive_metrics(&powers, 200, 3);
         let np = d.np_w.unwrap();
-        assert!((np - 200.0).abs() < 1.0, "NP {np} expected ~200 W (mean fallback)");
+        assert!(
+            (np - 200.0).abs() < 1.0,
+            "NP {np} expected ~200 W (mean fallback)"
+        );
     }
 
     #[test]

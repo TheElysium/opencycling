@@ -143,30 +143,26 @@ impl DbActor {
             let mut stmt = self
                 .conn
                 .prepare("SELECT id, started_at FROM sessions WHERE ended_at IS NULL")?;
-            let rows = stmt
-                .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)))?;
+            let rows = stmt.query_map([], |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+            })?;
             rows.collect::<Result<Vec<_>, _>>()?
         };
 
         for (session_id, started_at) in orphans {
             // Compute duration from sample offsets. MAX returns NULL when there
             // are no rows, which maps to None via rusqlite's Option handling.
-            let max_offset: Option<u32> = self
-                .conn
-                .query_row(
-                    "SELECT MAX(t_offset_s) FROM session_metrics WHERE session_id = ?1",
-                    [session_id],
-                    |row| row.get(0),
-                )?;
+            let max_offset: Option<u32> = self.conn.query_row(
+                "SELECT MAX(t_offset_s) FROM session_metrics WHERE session_id = ?1",
+                [session_id],
+                |row| row.get(0),
+            )?;
 
             match max_offset {
                 None => {
                     // No samples recorded -- session has no data. Delete it rather
                     // than leaving a hollow stub in history.
-                    tracing::warn!(
-                        session_id,
-                        "orphaned session has no samples -- deleting"
-                    );
+                    tracing::warn!(session_id, "orphaned session has no samples -- deleting");
                     self.conn
                         .execute("DELETE FROM sessions WHERE id = ?1", [session_id])?;
                 }
@@ -183,11 +179,7 @@ impl DbActor {
                             continue;
                         }
                     };
-                    tracing::info!(
-                        session_id,
-                        duration_s,
-                        "finalizing orphaned session"
-                    );
+                    tracing::info!(session_id, duration_s, "finalizing orphaned session");
                     if let Err(e) = self.finalize_session(session_id, ended_at, duration_s) {
                         tracing::error!(session_id, "finalize_orphaned_sessions failed: {e}");
                     }

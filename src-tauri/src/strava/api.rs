@@ -56,11 +56,7 @@ async fn poll_activity_id(
     let url = format!("{UPLOADS_URL}/{upload_id}");
     for _ in 0..15 {
         sleep(Duration::from_secs(2)).await;
-        let resp = client
-            .get(&url)
-            .bearer_auth(access_token)
-            .send()
-            .await?;
+        let resp = client.get(&url).bearer_auth(access_token).send().await?;
         if !resp.status().is_success() {
             let code = resp.status();
             let body = resp.text().await.unwrap_or_default();

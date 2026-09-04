@@ -4,9 +4,9 @@ mod library;
 mod types;
 mod zwo;
 
+pub use library::{WorkoutFileError, WorkoutLibrary};
 #[cfg(test)]
 pub use types::SportType;
-pub use library::{WorkoutFileError, WorkoutLibrary};
 pub use types::{ParsedWorkout, WorkoutBlock};
 
 pub fn parse_zwo(file_content: &str) -> Result<ParsedWorkout, AppError> {

@@ -377,9 +377,7 @@ mod tests {
         let workout = parse_zwo(xml)?;
         match &workout.workout_blocks[0] {
             WorkoutBlock::Ramp {
-                cadence_rpm,
-                label,
-                ..
+                cadence_rpm, label, ..
             } => {
                 assert_eq!(*cadence_rpm, Some(85));
                 assert_eq!(label.as_deref(), Some("Build"));
@@ -396,7 +394,10 @@ mod tests {
         let workout = parse_zwo(xml)?;
         // Only the SteadyState should be in the output; the unknown tag is skipped.
         assert_eq!(workout.workout_blocks.len(), 1);
-        assert!(matches!(workout.workout_blocks[0], WorkoutBlock::SteadyState { .. }));
+        assert!(matches!(
+            workout.workout_blocks[0],
+            WorkoutBlock::SteadyState { .. }
+        ));
         Ok(())
     }
 
@@ -406,7 +407,10 @@ mod tests {
         let workout = parse_zwo(xml)?;
         // FreeRide is an explicit intentional skip; only the SteadyState appears.
         assert_eq!(workout.workout_blocks.len(), 1);
-        assert!(matches!(workout.workout_blocks[0], WorkoutBlock::SteadyState { .. }));
+        assert!(matches!(
+            workout.workout_blocks[0],
+            WorkoutBlock::SteadyState { .. }
+        ));
         Ok(())
     }
 }

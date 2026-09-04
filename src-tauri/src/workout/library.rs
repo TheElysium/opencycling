@@ -1,5 +1,5 @@
 use crate::errors::AppError;
-use crate::session::{FlatBlock, flatten_workout};
+use crate::session::{flatten_workout, FlatBlock};
 use crate::workout::{parse_zwo, ParsedWorkout};
 use serde::Serialize;
 use specta::Type;
@@ -61,7 +61,11 @@ pub(crate) fn list_workouts(folder: &str, ftp_w: u16) -> Result<WorkoutLibrary, 
         match parse_zwo(&content) {
             Ok(mut w) => {
                 w.file_name = Some(file_name);
-                let card_ftp = if w.is_ftp_test { FTP_TEST_REFERENCE_W } else { ftp_w };
+                let card_ftp = if w.is_ftp_test {
+                    FTP_TEST_REFERENCE_W
+                } else {
+                    ftp_w
+                };
                 flats.push(flatten_workout(w.clone(), card_ftp));
                 workouts.push(w);
             }
@@ -74,5 +78,9 @@ pub(crate) fn list_workouts(folder: &str, ftp_w: u16) -> Result<WorkoutLibrary, 
         }
     }
 
-    Ok(WorkoutLibrary { workouts, flats, errors })
+    Ok(WorkoutLibrary {
+        workouts,
+        flats,
+        errors,
+    })
 }

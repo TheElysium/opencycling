@@ -516,7 +516,7 @@ mod tests {
         assert_eq!(flat[0].label, "Interval 1/2 ON");
         assert_eq!(flat[0].duration_s, 60);
         assert_eq!(flat[0].power_start_w, 160); // 0.80 * 200 = 160
-        assert_eq!(flat[0].power_end_w, 220);   // 1.10 * 200 = 220
+        assert_eq!(flat[0].power_end_w, 220); // 1.10 * 200 = 220
 
         // Rep 1 OFF: synthesised label, steady recovery power.
         assert_eq!(flat[1].label, "Interval 1/2 OFF");

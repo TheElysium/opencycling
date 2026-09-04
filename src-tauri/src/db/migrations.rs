@@ -79,11 +79,10 @@ const MIGRATIONS: &[&str] = &[
 pub fn run(conn: &mut Connection) -> Result<(), AppError> {
     conn.execute_batch("PRAGMA foreign_keys = ON;")?;
 
-    let mut current: u32 = conn.query_row(
-        "SELECT user_version FROM pragma_user_version",
-        [],
-        |r| r.get(0),
-    )?;
+    let mut current: u32 =
+        conn.query_row("SELECT user_version FROM pragma_user_version", [], |r| {
+            r.get(0)
+        })?;
 
     tracing::info!(
         "DB schema at version {current}, latest = {}",
