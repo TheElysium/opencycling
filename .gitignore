@@ -15,3 +15,8 @@ vite.config.ts.timestamp-*
 *.stackdump
 .*.tmp
 .diff_*.txt
+
+# Local working docs: agent handoffs, issue drafts, superpowers workflow state
+docs/issues/
+docs/superpowers/
+docs/handoff-*.md
