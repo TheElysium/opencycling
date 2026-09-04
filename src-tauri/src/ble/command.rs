@@ -1,3 +1,4 @@
+use crate::ble::sim::{SimActor, SimCommand};
 use crate::ble::types::{
     BleActor, BleCommand, BleEvent, BleMetrics, DeviceInfo, DeviceKind, ParsedNotifications,
     ReconnectMsg,
@@ -6,9 +7,9 @@ use crate::errors::AppError;
 use btleplug::api::Manager as _;
 use btleplug::platform::Manager;
 use std::sync::Arc;
-use tauri::AppHandle;
+use tauri::{AppHandle, Runtime};
 use tokio::spawn;
-use tokio::sync::mpsc::{channel, Sender};
+use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::sync::{oneshot, Mutex};
 
 // Public handle to the BleActor: only exposes the mpsc Sender so callers
@@ -16,14 +17,28 @@ use tokio::sync::{oneshot, Mutex};
 #[derive(Clone)]
 pub struct BleActorHandle {
     sender: Sender<BleCommand>,
+    // Present only in simulation mode: routes SimCommands to the SimActor.
+    sim_tx: Option<Sender<SimCommand>>,
 }
 
 impl BleActorHandle {
-    pub async fn spawn(
-        app_handle: AppHandle,
+    pub async fn spawn<R: Runtime>(
+        app_handle: AppHandle<R>,
         metrics_tx: Sender<BleMetrics>,
         ble_event_tx: Sender<BleEvent>,
+        sim: bool,
     ) -> Result<Self, AppError> {
+        let (cmd_tx, cmd_rx) = channel::<BleCommand>(32);
+        if sim {
+            return Ok(Self::spawn_sim(
+                app_handle,
+                cmd_tx,
+                cmd_rx,
+                metrics_tx,
+                ble_event_tx,
+            ));
+        }
+
         let manager = Manager::new()
             .await
             .map_err(|err| AppError::BLEScanError(err.to_string()))?;
@@ -38,8 +53,6 @@ impl BleActorHandle {
             .next()
             .ok_or_else(|| AppError::DeviceNotFound("No BLE adapter".to_string()))?;
 
-        // cmd channel: Tauri handlers → actor (commands and replies).
-        let (cmd_tx, cmd_rx) = channel::<BleCommand>(32);
         // notif channel: per-device spawned tasks → actor (parsed BLE notifications).
         let (notif_tx, notif_rx) = channel::<ParsedNotifications>(64);
         // reconnect channel: reconnect tasks → actor (device reachable / gave up).
@@ -76,7 +89,27 @@ impl BleActorHandle {
 
         spawn(ble_actor.run());
 
-        Ok(Self { sender: cmd_tx })
+        Ok(Self {
+            sender: cmd_tx,
+            sim_tx: None,
+        })
+    }
+
+    // Sim mode: no btleplug Manager/Adapter is created at all; a SimActor consumes the
+    // same BleCommand stream and additionally serves the SimCommand channel.
+    fn spawn_sim<R: Runtime>(
+        app_handle: AppHandle<R>,
+        sender: Sender<BleCommand>,
+        cmd_rx: Receiver<BleCommand>,
+        metrics_tx: Sender<BleMetrics>,
+        ble_event_tx: Sender<BleEvent>,
+    ) -> Self {
+        let (sim_tx, sim_rx) = channel::<SimCommand>(16);
+        spawn(SimActor::new(app_handle, cmd_rx, sim_rx, metrics_tx, ble_event_tx).run());
+        Self {
+            sender,
+            sim_tx: Some(sim_tx),
+        }
     }
 
     pub async fn scan(&self) -> Result<Vec<DeviceInfo>, AppError> {
@@ -152,6 +185,27 @@ impl BleActorHandle {
     pub async fn session_ended(&self) -> Result<(), AppError> {
         self.sender
             .send(BleCommand::SessionEnded)
+            .await
+            .map_err(|_| AppError::ChannelClosed)
+    }
+
+    // Simulation-only scenario triggers; error out on a real BLE run.
+    pub async fn sim_drop_device(&self, kind: DeviceKind, stay_lost: bool) -> Result<(), AppError> {
+        let tx = self
+            .sim_tx
+            .as_ref()
+            .ok_or_else(|| AppError::Other("simulation mode is disabled".to_string()))?;
+        tx.send(SimCommand::Drop { kind, stay_lost })
+            .await
+            .map_err(|_| AppError::ChannelClosed)
+    }
+
+    pub async fn sim_restore_device(&self, kind: DeviceKind) -> Result<(), AppError> {
+        let tx = self
+            .sim_tx
+            .as_ref()
+            .ok_or_else(|| AppError::Other("simulation mode is disabled".to_string()))?;
+        tx.send(SimCommand::Restore { kind })
             .await
             .map_err(|_| AppError::ChannelClosed)
     }

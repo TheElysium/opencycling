@@ -12,6 +12,7 @@
     type StravaStatus
   } from '$lib/strava';
   import { toMessage } from '$lib/format';
+  import SimPanel from '$lib/components/SimPanel.svelte';
 
   let ftp         = $state<number | null>(null);
   let maxHr       = $state<number | null>(null);
@@ -240,6 +241,8 @@
         <p class="error-box">{stravaError}</p>
       {/if}
     </div>
+
+    <SimPanel />
   {/if}
 </div>
 
@@ -470,4 +473,5 @@
   .feature-row :global(.switch) {
     margin-top: 0.1rem;
   }
+
 </style>

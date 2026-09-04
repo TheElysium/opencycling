@@ -13,7 +13,7 @@ use futures::{Stream, StreamExt};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Runtime};
 use tokio::sync::mpsc::Sender as MpscSender;
 use tokio::sync::oneshot::Sender;
 use tokio::sync::Mutex;
@@ -47,7 +47,7 @@ const ERG_FAILURE_THRESHOLD: u32 = 2;
 // the UI shows "no data" instead of a stale reading.
 const STALE_AFTER: Duration = Duration::from_secs(5);
 
-impl BleActor {
+impl<R: Runtime> BleActor<R> {
     pub async fn run(mut self) {
         // Subscribe to adapter-level events to detect disconnections.
         // Falls back to a never-resolving stream if subscription fails.
@@ -235,11 +235,7 @@ impl BleActor {
     // emit `ble_disconnected` (that event is paired with auto-reconnect on the frontend);
     // the caller updates the store directly. Always succeeds: peripheral.disconnect()
     // errors are logged, not propagated.
-    async fn handle_disconnect(
-        &mut self,
-        kind: DeviceKind,
-        reply: Sender<Result<(), AppError>>,
-    ) {
+    async fn handle_disconnect(&mut self, kind: DeviceKind, reply: Sender<Result<(), AppError>>) {
         info!("disconnecting {} (user request)", kind.as_str());
         // Stop any in-flight reconnect first so it cannot re-add the device we clear.
         let reconnect_task = match kind {
@@ -533,7 +529,11 @@ impl BleActor {
             .last_hrm_notif
             .is_some_and(|t| now.duration_since(t) < STALE_AFTER);
         let ble_metric = BleMetrics {
-            power_w: if trainer_fresh { self.last_power_w } else { None },
+            power_w: if trainer_fresh {
+                self.last_power_w
+            } else {
+                None
+            },
             hr_bpm: if hrm_fresh { self.last_hr_bpm } else { None },
             cadence_rpm: if trainer_fresh {
                 self.last_cadence_rpm
@@ -562,8 +562,13 @@ async fn handle_scan(
 }
 
 // Emit the structured ble_reconnect event. `attempt` is only meaningful for the
-// "reconnecting" status.
-fn emit_reconnect(app_handle: &AppHandle, kind: DeviceKind, status: &str, attempt: Option<u32>) {
+// "reconnecting" status. Shared with the sim actor so event shapes stay identical.
+pub(crate) fn emit_reconnect<R: Runtime>(
+    app_handle: &AppHandle<R>,
+    kind: DeviceKind,
+    status: &str,
+    attempt: Option<u32>,
+) {
     let _ = app_handle.emit(
         "ble_reconnect",
         BleReconnect {
@@ -579,11 +584,11 @@ fn emit_reconnect(app_handle: &AppHandle, kind: DeviceKind, status: &str, attemp
 // to the actor (which owns the actual connect). The actor's select! loop stays
 // responsive throughout because this never touches `&mut self`. Stops after a safety
 // cap and reports failure (issue 17).
-async fn reconnect_loop(
+async fn reconnect_loop<R: Runtime>(
     adapter: Adapter,
     device_id: String,
     kind: DeviceKind,
-    app_handle: AppHandle,
+    app_handle: AppHandle<R>,
     scan_lock: Arc<Mutex<()>>,
     reconnect_tx: MpscSender<ReconnectMsg>,
 ) {

@@ -2,11 +2,13 @@
   import { page } from '$app/state';
   import { onMount } from 'svelte';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-  import {Plug, History, Settings, Bike} from '@lucide/svelte';
+  import {Plug, History, Settings, Bike, FlaskConical} from '@lucide/svelte';
   import type { BleError } from '$lib/bindings';
+  import { commands } from '$lib/bindings';
   import { ble, kindFromWire, type BleMetrics, type DeviceStatus, type DeviceWire, type ReconnectStatus } from '$lib/ble.svelte';
   import { session, type SessionMetrics } from '$lib/session.svelte';
   import { checkForUpdate } from '$lib/updater';
+  import SimPanel from '$lib/components/SimPanel.svelte';
   import '../app.css';
 
   let { children } = $props();
@@ -19,6 +21,9 @@
   ];
 
   let showSidebar = $derived(page.url.pathname !== '/session');
+
+  let simOpen  = $state(false);
+  let simReady = $state(false);
 
   function dotColor(s: DeviceStatus): string {
     if (s === 'connected')   return 'var(--status-ok)';
@@ -43,6 +48,11 @@
 
   onMount(() => {
     checkForUpdate();
+
+    // Own availability probe so the chip only exists in simulator builds.
+    commands.simAvailable()
+      .then((available: boolean) => (simReady = available))
+      .catch(() => (simReady = false));
 
     let cancelled = false;
     const unlisteners: UnlistenFn[] = [];
@@ -113,6 +123,24 @@
   <main class="content">
     {@render children()}
   </main>
+
+  {#if simReady && page.url.pathname !== '/settings'}
+    {#if simOpen}
+      <div class="sim-popover">
+        <SimPanel variant="floating" />
+      </div>
+    {/if}
+    <button
+      type="button"
+      class="sim-chip"
+      class:is-open={simOpen}
+      title="Simulation controls"
+      onclick={() => (simOpen = !simOpen)}
+    >
+      <FlaskConical size={14} aria-hidden="true" />
+      SIM
+    </button>
+  {/if}
 </div>
 
 <!-- HRM reconnect feedback is shown inline in the Heart rate tile on the session
@@ -217,5 +245,40 @@
     height: 100vh;
     min-height: 0;
     overflow: hidden;
+  }
+
+  /* Above the trainer-reconnect modal and aero overlay (z-index 120) so Restore
+     stays clickable during a failed-reconnect modal. */
+  .sim-chip,
+  .sim-popover {
+    position: fixed;
+    right: 1rem;
+    z-index: 200;
+  }
+
+  .sim-chip {
+    bottom: 1rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: var(--surface);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.3rem 0.7rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .sim-chip:hover,
+  .sim-chip.is-open {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .sim-popover {
+    bottom: 3.7rem;
   }
 </style>

@@ -1,9 +1,8 @@
+use crate::ble::sim;
 use crate::ble::{BleActorHandle, BleEvent, BleMetrics, DeviceInfo, DeviceKind};
 use crate::db::{DbActorHandle, SessionCard, SessionDetail, Settings, StravaAuth};
 use crate::errors::AppError;
-use crate::session::{
-    flatten_workout, FlatBlock, SessionActorHandle, SessionSnapshot, StateKind,
-};
+use crate::session::{flatten_workout, FlatBlock, SessionActorHandle, SessionSnapshot, StateKind};
 use crate::strava::types::StravaStatus;
 use crate::workout::{list_workouts, parse_zwo, ParsedWorkout, WorkoutLibrary};
 use tauri::Manager;
@@ -12,7 +11,8 @@ use tracing::metadata::LevelFilter;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{fmt, EnvFilter};
 
-mod ble;
+// pub: the BLE sim integration tests drive the actor stack directly (tests/sim_e2e.rs).
+pub mod ble;
 pub mod db;
 pub mod errors;
 mod export;
@@ -113,6 +113,33 @@ async fn set_target_power(
     watts: i16,
 ) -> Result<(), AppError> {
     state.set_target_power(watts).await
+}
+
+// Simulation-mode commands: registered always, but they error out when the app runs
+// on real BLE (see BleActorHandle::sim_drop_device).
+#[tauri::command]
+#[specta::specta]
+async fn sim_available() -> bool {
+    sim::is_enabled()
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn sim_drop_device(
+    state: tauri::State<'_, BleActorHandle>,
+    kind: DeviceKind,
+    stay_lost: bool,
+) -> Result<(), AppError> {
+    state.sim_drop_device(kind, stay_lost).await
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn sim_restore_device(
+    state: tauri::State<'_, BleActorHandle>,
+    kind: DeviceKind,
+) -> Result<(), AppError> {
+    state.sim_restore_device(kind).await
 }
 
 #[tauri::command]
@@ -341,6 +368,9 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             disconnect_hrm,
             retry_reconnect,
             set_target_power,
+            sim_available,
+            sim_drop_device,
+            sim_restore_device,
             get_settings,
             update_settings,
             start_session,
@@ -410,15 +440,21 @@ pub fn run() {
             // Critical BLE lifecycle events (trainer lost/reconnected). Mirror of the
             // metrics channel but sent with send().await so they are never dropped.
             let (ble_event_tx, ble_event_rx) = tokio::sync::mpsc::channel::<BleEvent>(16);
+            let sim = sim::enabled_from_env();
+            sim::set_enabled(sim);
             let ble_handle = tauri::async_runtime::block_on(BleActorHandle::spawn(
                 app.handle().clone(),
                 ble_metrics_tx,
                 ble_event_tx,
+                sim,
             ))
             .expect("BLE init failed");
             let app_data_dir = app.path().app_data_dir().expect("no app data dir");
             std::fs::create_dir_all(&app_data_dir).expect("failed to create app data dir");
-            let db_path = app_data_dir.join(DB_FILE).to_string_lossy().to_string();
+            // Sim sessions pollute history otherwise; recording itself stays part of the
+            // tested flow (TSS, history, TCX export).
+            let db_file = if sim { "opencycling-sim.db" } else { DB_FILE };
+            let db_path = app_data_dir.join(db_file).to_string_lossy().to_string();
             let db_handle = tauri::async_runtime::block_on(DbActorHandle::spawn(db_path))
                 .expect("DB init failed");
             let session_handle = tauri::async_runtime::block_on(SessionActorHandle::spawn(

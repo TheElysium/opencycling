@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::sync::Arc;
 use std::time::Instant;
-use tauri::AppHandle;
+use tauri::{AppHandle, Runtime};
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::{oneshot, Mutex};
 use tokio::task::AbortHandle;
@@ -61,7 +61,7 @@ pub struct BleReconnect {
 /// Critical BLE lifecycle events forwarded to the SessionActor (send().await, never
 /// dropped). Only the trainer participates: losing the HRM has no bearing on session
 /// state.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BleEvent {
     TrainerLost,
     TrainerReconnected,
@@ -114,8 +114,8 @@ pub enum BleCommand {
     },
 }
 
-pub struct BleActor {
-    pub app_handle: AppHandle,
+pub struct BleActor<R: Runtime> {
+    pub app_handle: AppHandle<R>,
     // Receives BleCommands from BleActorHandle (Tauri command handlers → actor).
     pub cmd_rx: Receiver<BleCommand>,
     // Per-device notification tasks clone notif_tx and forward parsed BLE values.

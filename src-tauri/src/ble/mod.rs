@@ -2,6 +2,7 @@ mod actor;
 mod command;
 mod ftms;
 mod hrs;
+pub mod sim;
 mod types;
 
 pub use command::BleActorHandle;

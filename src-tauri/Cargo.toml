@@ -42,6 +42,12 @@ tauri-specta = { version = "2.0.0-rc", features = ["typescript"] }
 specta-typescript = "0.0.12"
 specta = "2.0.0-rc"
 
+[dev-dependencies]
+# Mock runtime for integration tests: an AppHandle that emits/listens without a window.
+tauri = { version = "2", features = ["test"] }
+# start_paused tokio tests auto-advance the sim's 1 s tick / 3 s reconnect cadence.
+tokio = { version = "1.52.3", features = ["test-util"] }
+
 [package.metadata.release]
 publish = false                                   # desktop app, not a crates.io crate
 push = true
