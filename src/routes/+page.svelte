@@ -4,7 +4,7 @@
   import { goto } from '$app/navigation';
   import { Search, LoaderCircle, Plug2, Heart, Activity, Gauge } from '@lucide/svelte';
   import { commands } from '$lib/bindings';
-  import { ble, disconnectDevice, type DeviceKind, type DeviceStatus } from '$lib/ble.svelte';
+  import { ble, disconnectDevice, type DeviceKind, type DeviceStatus, type ReconnectState } from '$lib/ble.svelte';
   import { toMessage } from '$lib/format';
 
   let trainerId  = $state<string | null>(null);
@@ -28,6 +28,23 @@
     if (s === 'error' || s === 'disconnected') return 'var(--status-error)';
     if (s === 'detected')    return 'var(--status-info)';
     return 'var(--status-idle)';
+  }
+
+  // Live reconnect state overrides the generic label/color on the device cards
+  // ("reconnected" lingers ~1.8 s in the store, then clears itself). Shared by the
+  // trainer and HRM cards so both devices surface the same wording and Retry.
+  function reconnectText(r: ReconnectState, status: DeviceStatus): string {
+    if (r?.status === 'reconnecting') return r.attempt > 0 ? `Reconnecting (attempt ${r.attempt})…` : 'Reconnecting…';
+    if (r?.status === 'reconnected')  return 'Reconnected';
+    if (r?.status === 'failed')       return 'Unavailable';
+    return statusLabels[status];
+  }
+
+  function reconnectColor(r: ReconnectState, status: DeviceStatus): string {
+    if (r?.status === 'reconnecting') return statusColor('connecting');
+    if (r?.status === 'reconnected')  return statusColor('connected');
+    if (r?.status === 'failed')       return statusColor('error');
+    return statusColor(status);
   }
 
   async function scanDevices() {
@@ -138,8 +155,8 @@
           {/if}
         </div>
         <div class="status">
-          <span class="dot" class:pulse-dot={ble.trainerStatus === 'scanning'} style="background: {statusColor(ble.trainerStatus)}"></span>
-          <span class="status-text" style="color: {statusColor(ble.trainerStatus)}">{statusLabels[ble.trainerStatus]}</span>
+          <span class="dot" class:pulse-dot={ble.trainerStatus === 'scanning'} style="background: {reconnectColor(ble.trainerReconnect, ble.trainerStatus)}"></span>
+          <span class="status-text" style="color: {reconnectColor(ble.trainerReconnect, ble.trainerStatus)}">{reconnectText(ble.trainerReconnect, ble.trainerStatus)}</span>
         </div>
       </div>
       {#if ble.trainerStatus === 'not_found' && !bothNotFound}
@@ -147,6 +164,12 @@
       {/if}
       {#if ble.trainerStatus === 'disconnected'}
         <p class="hint" transition:slide={{ duration: 200 }}>Trainer disconnected. Scan to reconnect.</p>
+      {/if}
+      {#if ble.trainerReconnect?.status === 'failed'}
+        <p class="hint" transition:slide={{ duration: 200 }}>Trainer unavailable.</p>
+        <div class="card-actions" transition:slide={{ duration: 200 }}>
+          <button onclick={() => ble.retryReconnect('Trainer')} class="btn-primary">Retry</button>
+        </div>
       {/if}
       {#if ble.trainerStatus === 'detected'}
         <div class="card-actions" transition:slide={{ duration: 200 }}>
@@ -175,8 +198,8 @@
           {/if}
         </div>
         <div class="status">
-          <span class="dot" class:pulse-dot={ble.hrmStatus === 'scanning'} style="background: {statusColor(ble.hrmStatus)}"></span>
-          <span class="status-text" style="color: {statusColor(ble.hrmStatus)}">{statusLabels[ble.hrmStatus]}</span>
+          <span class="dot" class:pulse-dot={ble.hrmStatus === 'scanning'} style="background: {reconnectColor(ble.hrmReconnect, ble.hrmStatus)}"></span>
+          <span class="status-text" style="color: {reconnectColor(ble.hrmReconnect, ble.hrmStatus)}">{reconnectText(ble.hrmReconnect, ble.hrmStatus)}</span>
         </div>
       </div>
       {#if ble.hrmStatus === 'not_found'}
@@ -184,6 +207,12 @@
       {/if}
       {#if ble.hrmStatus === 'disconnected'}
         <p class="hint" transition:slide={{ duration: 200 }}>Heart rate monitor disconnected. Scan to reconnect.</p>
+      {/if}
+      {#if ble.hrmReconnect?.status === 'failed'}
+        <p class="hint" transition:slide={{ duration: 200 }}>Heart rate monitor unavailable.</p>
+        <div class="card-actions" transition:slide={{ duration: 200 }}>
+          <button onclick={() => ble.retryReconnect('Hrm')} class="btn-primary">Retry</button>
+        </div>
       {/if}
       {#if ble.hrmStatus === 'detected'}
         <div class="card-actions" transition:slide={{ duration: 200 }}>

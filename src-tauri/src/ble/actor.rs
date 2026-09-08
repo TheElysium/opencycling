@@ -29,9 +29,9 @@ const HEART_RATE_MEAS: Uuid = Uuid::from_u128(0x00002a37_0000_1000_8000_00805f9b
 const FTMS_CONTROL_POINT: Uuid = Uuid::from_u128(0x00002ad9_0000_1000_8000_00805f9b34fb);
 const KEEP_ALIVE_TICK: u64 = 10;
 const METRICS_TICK: u64 = 1;
-// Reconnect cadence + safety cap: ~40 attempts at 3 s ≈ 2 min before giving up.
+// Reconnect cadence + safety cap: 10 attempts at 3 s ≈ 30 s before giving up.
 const RECONNECT_INTERVAL_S: u64 = 3;
-const RECONNECT_MAX_ATTEMPTS: u32 = 40;
+const RECONNECT_MAX_ATTEMPTS: u32 = 10;
 // Per-attempt timeout: a WinRT scan/probe can stall, so each attempt is bounded so
 // the 3 s cadence holds rather than drifting (issue 17).
 const RECONNECT_ATTEMPT_TIMEOUT_S: u64 = 3;

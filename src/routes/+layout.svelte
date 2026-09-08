@@ -5,7 +5,7 @@
   import {Plug, History, Settings, Bike, FlaskConical} from '@lucide/svelte';
   import type { BleError } from '$lib/bindings';
   import { commands } from '$lib/bindings';
-  import { ble, kindFromWire, type BleMetrics, type DeviceStatus, type DeviceWire, type ReconnectStatus } from '$lib/ble.svelte';
+  import { ble, kindFromWire, type BleMetrics, type DeviceStatus, type DeviceWire, type ReconnectState, type ReconnectStatus } from '$lib/ble.svelte';
   import { session, type SessionMetrics } from '$lib/session.svelte';
   import { checkForUpdate } from '$lib/updater';
   import SimPanel from '$lib/components/SimPanel.svelte';
@@ -45,6 +45,19 @@
 
   let trainerDot = $derived(dotColor(ble.trainerStatus));
   let hrmDot     = $derived(dotColor(ble.hrmStatus));
+
+  // A dot pulses only while a reconnect is actively in flight; `failed` lingers in
+  // the store, so status (not non-nullness) drives the animation.
+  let trainerPulse = $derived(ble.trainerReconnect?.status === 'reconnecting');
+  let hrmPulse     = $derived(ble.hrmReconnect?.status === 'reconnecting');
+
+  function dotTitle(name: string, status: DeviceStatus, reconnect: ReconnectState): string {
+    if (reconnect?.status === 'reconnecting') {
+      return reconnect.attempt > 0 ? `${name}: Reconnecting (attempt ${reconnect.attempt})…` : `${name}: Reconnecting…`;
+    }
+    if (reconnect?.status === 'failed')       return `${name}: Unavailable`;
+    return `${name}: ${statusLabels[status]}`;
+  }
 
   onMount(() => {
     checkForUpdate();
@@ -110,8 +123,8 @@
               <span class="label">{item.label}</span>
               {#if item.href === '/'}
                 <span class="ble-dots" aria-label="BLE status">
-                  <span class="ble-dot" style="background: {trainerDot}" title="Trainer: {statusLabels[ble.trainerStatus]}"></span>
-                  <span class="ble-dot" style="background: {hrmDot}" title="HRM: {statusLabels[ble.hrmStatus]}"></span>
+                  <span class="ble-dot" class:pulse-dot={trainerPulse} style="background: {trainerDot}" title={dotTitle('Trainer', ble.trainerStatus, ble.trainerReconnect)}></span>
+                  <span class="ble-dot" class:pulse-dot={hrmPulse} style="background: {hrmDot}" title={dotTitle('HRM', ble.hrmStatus, ble.hrmReconnect)}></span>
                 </span>
               {/if}
             </a>
@@ -143,8 +156,9 @@
   {/if}
 </div>
 
-<!-- HRM reconnect feedback is shown inline in the Heart rate tile on the session
-     page (see MetricTile `status`), not as a global toast. -->
+<!-- HRM reconnect feedback lives in the inline affordances: the Heart rate tile on
+     the session page, the sidebar dots above and the connection page card; never a
+     global toast. -->
 
 <style>
   .shell {
@@ -229,6 +243,16 @@
     height: 7px;
     border-radius: 50%;
     display: inline-block;
+  }
+
+  /* Same pattern as the connection page `.pulse-dot` keyframes. */
+  .ble-dot.pulse-dot {
+    animation: pulse-dot 1s ease-in-out infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50%      { transform: scale(1.4); opacity: 0.5; }
   }
 
   .content {

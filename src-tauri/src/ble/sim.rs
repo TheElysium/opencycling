@@ -12,9 +12,9 @@ use DeviceKind::{Hrm, Trainer};
 // Sim metrics cadence mirrors actor.rs METRICS_TICK (1 Hz emit_metrics).
 const SIM_METRICS_TICK_S: u64 = 1;
 // Reconnect cadence + cap mirror actor.rs RECONNECT_INTERVAL_S / RECONNECT_MAX_ATTEMPTS
-// so the simulator reproduces the real ~2 min give-up window.
+// so the simulator reproduces the real ~30 s give-up window.
 pub const SIM_RECONNECT_INTERVAL_S: u64 = 3;
-pub const SIM_RECONNECT_MAX_ATTEMPTS: u32 = 40;
+pub const SIM_RECONNECT_MAX_ATTEMPTS: u32 = 10;
 // Without stay_lost the dropped device "comes back" after this many attempts, giving
 // the frontend a few reconnecting events to render before the auto-recovery.
 pub const SIM_RECOVER_AFTER_ATTEMPTS: u32 = 4;
@@ -550,7 +550,7 @@ mod tests {
     }
 
     #[test]
-    fn drop_stay_lost_fails_at_cap_40() {
+    fn drop_stay_lost_fails_at_cap() {
         let mut device = connected_device("sim-trainer");
         assert!(device.drop_device(true));
         for attempt in 1..SIM_RECONNECT_MAX_ATTEMPTS {

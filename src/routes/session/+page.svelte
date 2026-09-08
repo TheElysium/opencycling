@@ -32,12 +32,17 @@
   let aeroActive  = $state(false); // live aero loop running for this session
 
   // HR sensor reconnect feedback, shown inline in the Heart rate tile (no toast).
-  // Null while connected -> the tile shows the live bpm value.
-  let hrStatus = $derived(
-    ble.hrmReconnect?.status === 'reconnecting' ? 'Reconnecting…'
-    : ble.hrmReconnect?.status === 'failed'     ? 'Unavailable'
-    : null
-  );
+  // Null while connected -> the tile shows the live bpm value; "reconnected" maps
+  // to a brief "Back online" while the store lingers (~1.8 s) then clears itself.
+  // Attempt count mirrors the trainer reconnect modal wording; the Retry affordance
+  // is only wired once reconnection has failed (issue 17).
+  let hrStatus = $derived.by(() => {
+    const r = ble.hrmReconnect;
+    if (r?.status === 'reconnecting') return r.attempt > 0 ? `Reconnecting (attempt ${r.attempt})…` : 'Reconnecting…';
+    if (r?.status === 'failed')       return 'Unavailable';
+    if (r?.status === 'reconnected')  return 'Back online';
+    return null;
+  });
 
   async function startSessionFlow() {
     try {
@@ -248,7 +253,7 @@
         <PowerTile power_w={m.power_w} target_w={m.target_w} />
         <div class="metrics" class:with-aero={aeroActive}>
           <MetricTile label="Cadence"    value={m.cadence_rpm} unit="rpm" target={m.cadence_target_rpm} icon={RotateCw} />
-          <MetricTile label="Heart rate" value={m.hr_bpm}      unit="bpm" icon={Heart} status={hrStatus} />
+          <MetricTile label="Heart rate" value={m.hr_bpm}      unit="bpm" icon={Heart} status={hrStatus} onretry={hrStatus === 'Unavailable' ? () => ble.retryReconnect('Hrm') : null} />
           {#if aeroActive}<AeroPanel />{/if}
         </div>
       {/if}
