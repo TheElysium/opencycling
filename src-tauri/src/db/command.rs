@@ -1,6 +1,7 @@
+use crate::ble::DeviceKind;
 use crate::db::Settings;
 use crate::db::actor::DbActor;
-use crate::db::types::{Metric, SessionCard, SessionDetail, StravaAuth};
+use crate::db::types::{KnownDevices, Metric, SessionCard, SessionDetail, StravaAuth};
 use crate::errors::AppError;
 use tokio::sync::mpsc::{Sender, channel};
 use tokio::sync::oneshot;
@@ -60,6 +61,19 @@ pub enum DbCommand {
     SetSessionStravaActivity {
         session_id: i64,
         activity_id: i64,
+        reply: oneshot::Sender<Result<(), AppError>>,
+    },
+    QueryKnownDevices {
+        reply: oneshot::Sender<Result<KnownDevices, AppError>>,
+    },
+    SaveKnownDevice {
+        kind: DeviceKind,
+        id: String,
+        name: String,
+        reply: oneshot::Sender<Result<(), AppError>>,
+    },
+    SetAutoConnect {
+        enabled: bool,
         reply: oneshot::Sender<Result<(), AppError>>,
     },
 }
@@ -236,6 +250,43 @@ impl DbActorHandle {
                 activity_id,
                 reply: tx,
             })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    pub async fn get_known_devices(&self) -> Result<KnownDevices, AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::QueryKnownDevices { reply: tx })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    pub async fn set_known_device(
+        &self,
+        kind: DeviceKind,
+        id: String,
+        name: String,
+    ) -> Result<(), AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::SaveKnownDevice {
+                kind,
+                id,
+                name,
+                reply: tx,
+            })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    pub async fn set_auto_connect(&self, enabled: bool) -> Result<(), AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::SetAutoConnect { enabled, reply: tx })
             .await
             .map_err(|_| AppError::ChannelClosed)?;
         rx.await.map_err(|_| AppError::ChannelClosed)?

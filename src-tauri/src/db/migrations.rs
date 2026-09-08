@@ -74,6 +74,14 @@ const MIGRATIONS: &[&str] = &[
     ALTER TABLE sessions ADD COLUMN if_ REAL;
     ALTER TABLE sessions ADD COLUMN tss REAL;
     "#,
+    // v6 -> v7 : auto-connect to known BLE devices
+    r#"
+    ALTER TABLE settings ADD COLUMN trainer_device_id TEXT;
+    ALTER TABLE settings ADD COLUMN trainer_device_name TEXT;
+    ALTER TABLE settings ADD COLUMN hrm_device_id TEXT;
+    ALTER TABLE settings ADD COLUMN hrm_device_name TEXT;
+    ALTER TABLE settings ADD COLUMN auto_connect INTEGER NOT NULL DEFAULT 1;
+    "#,
 ];
 
 pub fn run(conn: &mut Connection) -> Result<(), AppError> {

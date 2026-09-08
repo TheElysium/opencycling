@@ -3,14 +3,17 @@
   import { fade, slide } from 'svelte/transition';
   import { goto } from '$app/navigation';
   import { Search, LoaderCircle, Plug2, Heart, Activity, Gauge } from '@lucide/svelte';
-  import { commands } from '$lib/bindings';
+  import { commands, type DeviceInfo, type KnownDevices } from '$lib/bindings';
   import { ble, disconnectDevice, type DeviceKind, type DeviceStatus, type ReconnectState } from '$lib/ble.svelte';
+  import { autoConnectCandidates } from '$lib/devices';
   import { toMessage } from '$lib/format';
 
   let trainerId  = $state<string | null>(null);
   let hrmId      = $state<string | null>(null);
   let scanning   = $state(false);
   let scanError  = $state<string | null>(null);
+  let known      = $state<KnownDevices | null>(null);
+  let autoConnecting = $state({ trainer: false, hrm: false });
 
   const statusLabels: Record<DeviceStatus, string> = {
     scanning:     'Scanning…',
@@ -33,7 +36,8 @@
   // Live reconnect state overrides the generic label/color on the device cards
   // ("reconnected" lingers ~1.8 s in the store, then clears itself). Shared by the
   // trainer and HRM cards so both devices surface the same wording and Retry.
-  function reconnectText(r: ReconnectState, status: DeviceStatus): string {
+  function reconnectText(r: ReconnectState, status: DeviceStatus, auto = false): string {
+    if (status === 'connecting' && auto) return 'Auto-connecting…';
     if (r?.status === 'reconnecting') return r.attempt > 0 ? `Reconnecting (attempt ${r.attempt})…` : 'Reconnecting…';
     if (r?.status === 'reconnected')  return 'Reconnected';
     if (r?.status === 'failed')       return 'Unavailable';
@@ -84,6 +88,8 @@
       } else if (ble.hrmStatus !== 'connected') {
         ble.hrmStatus = 'not_found';
       }
+
+      await autoConnectFrom(devices);
     } catch (e) {
       scanError = toMessage(e);
     } finally {
@@ -91,25 +97,55 @@
     }
   }
 
-  async function connect(kind: DeviceKind) {
+  function deviceIdle(status: DeviceStatus): boolean {
+    return status !== 'connected' && status !== 'connecting';
+  }
+
+  async function autoConnectFrom(devices: DeviceInfo[]) {
+    if (!known?.auto_connect) return;
+    const candidates = autoConnectCandidates(devices, { trainer: known.trainer, hrm: known.hrm });
+    if (candidates.trainer && deviceIdle(ble.trainerStatus)) {
+      await connect('Trainer', candidates.trainer, true);
+    }
+    if (candidates.hrm && deviceIdle(ble.hrmStatus)) {
+      await connect('Hrm', candidates.hrm, true);
+    }
+  }
+
+  async function connect(kind: DeviceKind, target?: DeviceInfo, auto = false) {
     const isTrainer = kind === 'Trainer';
+    if (target) {
+      if (isTrainer) { trainerId = target.id; ble.trainerName = target.name; }
+      else           { hrmId = target.id;     ble.hrmName = target.name; }
+    }
     const id = isTrainer ? trainerId : hrmId;
     if (!id) return;
+    // Capture before the await: a concurrent scan resets the store name.
+    const name = target?.name ?? (isTrainer ? ble.trainerName : ble.hrmName) ?? '';
     const setStatus = (s: DeviceStatus) => { if (isTrainer) ble.trainerStatus = s; else ble.hrmStatus = s; };
     const setError = (e: string | null) => { if (isTrainer) ble.trainerError = e; else ble.hrmError = e; };
+    if (auto) { if (isTrainer) autoConnecting.trainer = true; else autoConnecting.hrm = true; }
     setStatus('connecting');
     setError(null);
     try {
       await (isTrainer ? commands.connectTrainer(id) : commands.connectHrm(id));
       setStatus('connected');
+      if (name) commands.saveKnownDevice(kind, id, name).catch(() => {});
     } catch (e) {
       setStatus('error');
       setError(toMessage(e));
+    } finally {
+      if (isTrainer) autoConnecting.trainer = false; else autoConnecting.hrm = false;
     }
   }
 
-  onMount(() => {
+  onMount(async () => {
     if (ble.trainerStatus !== 'connected' || ble.hrmStatus !== 'connected') {
+      try {
+        known = await commands.getKnownDevices();
+      } catch {
+        known = null;
+      }
       scanDevices();
     }
   });
@@ -156,7 +192,7 @@
         </div>
         <div class="status">
           <span class="dot" class:pulse-dot={ble.trainerStatus === 'scanning'} style="background: {reconnectColor(ble.trainerReconnect, ble.trainerStatus)}"></span>
-          <span class="status-text" style="color: {reconnectColor(ble.trainerReconnect, ble.trainerStatus)}">{reconnectText(ble.trainerReconnect, ble.trainerStatus)}</span>
+          <span class="status-text" style="color: {reconnectColor(ble.trainerReconnect, ble.trainerStatus)}">{reconnectText(ble.trainerReconnect, ble.trainerStatus, autoConnecting.trainer)}</span>
         </div>
       </div>
       {#if ble.trainerStatus === 'not_found' && !bothNotFound}
@@ -199,7 +235,7 @@
         </div>
         <div class="status">
           <span class="dot" class:pulse-dot={ble.hrmStatus === 'scanning'} style="background: {reconnectColor(ble.hrmReconnect, ble.hrmStatus)}"></span>
-          <span class="status-text" style="color: {reconnectColor(ble.hrmReconnect, ble.hrmStatus)}">{reconnectText(ble.hrmReconnect, ble.hrmStatus)}</span>
+          <span class="status-text" style="color: {reconnectColor(ble.hrmReconnect, ble.hrmStatus)}">{reconnectText(ble.hrmReconnect, ble.hrmStatus, autoConnecting.hrm)}</span>
         </div>
       </div>
       {#if ble.hrmStatus === 'not_found'}
