@@ -74,3 +74,16 @@ pub struct StravaAuth {
     pub athlete_name: Option<String>,
     pub connected_at: String,
 }
+
+#[derive(Serialize, Debug, Clone, Type)]
+pub struct KnownDevice {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Serialize, Debug, Clone, Type)]
+pub struct KnownDevices {
+    pub trainer: Option<KnownDevice>,
+    pub hrm: Option<KnownDevice>,
+    pub auto_connect: bool,
+}

@@ -1,6 +1,6 @@
 use crate::ble::sim;
 use crate::ble::{BleActorHandle, BleEvent, BleMetrics, DeviceInfo, DeviceKind};
-use crate::db::{DbActorHandle, SessionCard, SessionDetail, Settings, StravaAuth};
+use crate::db::{DbActorHandle, KnownDevices, SessionCard, SessionDetail, Settings, StravaAuth};
 use crate::errors::AppError;
 use crate::session::{FlatBlock, SessionActorHandle, SessionSnapshot, StateKind, flatten_workout};
 use crate::strava::types::StravaStatus;
@@ -326,6 +326,34 @@ async fn strava_set_auto_upload(
 
 #[tauri::command]
 #[specta::specta]
+async fn get_known_devices(
+    state: tauri::State<'_, DbActorHandle>,
+) -> Result<KnownDevices, AppError> {
+    state.get_known_devices().await
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn save_known_device(
+    state: tauri::State<'_, DbActorHandle>,
+    kind: DeviceKind,
+    id: String,
+    name: String,
+) -> Result<(), AppError> {
+    state.set_known_device(kind, id, name).await
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn set_auto_connect(
+    state: tauri::State<'_, DbActorHandle>,
+    enabled: bool,
+) -> Result<(), AppError> {
+    state.set_auto_connect(enabled).await
+}
+
+#[tauri::command]
+#[specta::specta]
 async fn upload_session_to_strava(
     state: tauri::State<'_, DbActorHandle>,
     session_id: i64,
@@ -386,6 +414,9 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             strava_connect,
             strava_disconnect,
             strava_set_auto_upload,
+            get_known_devices,
+            save_known_device,
+            set_auto_connect,
             upload_session_to_strava,
         ])
         .typ::<crate::ble::BleMetrics>()

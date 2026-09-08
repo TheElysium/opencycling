@@ -4,6 +4,7 @@
   import { fade } from 'svelte/transition';
   import { Check } from '@lucide/svelte';
   import { getSettings, updateSettings } from '$lib/settings';
+  import { commands } from '$lib/bindings';
   import {
     stravaStatus,
     stravaConnect,
@@ -19,6 +20,7 @@
   let workoutPath = $state<string | null>(null);
   let stravaProxy = $state<string | null>(null);
   let aeroEnabled = $state(false);
+  let autoConnect = $state(false);
   let loading     = $state(true);
   let saving      = $state(false);
   let saved       = $state(false);
@@ -102,6 +104,15 @@
     }
   }
 
+  async function toggleAutoConnect() {
+    try {
+      await commands.setAutoConnect(autoConnect);
+    } catch (e) {
+      autoConnect = !autoConnect;
+      error = toMessage(e);
+    }
+  }
+
   onMount(async () => {
     try {
       const s = await getSettings();
@@ -114,6 +125,11 @@
       error = toMessage(e);
     } finally {
       loading = false;
+    }
+    try {
+      autoConnect = (await commands.getKnownDevices()).auto_connect;
+    } catch {
+      autoConnect = false;
     }
     await loadStrava();
   });
@@ -174,6 +190,22 @@
     </div>
 
     <h2>Features</h2>
+    <div class="card feature">
+      <div class="feature-row">
+        <div class="feature-info">
+          <span class="feature-name">Auto-connect devices</span>
+          <p class="feature-desc">
+            Automatically reconnect to the trainer and heart rate monitor you used last time when
+            the connection page opens. Devices are remembered after each successful connection.
+          </p>
+        </div>
+        <label class="switch">
+          <input type="checkbox" bind:checked={autoConnect} onchange={toggleAutoConnect} />
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+
     <div class="card feature">
       <div class="feature-row">
         <div class="feature-info">

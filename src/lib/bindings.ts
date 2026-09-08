@@ -42,6 +42,9 @@ export const commands = {
 	stravaConnect: () => __TAURI_INVOKE<StravaStatus>("strava_connect"),
 	stravaDisconnect: () => __TAURI_INVOKE<null>("strava_disconnect"),
 	stravaSetAutoUpload: (enabled: boolean) => __TAURI_INVOKE<null>("strava_set_auto_upload", { enabled }),
+	getKnownDevices: () => __TAURI_INVOKE<KnownDevices>("get_known_devices"),
+	saveKnownDevice: (kind: DeviceKind, id: string, name: string) => __TAURI_INVOKE<null>("save_known_device", { kind, id, name }),
+	setAutoConnect: (enabled: boolean) => __TAURI_INVOKE<null>("set_auto_connect", { enabled }),
 	uploadSessionToStrava: (sessionId: number, force: boolean) => __TAURI_INVOKE<number>("upload_session_to_strava", { sessionId, force }),
 };
 
@@ -81,6 +84,17 @@ export type FlatBlock = {
 	power_end_w: number,
 	cadence_rpm: number | null,
 	label: string,
+};
+
+export type KnownDevice = {
+	id: string,
+	name: string,
+};
+
+export type KnownDevices = {
+	trainer: KnownDevice | null,
+	hrm: KnownDevice | null,
+	auto_connect: boolean,
 };
 
 export type Metric = {

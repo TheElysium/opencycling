@@ -1,5 +1,8 @@
+use crate::ble::DeviceKind;
 use crate::db::command::DbCommand;
-use crate::db::{Metric, SessionCard, SessionDetail, Settings, StravaAuth};
+use crate::db::{
+    KnownDevice, KnownDevices, Metric, SessionCard, SessionDetail, Settings, StravaAuth,
+};
 use crate::errors::AppError;
 use crate::metrics::{WorkoutType, derive_metrics};
 use crate::session::FlatBlock;
@@ -115,6 +118,20 @@ impl DbActor {
                     } => {
                         let _ =
                             reply.send(self.set_session_strava_activity(session_id, activity_id));
+                    }
+                    DbCommand::QueryKnownDevices { reply } => {
+                        let _ = reply.send(self.query_known_devices());
+                    }
+                    DbCommand::SaveKnownDevice {
+                        kind,
+                        id,
+                        name,
+                        reply,
+                    } => {
+                        let _ = reply.send(self.set_known_device(kind, &id, &name));
+                    }
+                    DbCommand::SetAutoConnect { enabled, reply } => {
+                        let _ = reply.send(self.set_auto_connect(enabled));
                     }
                 },
             }
@@ -535,11 +552,63 @@ impl DbActor {
         )?;
         Ok(())
     }
+
+    fn query_known_devices(&self) -> Result<KnownDevices, AppError> {
+        Ok(self.conn.query_row(
+            "SELECT trainer_device_id, trainer_device_name, \
+                 hrm_device_id, hrm_device_name, auto_connect \
+                 FROM settings WHERE id = 1",
+            [],
+            |row| {
+                let t_id: Option<String> = row.get(0)?;
+                let t_name: Option<String> = row.get(1)?;
+                let h_id: Option<String> = row.get(2)?;
+                let h_name: Option<String> = row.get(3)?;
+                let auto: i64 = row.get(4)?;
+                Ok(KnownDevices {
+                    trainer: t_id.and_then(|id| t_name.map(|name| KnownDevice { id, name })),
+                    hrm: h_id.and_then(|id| h_name.map(|name| KnownDevice { id, name })),
+                    auto_connect: auto != 0,
+                })
+            },
+        )?)
+    }
+
+    fn set_known_device(&mut self, kind: DeviceKind, id: &str, name: &str) -> Result<(), AppError> {
+        self.conn.execute(
+            match kind {
+                DeviceKind::Trainer => {
+                    "UPDATE settings SET trainer_device_id = ?1, trainer_device_name = ?2 WHERE id = 1"
+                }
+                DeviceKind::Hrm => {
+                    "UPDATE settings SET hrm_device_id = ?1, hrm_device_name = ?2 WHERE id = 1"
+                }
+            },
+            (id, name),
+        )?;
+        Ok(())
+    }
+
+    fn set_auto_connect(&mut self, enabled: bool) -> Result<(), AppError> {
+        self.conn.execute(
+            "UPDATE settings SET auto_connect = ?1 WHERE id = 1",
+            [enabled as i64],
+        )?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::ended_at_from_parts;
+    use super::{DbActor, ended_at_from_parts};
+    use crate::ble::DeviceKind;
+
+    fn test_actor() -> DbActor {
+        let (_, cmd_rx) = tokio::sync::mpsc::channel(1);
+        let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+        crate::db::migrations::run(&mut conn).unwrap();
+        DbActor { conn, cmd_rx }
+    }
 
     #[test]
     fn ended_at_adds_duration_to_started_at() {
@@ -566,5 +635,46 @@ mod tests {
     #[test]
     fn ended_at_rejects_garbage_started_at() {
         assert!(ended_at_from_parts("not-a-date", 100).is_none());
+    }
+
+    #[test]
+    fn known_devices_default_on_fresh_db() {
+        let actor = test_actor();
+        let kd = actor.query_known_devices().unwrap();
+        assert!(kd.trainer.is_none());
+        assert!(kd.hrm.is_none());
+        assert!(kd.auto_connect);
+    }
+
+    #[test]
+    fn set_known_device_round_trips_per_kind() {
+        let mut actor = test_actor();
+        actor
+            .set_known_device(DeviceKind::Trainer, "D500-ABC", "Wahoo KICKR")
+            .unwrap();
+        actor
+            .set_known_device(DeviceKind::Hrm, "Polar-H10-001", "Polar H10")
+            .unwrap();
+        let kd = actor.query_known_devices().unwrap();
+        assert_eq!(kd.trainer.as_ref().unwrap().id, "D500-ABC");
+        assert_eq!(kd.trainer.as_ref().unwrap().name, "Wahoo KICKR");
+        assert_eq!(kd.hrm.as_ref().unwrap().id, "Polar-H10-001");
+        assert_eq!(kd.hrm.as_ref().unwrap().name, "Polar H10");
+
+        actor
+            .set_known_device(DeviceKind::Trainer, "D500-DEF", "Tacx NEO")
+            .unwrap();
+        let kd = actor.query_known_devices().unwrap();
+        assert_eq!(kd.trainer.as_ref().unwrap().id, "D500-DEF");
+        assert_eq!(kd.hrm.as_ref().unwrap().id, "Polar-H10-001");
+    }
+
+    #[test]
+    fn set_auto_connect_round_trips() {
+        let mut actor = test_actor();
+        actor.set_auto_connect(false).unwrap();
+        assert!(!actor.query_known_devices().unwrap().auto_connect);
+        actor.set_auto_connect(true).unwrap();
+        assert!(actor.query_known_devices().unwrap().auto_connect);
     }
 }
