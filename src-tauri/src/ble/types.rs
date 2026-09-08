@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::Instant;
 use tauri::{AppHandle, Runtime};
 use tokio::sync::mpsc::{Receiver, Sender};
-use tokio::sync::{oneshot, Mutex};
+use tokio::sync::{Mutex, oneshot};
 use tokio::task::AbortHandle;
 
 #[derive(Serialize, Clone, Type)]

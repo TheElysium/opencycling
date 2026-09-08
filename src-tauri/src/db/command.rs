@@ -1,8 +1,8 @@
+use crate::db::Settings;
 use crate::db::actor::DbActor;
 use crate::db::types::{Metric, SessionCard, SessionDetail, StravaAuth};
-use crate::db::Settings;
 use crate::errors::AppError;
-use tokio::sync::mpsc::{channel, Sender};
+use tokio::sync::mpsc::{Sender, channel};
 use tokio::sync::oneshot;
 
 pub enum DbCommand {

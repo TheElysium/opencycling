@@ -4,7 +4,7 @@ mod types;
 use crate::errors::AppError;
 use crate::errors::AppError::FTMSPacketParseError;
 use features::FEATURES;
-use types::{FeatureVal, FLAGS_LEN, MORE_DATA_FLAG};
+use types::{FLAGS_LEN, FeatureVal, MORE_DATA_FLAG};
 
 pub use types::IndoorBikeData;
 
@@ -75,8 +75,8 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_indoor_bike_data_given_packet_should_return_indoor_bike_data(
-    ) -> Result<(), AppError> {
+    fn test_parse_indoor_bike_data_given_packet_should_return_indoor_bike_data()
+    -> Result<(), AppError> {
         let packet: &[u8] = &[
             0x44, 0x00, 0x48, 0x09, 0x64, 0x00, 0xA0, 0x00, 0x82, 0x05, 0xF2, 0x13, 0x38, 0x06,
             0xD3, 0x00, 0x40, 0x03,

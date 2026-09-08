@@ -9,8 +9,8 @@ use btleplug::platform::Manager;
 use std::sync::Arc;
 use tauri::{AppHandle, Runtime};
 use tokio::spawn;
-use tokio::sync::mpsc::{channel, Receiver, Sender};
-use tokio::sync::{oneshot, Mutex};
+use tokio::sync::mpsc::{Receiver, Sender, channel};
+use tokio::sync::{Mutex, oneshot};
 
 // Public handle to the BleActor: only exposes the mpsc Sender so callers
 // cannot access actor internals. Cheap to clone; safe to share across threads.

@@ -9,9 +9,9 @@ use opencycling_lib::ble::sim::{
 use opencycling_lib::ble::{BleActorHandle, BleEvent, BleMetrics, DeviceKind};
 use serde_json::Value;
 use std::time::Duration;
-use tauri::test::{mock_app, MockRuntime};
+use tauri::test::{MockRuntime, mock_app};
 use tauri::{App, Listener};
-use tokio::sync::mpsc::{channel, unbounded_channel, Receiver, UnboundedReceiver};
+use tokio::sync::mpsc::{Receiver, UnboundedReceiver, channel, unbounded_channel};
 
 struct Harness {
     _app: App<MockRuntime>,

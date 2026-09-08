@@ -1,7 +1,7 @@
 use crate::db::command::DbCommand;
 use crate::db::{Metric, SessionCard, SessionDetail, Settings, StravaAuth};
 use crate::errors::AppError;
-use crate::metrics::{derive_metrics, WorkoutType};
+use crate::metrics::{WorkoutType, derive_metrics};
 use crate::session::FlatBlock;
 use rusqlite::Connection;
 use tokio::sync::mpsc::Receiver;

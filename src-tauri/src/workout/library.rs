@@ -1,6 +1,6 @@
 use crate::errors::AppError;
-use crate::session::{flatten_workout, FlatBlock};
-use crate::workout::{parse_zwo, ParsedWorkout};
+use crate::session::{FlatBlock, flatten_workout};
+use crate::workout::{ParsedWorkout, parse_zwo};
 use serde::Serialize;
 use specta::Type;
 use std::ffi::OsStr;

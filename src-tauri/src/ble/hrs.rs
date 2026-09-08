@@ -41,8 +41,8 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_heart_rate_measurement_given_valid_packet_should_return_hr_measurement(
-    ) -> Result<(), AppError> {
+    fn test_parse_heart_rate_measurement_given_valid_packet_should_return_hr_measurement()
+    -> Result<(), AppError> {
         let packet: &[u8] = &[0x10, 0x4B];
         let res = parse_heart_rate_measurement(packet)?;
         assert_eq!(res.hr_bpm, 75);
@@ -50,8 +50,8 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_heart_rate_measurement_given_16bit_packet_should_return_hr_measurement(
-    ) -> Result<(), AppError> {
+    fn test_parse_heart_rate_measurement_given_16bit_packet_should_return_hr_measurement()
+    -> Result<(), AppError> {
         let packet: &[u8] = &[0x01, 0x2C, 0x01];
         let res = parse_heart_rate_measurement(packet)?;
         assert_eq!(res.hr_bpm, 300);

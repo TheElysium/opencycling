@@ -1,7 +1,7 @@
 use crate::errors::AppError;
 use crate::strava::types::UploadStatus;
 use reqwest::multipart::{Form, Part};
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 
 const UPLOADS_URL: &str = "https://www.strava.com/api/v3/uploads";
 

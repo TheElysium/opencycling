@@ -6,6 +6,7 @@ use crate::ble::types::{
     ParsedNotifications, ReconnectMsg,
 };
 use crate::errors::AppError;
+use DeviceKind::Hrm;
 use btleplug::api::{Central, CentralEvent, Characteristic, Peripheral, ScanFilter, WriteType};
 use btleplug::platform;
 use btleplug::platform::Adapter;
@@ -14,12 +15,11 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Runtime};
+use tokio::sync::Mutex;
 use tokio::sync::mpsc::Sender as MpscSender;
 use tokio::sync::oneshot::Sender;
-use tokio::sync::Mutex;
 use tracing::{error, info};
 use uuid::Uuid;
-use DeviceKind::Hrm;
 
 // UUIDs standard Bluetooth SIG
 const FITNESS_MACHINE_SERVICE: Uuid = Uuid::from_u128(0x00001826_0000_1000_8000_00805f9b34fb);
@@ -142,20 +142,20 @@ impl<R: Runtime> BleActor<R> {
             // WinRT can emit several DeviceDisconnected events for one drop, including
             // a stale one after we have already reconnected. If the peripheral still
             // reports connected, this is a duplicate/late event, ignore it (issue 18).
-            if let Some(trainer) = &self.trainer {
-                if trainer.is_connected().await.unwrap_or(false) {
-                    info!("ignoring stale DeviceDisconnected for still-connected trainer");
-                    return;
-                }
+            if let Some(trainer) = &self.trainer
+                && trainer.is_connected().await.unwrap_or(false)
+            {
+                info!("ignoring stale DeviceDisconnected for still-connected trainer");
+                return;
             }
             info!("trainer disconnected (adapter event)");
             self.handle_trainer_lost().await;
         } else if self.hrm.as_ref().map(|p| p.id() == id).unwrap_or(false) {
-            if let Some(hrm) = &self.hrm {
-                if hrm.is_connected().await.unwrap_or(false) {
-                    info!("ignoring stale DeviceDisconnected for still-connected hrm");
-                    return;
-                }
+            if let Some(hrm) = &self.hrm
+                && hrm.is_connected().await.unwrap_or(false)
+            {
+                info!("ignoring stale DeviceDisconnected for still-connected hrm");
+                return;
             }
             info!("hrm disconnected");
             self.hrm = None;
@@ -260,10 +260,10 @@ impl<R: Runtime> BleActor<R> {
                 self.hrm.take()
             }
         };
-        if let Some(peripheral) = peripheral {
-            if let Err(e) = peripheral.disconnect().await {
-                error!("{} disconnect failed (best effort): {e}", kind.as_str());
-            }
+        if let Some(peripheral) = peripheral
+            && let Err(e) = peripheral.disconnect().await
+        {
+            error!("{} disconnect failed (best effort): {e}", kind.as_str());
         }
         // Clear cached metrics so emit_metrics stops reporting stale values, and drop the
         // retained id so start_reconnect has nothing to relaunch against.

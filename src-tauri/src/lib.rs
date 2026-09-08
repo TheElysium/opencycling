@@ -2,14 +2,14 @@ use crate::ble::sim;
 use crate::ble::{BleActorHandle, BleEvent, BleMetrics, DeviceInfo, DeviceKind};
 use crate::db::{DbActorHandle, SessionCard, SessionDetail, Settings, StravaAuth};
 use crate::errors::AppError;
-use crate::session::{flatten_workout, FlatBlock, SessionActorHandle, SessionSnapshot, StateKind};
+use crate::session::{FlatBlock, SessionActorHandle, SessionSnapshot, StateKind, flatten_workout};
 use crate::strava::types::StravaStatus;
-use crate::workout::{list_workouts, parse_zwo, ParsedWorkout, WorkoutLibrary};
+use crate::workout::{ParsedWorkout, WorkoutLibrary, list_workouts, parse_zwo};
 use tauri::Manager;
 use tauri_plugin_opener::OpenerExt;
 use tracing::metadata::LevelFilter;
 use tracing_subscriber::prelude::*;
-use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt};
 
 // pub: the BLE sim integration tests drive the actor stack directly (tests/sim_e2e.rs).
 pub mod ble;
@@ -332,10 +332,8 @@ async fn upload_session_to_strava(
     force: bool,
 ) -> Result<i64, AppError> {
     let detail = state.get_session(session_id).await?;
-    if !force {
-        if let Some(existing) = detail.strava_activity_id {
-            return Ok(existing); // dedup guard: already uploaded
-        }
+    if !force && let Some(existing) = detail.strava_activity_id {
+        return Ok(existing); // dedup guard: already uploaded
     }
     let token = strava::ensure_fresh_token(&state).await?;
     let tcx = export::tcx::build_tcx(&detail);
@@ -355,7 +353,7 @@ async fn upload_session_to_strava(
 // so they appear in the bindings even though the events themselves are still driven by
 // manual `listen()` calls on the frontend.
 fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
-    use tauri_specta::{collect_commands, Builder};
+    use tauri_specta::{Builder, collect_commands};
     Builder::<tauri::Wry>::new()
         .commands(collect_commands![
             load_workout,

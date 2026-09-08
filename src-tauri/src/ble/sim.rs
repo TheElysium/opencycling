@@ -1,13 +1,13 @@
 use crate::ble::actor::emit_reconnect;
 use crate::ble::types::{BleCommand, BleEvent, BleMetrics, DeviceInfo, DeviceKind};
 use crate::errors::AppError;
+use DeviceKind::{Hrm, Trainer};
 use std::sync::OnceLock;
 use tauri::{AppHandle, Emitter, Runtime};
-use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::sync::mpsc::{Receiver, Sender, channel};
 use tokio::sync::oneshot::Sender as ReplySender;
 use tokio::task::AbortHandle;
 use tracing::info;
-use DeviceKind::{Hrm, Trainer};
 
 // Sim metrics cadence mirrors actor.rs METRICS_TICK (1 Hz emit_metrics).
 const SIM_METRICS_TICK_S: u64 = 1;

@@ -3,7 +3,7 @@ use crate::strava::types::ProxyTokens;
 use serde::Deserialize;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
-use tokio::time::{timeout, Duration};
+use tokio::time::{Duration, timeout};
 
 /// Maximum number of bytes we read from the callback request before giving up.
 /// The callback is a single short GET line plus headers; this cap keeps a

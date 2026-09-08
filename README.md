@@ -113,7 +113,7 @@ Please search existing issues first to avoid duplicates.
 
 - **Framework:** [Tauri v2](https://tauri.app/) (desktop shell)
 - **Frontend:** [SvelteKit 5](https://svelte.dev/) (Svelte runes), TypeScript, Vite; [TensorFlow.js](https://www.tensorflow.org/js) + MoveNet (bundled offline) for webcam aero detection
-- **Backend:** Rust (edition 2021), Tokio, `rusqlite`, `roxmltree`, `thiserror`, `tracing`
+- **Backend:** Rust (edition 2024), Tokio, `rusqlite`, `roxmltree`, `thiserror`, `tracing`
 - **Storage:** SQLite (schema-migrated on startup)
 
 ## 🏗️ Architecture

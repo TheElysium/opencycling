@@ -3,7 +3,7 @@ name = "opencycling"
 version = "0.3.4"
 description = "Free local-first indoor cycling training app: FTMS trainer control, .zwo workouts, session recording"
 authors = ["Luka Signe--Morice"]
-edition = "2021"
+edition = "2024"
 default-run = "opencycling"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
