@@ -14,6 +14,18 @@
   let targetW     = $derived(metrics.target_w);
   let cadenceT    = $derived(metrics.cadence_target_rpm);
   let zone        = $derived(block ? zoneOf(flatBlockAvgPct(block, metrics.ftp_w)) : 1);
+  let isRamping        = $derived(metrics.state === 'Ramping' && metrics.ramp_remaining_s != null);
+  let isPausedByStall  = $derived(metrics.state === 'Paused' && metrics.paused_by_stall);
+  let isStalled        = $derived(isPausedByStall || (isRamping && metrics.ramp_stalled));
+  // Mirror: RAMP_S in src-tauri/src/session/state.rs (ramp total duration).
+  const RAMP_TOTAL_S = 15;
+  // While ramping, the main bar tracks ramp completion instead of block completion.
+  let displayPct = $derived(
+    isRamping && metrics.ramp_remaining_s != null
+      ? ((RAMP_TOTAL_S - metrics.ramp_remaining_s) / RAMP_TOTAL_S) * 100
+      : progressPct
+  );
+  let barColor = $derived(isStalled ? 'var(--warning)' : `var(--z${zone})`);
 
   let skipError = $state<string | null>(null);
   async function onSkip() {
@@ -45,10 +57,21 @@
     <button class="skip-btn" onclick={onSkip} aria-label="Skip block">
       Skip <SkipForward size={14} />
     </button>
-    <div class="remaining">
-      Remaining <strong>{formatClock(remainingS)}</strong> / {formatClock(durationS)}
+    <div
+      class="remaining"
+      class:resuming={isRamping && !isStalled}
+      class:stalled={isStalled}
+      aria-live={isStalled ? 'assertive' : 'off'}
+    >
+      {#if isStalled}
+        Dropped out! Start pedaling again to resume
+      {:else if isRamping}
+        Resuming… <strong>{Math.ceil(metrics.ramp_remaining_s ?? 0)}s</strong>
+      {:else}
+        Remaining <strong>{formatClock(remainingS)}</strong> / {formatClock(durationS)}
+      {/if}
     </div>
-    <div class="progress"><div style="width: {progressPct}%; background: var(--z{zone});"></div></div>
+    <div class="progress"><div style="width: {displayPct}%; background: {barColor};"></div></div>
     {#if skipError}<div class="skip-err">{skipError}</div>{/if}
   </div>
 {/if}
@@ -87,6 +110,20 @@
     font-size: 1.1rem;
     font-weight: 500;
   }
+  .remaining.resuming { color: var(--accent); }
+  .remaining.stalled {
+    color: var(--danger);
+    font-weight: 700;
+    font-size: 1.15rem;
+    animation: pulse-stall 1.2s ease-in-out infinite;
+  }
+  @keyframes pulse-stall {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .remaining.stalled { animation: none; }
+  }
   .skip-btn {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -110,7 +147,9 @@
   }
   .progress > div {
     height: 100%;
-    transition: width 0.4s linear;
+    /* Matches the 1s session_metrics tick so the bar glides continuously
+       instead of jumping then holding still until the next tick. */
+    transition: width 1s linear;
   }
   .skip-err {
     grid-column: 1 / -1;

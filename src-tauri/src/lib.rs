@@ -144,6 +144,15 @@ async fn sim_restore_device(
 
 #[tauri::command]
 #[specta::specta]
+async fn sim_set_pedaling(
+    state: tauri::State<'_, BleActorHandle>,
+    pedaling: bool,
+) -> Result<(), AppError> {
+    state.sim_set_pedaling(pedaling).await
+}
+
+#[tauri::command]
+#[specta::specta]
 async fn get_settings(state: tauri::State<'_, DbActorHandle>) -> Result<Settings, AppError> {
     state.get_settings().await
 }
@@ -398,6 +407,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             sim_available,
             sim_drop_device,
             sim_restore_device,
+            sim_set_pedaling,
             get_settings,
             update_settings,
             start_session,

@@ -8,6 +8,8 @@
   let available = $state(false);
   let busy      = $state<DeviceKind | null>(null);
   let error     = $state<string | null>(null);
+  let pedaling  = $state(true);
+  let pedalBusy = $state(false);
 
   onMount(() => {
     // Availability is only a hint; any failure just hides the panel.
@@ -25,6 +27,19 @@
       error = toMessage(e);
     } finally {
       busy = null;
+    }
+  }
+
+  async function togglePedaling() {
+    pedalBusy = true;
+    error     = null;
+    try {
+      await commands.simSetPedaling(!pedaling);
+      pedaling = !pedaling;
+    } catch (e) {
+      error = toMessage(e);
+    } finally {
+      pedalBusy = false;
     }
   }
 </script>
@@ -61,6 +76,22 @@
   </div>
 {/snippet}
 
+{#snippet pedalRow()}
+  <div class="sim-row">
+    <span class="sim-device">Rider pedaling</span>
+    <div class="sim-actions">
+      <button
+        type="button"
+        class="btn-ghost"
+        disabled={pedalBusy}
+        onclick={togglePedaling}
+      >
+        {pedalBusy ? 'Applying…' : pedaling ? 'Stop pedaling' : 'Start pedaling'}
+      </button>
+    </div>
+  </div>
+{/snippet}
+
 {#if available}
   {#if variant === 'card'}
     <section class="card sim-card">
@@ -71,6 +102,7 @@
       </p>
       {@render simRow('Trainer', 'Home Trainer')}
       {@render simRow('Hrm', 'Heart rate monitor')}
+      {@render pedalRow()}
       {#if error}
         <p class="error-box">{error}</p>
       {/if}
@@ -79,6 +111,7 @@
     <div class="sim-float">
       {@render simRow('Trainer', 'Home Trainer')}
       {@render simRow('Hrm', 'Heart rate monitor')}
+      {@render pedalRow()}
       {#if error}
         <p class="error-box">{error}</p>
       {/if}

@@ -336,6 +336,7 @@ impl SessionActor {
             target_w: session.last_target_w,
             ramp_remaining_s: state.ramp_remaining_s(),
             paused_by_stall: state.paused_by_stall(),
+            ramp_stalled: state.ramp_stalled(),
             cadence_target_rpm,
             power_w: self.last_power_w,
             hr_bpm: self.last_hr_bpm,

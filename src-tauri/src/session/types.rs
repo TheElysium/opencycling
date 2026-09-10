@@ -97,6 +97,11 @@ pub trait State: Send + 'static {
     fn paused_by_stall(&self) -> bool {
         false
     }
+    /// The rider stopped pedaling mid-ramp: the clock and ERG target are frozen
+    /// (see `RampingState::tick`) but the ramp has not yet timed out into a pause.
+    fn ramp_stalled(&self) -> bool {
+        false
+    }
     /// A device the session depends on (the trainer) dropped. Running pauses with
     /// `by_dropout: true` so it can auto-resume; every other state is unchanged.
     /// A manual `Paused { by_dropout: false }` is deliberately NOT promoted to a
@@ -165,6 +170,9 @@ pub struct SessionMetrics {
     /// Paused because the rider stopped pedaling; the frontend then hints that
     /// pedaling again auto-resumes.
     pub paused_by_stall: bool,
+    /// The ramp is frozen because the rider stopped pedaling (not yet a stall
+    /// pause); mirrors `paused_by_stall`'s hint during `Ramping`.
+    pub ramp_stalled: bool,
     pub cadence_target_rpm: Option<u16>,
     pub power_w: Option<i16>,
     pub hr_bpm: Option<u16>,
