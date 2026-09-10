@@ -17,6 +17,7 @@
 
   let ftp         = $state<number | null>(null);
   let maxHr       = $state<number | null>(null);
+  let stallTimeout = $state<number | null>(null);
   let workoutPath = $state<string | null>(null);
   let stravaProxy = $state<string | null>(null);
   let aeroEnabled = $state(false);
@@ -78,9 +79,13 @@
 
   // Single source of the settings payload, shared by Save, the aero toggle, and the
   // proxy-URL blur. No-op until every required field is populated.
+  // min/max input attributes do not clamp typed values; enforce the range here.
+  const clampStall = (v: number) => Math.round(Math.min(60, Math.max(1, v)));
   async function persist() {
-    if (ftp === null || maxHr === null || workoutPath === null || stravaProxy === null) return;
-    await updateSettings({ ftp_w: ftp, max_hr_bpm: maxHr, workout_path: workoutPath, strava_proxy_url: stravaProxy, aero_enabled: aeroEnabled });
+    if (ftp === null || maxHr === null || stallTimeout === null || workoutPath === null || stravaProxy === null) return;
+    const stall = clampStall(stallTimeout);
+    stallTimeout = stall;
+    await updateSettings({ ftp_w: ftp, max_hr_bpm: maxHr, stall_timeout_s: stall, workout_path: workoutPath, strava_proxy_url: stravaProxy, aero_enabled: aeroEnabled });
   }
 
   // The proxy URL lives in the Strava tile and persists on blur, so it can be
@@ -116,11 +121,12 @@
   onMount(async () => {
     try {
       const s = await getSettings();
-      ftp         = s.ftp_w;
-      maxHr       = s.max_hr_bpm;
-      workoutPath = s.workout_path;
-      stravaProxy = s.strava_proxy_url;
-      aeroEnabled = s.aero_enabled;
+      ftp          = s.ftp_w;
+      maxHr        = s.max_hr_bpm;
+      stallTimeout = clampStall(s.stall_timeout_s);
+      workoutPath  = s.workout_path;
+      stravaProxy  = s.strava_proxy_url;
+      aeroEnabled  = s.aero_enabled;
     } catch (e) {
       error = toMessage(e);
     } finally {
@@ -135,7 +141,7 @@
   });
 
   async function save() {
-    if (ftp === null || maxHr === null || workoutPath === null || stravaProxy === null) return;
+    if (ftp === null || maxHr === null || stallTimeout === null || workoutPath === null || stravaProxy === null) return;
     saving = true;
     error  = null;
     saved  = false;
@@ -168,6 +174,11 @@
         <input id="max-hr" type="number" min="100" max="250" bind:value={maxHr} />
       </div>
       <div class="field">
+        <label for="stall-timeout">Stall timeout (s)</label>
+        <input id="stall-timeout" type="number" min="1" max="60" bind:value={stallTimeout} />
+        <span class="field-hint">Time without pedaling before a running session auto-pauses (1–60 s, default 5).</span>
+      </div>
+      <div class="field">
         <label for="workout-path">Workout folder</label>
         <div class="path-row">
           <input id="workout-path" type="text" bind:value={workoutPath} placeholder="/path/to/workouts" />
@@ -184,7 +195,7 @@
       {#if saved}
         <span class="saved-msg" transition:fade={{ duration: 100 }}>Saved</span>
       {/if}
-      <button onclick={save} disabled={saving || ftp === null || maxHr === null || workoutPath === null || stravaProxy === null} class="btn-primary">
+      <button onclick={save} disabled={saving || ftp === null || maxHr === null || stallTimeout === null || workoutPath === null || stravaProxy === null} class="btn-primary">
         {saving ? 'Saving…' : 'Save'}
       </button>
     </div>

@@ -12,6 +12,8 @@ pub struct Settings {
     pub strava_proxy_url: String,
     /// Global default for front-camera aero detection.
     pub aero_enabled: bool,
+    /// Seconds of no pedaling (cadence and power below thresholds) before a running session auto-pauses.
+    pub stall_timeout_s: u16,
 }
 
 #[derive(Serialize, Debug, Clone, Type)]

@@ -98,8 +98,11 @@
   let m          = $derived<SessionMetrics | null>(session.metrics);
   let isWaiting  = $derived(m?.state === 'WaitingForRider');
   let isPaused   = $derived(m?.state === 'Paused');
+  let isRamping  = $derived(m?.state === 'Ramping');
   let isFinished = $derived(m?.state === 'Finished');
   let isActive   = $derived(m != null && !isFinished);
+  // Mirror: RAMP_S in src-tauri/src/session/state.rs (ramp total duration).
+  const RAMP_TOTAL_S = 15;
 
   let prevState: SessionMetrics['state'] | null = null;
   let prevBlockIdx: number | null = null;
@@ -129,11 +132,20 @@
     // A fresh session resets the one-shot auto-upload guard.
     if (m.state === 'WaitingForRider') autoUploaded = false;
 
-    if (prevState !== null && prevState !== 'Running' && m.state === 'Running') beepLow();
+    // Ramping->Running is handled by the ramp-completion beep below, not the
+    // generic run-start beep.
+    if (
+      prevState !== null &&
+      prevState !== 'Running' &&
+      prevState !== 'Ramping' &&
+      m.state === 'Running'
+    )
+      beepLow();
     if (prevState !== null && prevState !== 'Finished' && m.state === 'Finished') {
       beepLow();
       maybeAutoUpload(m.session_id);
     }
+    if (prevState === 'Ramping' && m.state === 'Running') beepLong();
     if (m.state === 'Running' && prevBlockIdx !== null && prevBlockIdx !== m.current_block_idx) beepLong();
     if (
       m.state === 'Running' &&
@@ -249,6 +261,18 @@
           {/if}
         {/if}
       {:else}
+        {#if isRamping && m.ramp_remaining_s != null}
+          <div class="ramp-panel">
+            <div class="ramp-label">Resuming…</div>
+            <div class="ramp-progress">
+              <div
+                class="ramp-bar"
+                style:width="{((RAMP_TOTAL_S - m.ramp_remaining_s) / RAMP_TOTAL_S) * 100}%"
+              ></div>
+            </div>
+            <div class="ramp-count">{Math.ceil(m.ramp_remaining_s)}s</div>
+          </div>
+        {/if}
         <CurrentBlockCard metrics={m} flat_blocks={session.flat_blocks} />
         <PowerTile power_w={m.power_w} target_w={m.target_w} />
         <div class="metrics" class:with-aero={aeroActive}>
@@ -256,6 +280,9 @@
           <MetricTile label="Heart rate" value={m.hr_bpm}      unit="bpm" icon={Heart} status={hrStatus} onretry={hrStatus === 'Unavailable' ? () => ble.retryReconnect('Hrm') : null} />
           {#if aeroActive}<AeroPanel />{/if}
         </div>
+        {#if isPaused && m.paused_by_stall}
+          <div class="stall-hint">Pedal for a few seconds to resume automatically</div>
+        {/if}
       {/if}
     </section>
 
@@ -609,4 +636,45 @@
     width: 100%;
   }
   .reconnect-actions .btn-stop { grid-column: auto; }
+
+  .ramp-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .ramp-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .ramp-progress {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .ramp-bar {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.3s linear;
+  }
+  .ramp-count {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stall-hint {
+    font-size: 0.85rem;
+    color: var(--muted);
+    text-align: center;
+    padding: 0.4rem 0;
+  }
 </style>

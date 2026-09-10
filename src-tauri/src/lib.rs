@@ -178,8 +178,9 @@ async fn start_session(
     state: tauri::State<'_, SessionActorHandle>,
     workout: ParsedWorkout,
     ftp_w: u16,
+    stall_timeout_s: u16,
 ) -> Result<(), AppError> {
-    state.start(workout, ftp_w).await
+    state.start(workout, ftp_w, stall_timeout_s).await
 }
 
 #[tauri::command]

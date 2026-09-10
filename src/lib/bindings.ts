@@ -19,7 +19,7 @@ export const commands = {
 	simRestoreDevice: (kind: DeviceKind) => __TAURI_INVOKE<null>("sim_restore_device", { kind }),
 	getSettings: () => __TAURI_INVOKE<Settings>("get_settings"),
 	updateSettings: (settings: Settings) => __TAURI_INVOKE<null>("update_settings", { settings }),
-	startSession: (workout: ParsedWorkout, ftpW: number) => __TAURI_INVOKE<null>("start_session", { workout, ftpW }),
+	startSession: (workout: ParsedWorkout, ftpW: number, stallTimeoutS: number) => __TAURI_INVOKE<null>("start_session", { workout, ftpW, stallTimeoutS }),
 	pauseSession: () => __TAURI_INVOKE<null>("pause_session"),
 	resumeSession: () => __TAURI_INVOKE<null>("resume_session"),
 	stopSession: () => __TAURI_INVOKE<null>("stop_session"),
@@ -165,6 +165,13 @@ export type SessionMetrics = {
 	current_block_idx: number,
 	current_block_elapsed_s: number,
 	target_w: number | null,
+	/**  Seconds left before the post-resume ramp reaches the block target. */
+	ramp_remaining_s: number | null,
+	/**
+	 *  Paused because the rider stopped pedaling; the frontend then hints that
+	 *  pedaling again auto-resumes.
+	 */
+	paused_by_stall: boolean,
 	cadence_target_rpm: number | null,
 	power_w: number | null,
 	hr_bpm: number | null,
@@ -192,11 +199,18 @@ export type Settings = {
 	strava_proxy_url: string,
 	/**  Global default for front-camera aero detection. */
 	aero_enabled: boolean,
+	/**  Seconds of no pedaling (cadence and power below thresholds) before a running session auto-pauses. */
+	stall_timeout_s: number,
 };
 
 export type SportType = "Bike" | "Running";
 
-export type StateKind = "WaitingForRider" | "Running" | "Paused" | "Finished";
+export type StateKind = "WaitingForRider" | "Running" | "Paused" | 
+/**
+ *  ERG target ramps from a low floor back to the block target after a resume;
+ *  the workout clock is frozen, so the plan stays faithful to its schedule.
+ */
+"Ramping" | "Finished";
 
 /**  Status surfaced to the frontend. */
 export type StravaStatus = {

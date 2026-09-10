@@ -2,7 +2,7 @@ use crate::ble::BleEvent;
 use crate::db::Metric;
 use crate::errors::AppError;
 use crate::metrics::fallback_label;
-use crate::session::state::TICK_S;
+use crate::session::state::{TICK_S, ramp_floor_w};
 use crate::session::types::{
     FlatBlock, Session, SessionActor, SessionCommand, SessionMetrics, SessionSnapshot, StateKind,
     WaitingForRiderState,
@@ -71,6 +71,7 @@ impl SessionActor {
             SessionCommand::Start {
                 workout,
                 ftp_w,
+                stall_timeout_s,
                 reply,
             } => {
                 let active = matches!(
@@ -89,6 +90,8 @@ impl SessionActor {
                 self.session = Some(Session {
                     blocks: flattened_workout,
                     ftp_w,
+                    // A zero setting would pause on every tick.
+                    stall_timeout_s: stall_timeout_s.max(1),
                     total_elapsed_s: 0,
                     total_active_s: 0,
                     current_block_idx: 0,
@@ -122,12 +125,26 @@ impl SessionActor {
             }
             SessionCommand::Pause => {
                 info!("pause requested");
+                let was_active = matches!(
+                    self.state.as_ref().map(|s| s.kind()),
+                    Some(StateKind::Running) | Some(StateKind::Ramping)
+                );
                 if let Some(state) = self.state.take() {
                     self.state = Some(state.pause())
                 }
                 // Clear the ERG write tracker so resume rewrites the target even when
                 // it matches the last value sent before pausing.
                 self.last_sent_target_w = None;
+                // Drop the ERG target to the ramp floor while paused: the BLE
+                // keep-alive would otherwise keep replaying the block target.
+                if was_active
+                    && let Some(target) = self.session.as_ref().and_then(|s| s.last_target_w)
+                {
+                    let floor = ramp_floor_w(target) as i16;
+                    if let Err(e) = self.ble_handle.set_target_power(floor).await {
+                        tracing::error!("pause floor target failed: {e}");
+                    }
+                }
                 self.emit_metrics();
             }
             SessionCommand::Resume => {
@@ -204,6 +221,17 @@ impl SessionActor {
                 .unwrap_or("");
             info!(block_idx, label, target_w = ?target_w, "advanced to block");
         }
+        // A Running->Paused transition inside a tick is the stall auto-pause (manual
+        // pauses go through the command path); drop the ERG target to the ramp floor.
+        if prev_kind == StateKind::Running
+            && kind == StateKind::Paused
+            && let Some(target) = target_w
+        {
+            let floor = ramp_floor_w(target) as i16;
+            if let Err(e) = self.ble_handle.set_target_power(floor).await {
+                tracing::error!("stall floor target failed: {e}");
+            }
+        }
 
         match kind {
             StateKind::WaitingForRider => {}
@@ -252,26 +280,13 @@ impl SessionActor {
                         )
                         .await;
                 }
-                // Write the ERG target only when it changes. Block transitions and
-                // ramps (recomputed every second) still produce a new value and thus a
-                // write; a steady block sends once and then relies on the BLE actor's
-                // 10 s keep-alive for retention. Interaction with ERG-failure-based drop
-                // detection (audit 2.4): with fewer writes, a trainer that drops during
-                // a steady block is detected more slowly, but the keep-alive still writes
-                // every 10 s, so two consecutive failures bound detection to about 20 s,
-                // which is acceptable. last_sent_target_w is cleared on every state
-                // transition (pause/resume/skip/start/stop) so resume rewrites the
-                // target even when the number is unchanged.
-                if let Some(target) = target_w {
-                    let target = target as i16;
-                    if self.last_sent_target_w != Some(target) {
-                        if let Err(e) = self.ble_handle.set_target_power(target).await {
-                            tracing::error!("set_target_power failed: {e}");
-                        } else {
-                            self.last_sent_target_w = Some(target);
-                        }
-                    }
-                }
+                // See write_target_if_changed for the dedup/keep-alive rationale.
+                self.write_target_if_changed(target_w).await;
+            }
+            StateKind::Ramping => {
+                // The ramp value changes every tick, so this rewrites the ERG target
+                // each second; no DB sample and no clock advance while ramping.
+                self.write_target_if_changed(target_w).await;
             }
             StateKind::Paused => {}
             StateKind::Finished => {
@@ -288,6 +303,23 @@ impl SessionActor {
         self.emit_metrics();
     }
 
+    // Write the ERG target only when it changes (dedup); last_sent_target_w is
+    // cleared on every state transition so resume always rewrites (audit 2.4).
+    async fn write_target_if_changed(&mut self, target_w: Option<u16>) {
+        let Some(target) = target_w else {
+            return;
+        };
+        let target = target as i16;
+        if self.last_sent_target_w == Some(target) {
+            return;
+        }
+        if let Err(e) = self.ble_handle.set_target_power(target).await {
+            tracing::error!("set_target_power failed: {e}");
+        } else {
+            self.last_sent_target_w = Some(target);
+        }
+    }
+
     fn build_metrics(&self) -> Option<SessionMetrics> {
         let state = self.state.as_ref()?;
         let session = self.session.as_ref()?;
@@ -302,6 +334,8 @@ impl SessionActor {
             current_block_idx: session.current_block_idx,
             current_block_elapsed_s: session.current_block_elapsed_s,
             target_w: session.last_target_w,
+            ramp_remaining_s: state.ramp_remaining_s(),
+            paused_by_stall: state.paused_by_stall(),
             cadence_target_rpm,
             power_w: self.last_power_w,
             hr_bpm: self.last_hr_bpm,

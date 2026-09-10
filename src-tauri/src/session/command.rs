@@ -49,12 +49,18 @@ impl SessionActorHandle {
             .map_err(|_| AppError::ChannelClosed)
     }
 
-    pub async fn start(&self, workout: ParsedWorkout, ftp_w: u16) -> Result<(), AppError> {
+    pub async fn start(
+        &self,
+        workout: ParsedWorkout,
+        ftp_w: u16,
+        stall_timeout_s: u16,
+    ) -> Result<(), AppError> {
         let (tx, rx) = oneshot::channel::<Result<(), AppError>>();
         self.sender
             .send(SessionCommand::Start {
                 workout,
                 ftp_w,
+                stall_timeout_s,
                 reply: tx,
             })
             .await
