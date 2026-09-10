@@ -52,6 +52,13 @@ xmlns:ns3=\"http://www.garmin.com/xmlschemas/ActivityExtension/v2\">\n",
     out.push_str("    <Activity Sport=\"Biking\">\n");
     writeln!(out, "      <Id>{}</Id>", session.started_at).unwrap();
     writeln!(out, "      <Lap StartTime=\"{}\">", session.started_at).unwrap();
+    // Garmin Connect reads duration from here; without it the activity shows 0/blank.
+    writeln!(
+        out,
+        "        <TotalTimeSeconds>{}</TotalTimeSeconds>",
+        session.duration_s.unwrap_or(0)
+    )
+    .unwrap();
     out.push_str("        <Track>\n");
     // Defensive: started_at is always valid RFC3339; a bad value yields an empty track.
     if let Ok(start) = DateTime::parse_from_rfc3339(&session.started_at) {
@@ -137,6 +144,7 @@ mod tests {
         assert!(xml.contains("<TrainingCenterDatabase"));
         assert!(xml.contains("Sport=\"Biking\""));
         assert!(xml.contains("<Id>2026-06-13T10:00:00+00:00</Id>"));
+        assert!(xml.contains("<TotalTimeSeconds>3</TotalTimeSeconds>"));
         assert!(xml.trim_end().ends_with("</TrainingCenterDatabase>"));
         assert!(!xml.contains("<Trackpoint>"));
         assert!(!xml.contains("<Notes>"));
