@@ -82,6 +82,10 @@ const MIGRATIONS: &[&str] = &[
     ALTER TABLE settings ADD COLUMN hrm_device_name TEXT;
     ALTER TABLE settings ADD COLUMN auto_connect INTEGER NOT NULL DEFAULT 1;
     "#,
+    // v7 -> v8 : stall detection timeout (seconds of no pedaling before auto-pause)
+    r#"
+    ALTER TABLE settings ADD COLUMN stall_timeout_s INTEGER NOT NULL DEFAULT 5;
+    "#,
 ];
 
 pub fn run(conn: &mut Connection) -> Result<(), AppError> {

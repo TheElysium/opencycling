@@ -1,6 +1,7 @@
 import { commands } from './bindings';
 import type { FlatBlock, ParsedWorkout, SessionMetrics, SessionSnapshot } from './bindings';
 import { stepDropDetector, INITIAL_DROP_STATE, type DropState } from './ftp';
+import { getSettings } from './settings';
 
 // All bridge types are generated from the Rust structs (src/lib/bindings.ts);
 // re-exported so existing import sites keep working.
@@ -66,7 +67,8 @@ class SessionStore {
   // start_session directly would re-arm the session during aero calibration, which
   // is exactly what the deferred-start flow exists to prevent.
   private async start(workout: ParsedWorkout, ftpW: number): Promise<void> {
-    await commands.startSession(workout, ftpW);
+    const settings = await getSettings();
+    await commands.startSession(workout, ftpW, settings.stall_timeout_s);
   }
 
   async pause():  Promise<void> { await commands.pauseSession(); }

@@ -11,6 +11,8 @@ use tokio::sync::{mpsc, oneshot};
 pub struct Session {
     pub blocks: Vec<FlatBlock>,
     pub ftp_w: u16,
+    /// Seconds without pedaling before a running session auto-pauses (stall).
+    pub stall_timeout_s: u16,
     pub total_elapsed_s: u32,
     pub total_active_s: u32,
     pub current_block_idx: usize,
@@ -74,6 +76,9 @@ pub enum StateKind {
     WaitingForRider,
     Running,
     Paused,
+    /// ERG target ramps from a low floor back to the block target after a resume;
+    /// the workout clock is frozen, so the plan stays faithful to its schedule.
+    Ramping,
     Finished,
 }
 
@@ -84,6 +89,14 @@ pub trait State: Send + 'static {
     fn resume(self: Box<Self>) -> Box<dyn State>;
     fn stop(self: Box<Self>) -> Box<dyn State>;
     fn skip(self: Box<Self>, session: &mut Session) -> Box<dyn State>;
+    /// Seconds left before the ramp reaches the block target; `None` outside a ramp.
+    fn ramp_remaining_s(&self) -> Option<u32> {
+        None
+    }
+    /// Paused because the rider stopped pedaling (stall), not manually.
+    fn paused_by_stall(&self) -> bool {
+        false
+    }
     /// A device the session depends on (the trainer) dropped. Running pauses with
     /// `by_dropout: true` so it can auto-resume; every other state is unchanged.
     /// A manual `Paused { by_dropout: false }` is deliberately NOT promoted to a
@@ -96,12 +109,27 @@ pub trait State: Send + 'static {
 }
 
 pub struct WaitingForRiderState;
-pub struct RunningState;
+pub struct RunningState {
+    /// Consecutive ticks without pedaling; drives the stall auto-pause.
+    pub no_pedal_s: u32,
+}
 pub struct PausedState {
     /// `true` when the pause was triggered by a trainer dropout (issue 15), which
     /// makes the session eligible for auto-resume on reconnect. A manual pause keeps
     /// this `false`.
     pub by_dropout: bool,
+    /// `true` when the pause was triggered by the rider stopping pedaling, which
+    /// makes the session eligible for auto-resume once they pedal again.
+    pub by_stall: bool,
+    /// Consecutive ticks with pedaling while paused by stall; at the threshold the
+    /// session auto-resumes into a ramp.
+    pub resume_pedal_s: u32,
+}
+pub struct RampingState {
+    /// Seconds elapsed in the ramp toward the block target.
+    pub ramp_elapsed_s: u32,
+    /// Consecutive ticks without pedaling; freezes the ramp and drives the stall pause.
+    pub no_pedal_s: u32,
 }
 pub struct FinishedState;
 
@@ -109,6 +137,7 @@ pub enum SessionCommand {
     Start {
         workout: ParsedWorkout,
         ftp_w: u16,
+        stall_timeout_s: u16,
         reply: oneshot::Sender<Result<(), AppError>>,
     },
     Pause,
@@ -131,6 +160,11 @@ pub struct SessionMetrics {
     pub current_block_idx: usize,
     pub current_block_elapsed_s: u32,
     pub target_w: Option<u16>,
+    /// Seconds left before the post-resume ramp reaches the block target.
+    pub ramp_remaining_s: Option<u32>,
+    /// Paused because the rider stopped pedaling; the frontend then hints that
+    /// pedaling again auto-resumes.
+    pub paused_by_stall: bool,
     pub cadence_target_rpm: Option<u16>,
     pub power_w: Option<i16>,
     pub hr_bpm: Option<u16>,
