@@ -35,12 +35,16 @@ OpenCycling is a **Tauri v2 desktop app**: SvelteKit 5 frontend (Svelte runes) +
 - `ble/hrs.rs` — parses HRS `Heart Rate Measurement` notifications (0x2A37).
 - `workout/zwo.rs` — parses `.zwo` Zwift XML into `ParsedWorkout` (`workout/types.rs`).
 
-**Tokio actors** — communicate exclusively via `mpsc` channels, exposed as `*Handle` types:
-- `ble/actor.rs` (`BleActorHandle`) — BLE scan/connect, ERG keep-alive (retransmit last target every 10s), emits `ble_metrics` every second.
-- `session/actor.rs` (`SessionActorHandle`) — session state machine (`session/state.rs`: WaitingForRider → Running → Paused → Finished), ticks every second, emits `session_metrics`, persists samples via the DB actor.
-- `db/actor.rs` (`DbActorHandle`) — wraps SQLite (`db/migrations.rs` for schema), stores sessions/samples and the settings row.
+**Tokio actors** — communicate exclusively via `mpsc` channels. Each actor module follows the same split: `command.rs` holds the `*Handle` (the channel endpoint Tauri commands delegate to) and the `*Command` enum; `actor.rs`/`types.rs` hold the actor loop and shared types:
+- `ble/` (`BleActorHandle` in `command.rs`) — BLE scan/connect, ERG keep-alive (retransmit last target every 10s), emits `ble_metrics` every second. `sim.rs` is a full simulator standing in for the real actor when env var `OPENYCLING_SIM=1` is set (synthetic 1Hz power/HR/cadence, drop/restore scenarios; UI in `SimPanel.svelte`).
+- `session/` (`SessionActorHandle` in `command.rs`) — session state machine (`session/state.rs`: WaitingForRider → Running/Ramping → Paused → Finished), ticks every second, emits `session_metrics`, persists samples via the DB actor.
+- `db/` (`DbActorHandle` in `command.rs`) — wraps SQLite (`db/migrations.rs` for schema), stores sessions/samples, settings row and Strava auth.
 
 Actors are wired in `lib.rs::run()` (`.setup()` closure) and registered with `app.manage(...)`.
+
+**Derived metrics** — `metrics.rs` (pure): Normalized Power (Coggan 30s rolling), `derive_metrics()` (NP/IF/TSS), `classify()`/`zone_of()`; mirrors `classify`/`zoneOf` in `lib/metrics.ts`.
+
+**Export & Strava** — `export/tcx.rs` (pure) builds the TCX file and the Strava activity description; `strava/oauth.rs` runs the OAuth code flow via a local loopback listener (`127.0.0.1:8123`) with client ID from a proxy; `strava/api.rs` uploads TCX (multipart, then polls the upload). Frontend never builds TCX.
 
 **Error handling**: all errors flow through `AppError` (`errors.rs`, via `thiserror`). `AppError` implements `serde::Serialize` (a bare string) for Tauri command returns.
 
@@ -48,9 +52,9 @@ Actors are wired in `lib.rs::run()` (`.setup()` closure) and registered with `ap
 
 SvelteKit routes: `/` (connection), `/workouts`, `/workouts/detail`, `/session`, `/history`, `/history/[id]`, `/settings`. Sidebar hidden on `/session`.
 
-Shared state lives in `.svelte.ts` rune stores: `lib/ble.svelte.ts`, `lib/session.svelte.ts`, `lib/workout.svelte.ts`, `lib/aero.svelte.ts`. Helpers: `lib/db.ts`, `lib/settings.ts`, `lib/format.ts`, `lib/metrics.ts`, `lib/ftp.ts`, `lib/audio.ts`, `lib/export.ts` (TCX via save dialog), `lib/aero.ts` (pure, unit-tested webcam aero-position scoring; `lib/aero.svelte.ts` owns the MoveNet detector, bundled offline under `static/models/`).
+Shared state lives in `.svelte.ts` rune stores: `lib/ble.svelte.ts`, `lib/session.svelte.ts`, `lib/workout.svelte.ts`, `lib/aero.svelte.ts`. Helpers: `lib/db.ts`, `lib/settings.ts`, `lib/format.ts`, `lib/metrics.ts`, `lib/ftp.ts`, `lib/audio.ts`, `lib/devices.ts` (auto-connect matching), `lib/chart-scale.ts`, `lib/session-visuals.ts`, `lib/strava.ts` (thin wrappers over generated commands), `lib/updater.ts` (`@tauri-apps/plugin-updater`, no-op under `tauri dev`), `lib/export.ts` (save dialog, then delegates to the Rust `export_session_tcx` command), `lib/aero.ts` (pure, unit-tested webcam aero-position scoring; `lib/aero.svelte.ts` owns the MoveNet detector, bundled offline under `static/models/`).
 
-Reusable components in `lib/components/`: `WorkoutChart` / `WorkoutPreview` / `WorkoutThumb` (block bars), `ZoneBar`, `SessionChart`, session UI tiles (`MetricTile`, `MetricsStrip`, `PowerTile`, `CurrentBlockCard`, `SessionTimeline`, `SessionStatsPanel`, `SessionFinishedCard`, `SessionDetailRecap`, `BlocksList`), aero UI (`AeroCalibration`, `AeroPanel`).
+Reusable components in `lib/components/`: `WorkoutChart` / `WorkoutPreview` / `WorkoutThumb` (block bars), `ZoneBar`, `SessionChart`, session UI tiles (`MetricTile`, `MetricsStrip`, `PowerTile`, `CurrentBlockCard`, `SessionTimeline`, `SessionStatsPanel`, `SessionFinishedCard`, `SessionDetailRecap`, `BlocksList`, `FtpTestResult`), aero UI (`AeroCalibration`, `AeroPanel`), sim UI (`SimPanel`, hidden when sim mode is off).
 
 ### Tauri bridge
 
@@ -64,6 +68,7 @@ Do not duplicate Rust logic in TypeScript: flatten/labeling lives in Rust (`flat
 - **Cyclomatic complexity: keep functions small.** Aim for ≤ ~10 branches per function; prefer `match` and lookup tables over `if/else` chains, and extract a helper when nesting grows or a function stops fitting on one screen. Pure parsers stay branch-per-protocol-field — that is their shape; factor shared patterns into the FEATURES table rather than adding ad-hoc branches.
 - **Lint discipline: zero warnings.** Clippy runs with `-D warnings` in CI, `svelte-check` must report 0 errors *and* 0 warnings. Do not silence a lint with `#[allow]`/`// eslint-disable`-style pragmas without a one-line justification comment.
 - **Tests pin behavior, not implementation.** No tautological tests (asserting a constant equals itself, re-stating the code). Pin boundaries, error cases, and wire formats; a refactor should not require rewriting passing tests.
+- **TDD: red → green.** For any new behavior or bug fix, write the failing test first and watch it fail, then implement until it passes. Applies to pure parsers, metrics, and frontend helpers (the code this repo exists to test); excluded for actors and hardware-facing code (see Key constraints).
 
 ## Key constraints
 
