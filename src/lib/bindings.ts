@@ -17,6 +17,7 @@ export const commands = {
 	simAvailable: () => __TAURI_INVOKE<boolean>("sim_available"),
 	simDropDevice: (kind: DeviceKind, stayLost: boolean) => __TAURI_INVOKE<null>("sim_drop_device", { kind, stayLost }),
 	simRestoreDevice: (kind: DeviceKind) => __TAURI_INVOKE<null>("sim_restore_device", { kind }),
+	simSetPedaling: (pedaling: boolean) => __TAURI_INVOKE<null>("sim_set_pedaling", { pedaling }),
 	getSettings: () => __TAURI_INVOKE<Settings>("get_settings"),
 	updateSettings: (settings: Settings) => __TAURI_INVOKE<null>("update_settings", { settings }),
 	startSession: (workout: ParsedWorkout, ftpW: number, stallTimeoutS: number) => __TAURI_INVOKE<null>("start_session", { workout, ftpW, stallTimeoutS }),
@@ -172,6 +173,11 @@ export type SessionMetrics = {
 	 *  pedaling again auto-resumes.
 	 */
 	paused_by_stall: boolean,
+	/**
+	 *  The ramp is frozen because the rider stopped pedaling (not yet a stall
+	 *  pause); mirrors `paused_by_stall`'s hint during `Ramping`.
+	 */
+	ramp_stalled: boolean,
 	cadence_target_rpm: number | null,
 	power_w: number | null,
 	hr_bpm: number | null,

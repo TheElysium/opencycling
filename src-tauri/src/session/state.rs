@@ -234,6 +234,9 @@ impl State for RampingState {
     fn paused_by_stall(&self) -> bool {
         false
     }
+    fn ramp_stalled(&self) -> bool {
+        self.no_pedal_s > 0
+    }
     fn pause(self: Box<Self>) -> Box<dyn State> {
         Box::new(PausedState {
             by_dropout: false,
@@ -646,6 +649,43 @@ mod tests {
         });
         assert!(!st.paused_by_stall());
         assert_eq!(st.tick(&mut s).kind(), StateKind::Paused);
+    }
+
+    // --- Ramp: stalled feedback while frozen ---
+
+    #[test]
+    fn ramp_is_not_stalled_while_pedaling() {
+        let st: Box<dyn State> = Box::new(RampingState {
+            ramp_elapsed_s: 3,
+            no_pedal_s: 0,
+        });
+        assert!(!st.ramp_stalled());
+    }
+
+    #[test]
+    fn ramp_reports_stalled_once_pedaling_stops() {
+        let mut s = session_with(vec![steady(60, 150)]);
+        s.stall_timeout_s = 5;
+        s.last_cadence_rpm = None; // not pedaling
+        let st: Box<dyn State> = Box::new(RampingState {
+            ramp_elapsed_s: 3,
+            no_pedal_s: 0,
+        });
+        let st = st.tick(&mut s);
+        assert_eq!(st.kind(), StateKind::Ramping);
+        assert!(st.ramp_stalled());
+    }
+
+    #[test]
+    fn non_ramping_states_are_never_stalled() {
+        let st: Box<dyn State> = Box::new(RunningState { no_pedal_s: 2 });
+        assert!(!st.ramp_stalled());
+        let st: Box<dyn State> = Box::new(PausedState {
+            by_dropout: false,
+            by_stall: true,
+            resume_pedal_s: 0,
+        });
+        assert!(!st.ramp_stalled());
     }
 
     // --- Ramp: progressive ERG target with frozen clock ---

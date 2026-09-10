@@ -52,6 +52,7 @@ pub fn enabled_from_env() -> bool {
 pub enum SimCommand {
     Drop { kind: DeviceKind, stay_lost: bool },
     Restore { kind: DeviceKind },
+    SetPedaling { pedaling: bool },
 }
 
 enum SimReconnectMsg {
@@ -175,6 +176,9 @@ pub(crate) struct SimActor<R: Runtime> {
     last_target_w: Option<i16>,
     power_w: i16,
     hr_bpm: u16,
+    // Toggled by SimCommand::SetPedaling; false drives cadence/power to 0 so the
+    // frontend's ramp-stall / running-stall paths can be exercised without hardware.
+    pedaling: bool,
     // Deterministic noise phase, advanced once per emitted metrics tick.
     tick: u64,
 }
@@ -203,6 +207,7 @@ impl<R: Runtime> SimActor<R> {
             last_target_w: None,
             power_w: 0,
             hr_bpm: SIM_HR_REST_BPM,
+            pedaling: true,
             tick: 0,
         }
     }
@@ -282,6 +287,7 @@ impl<R: Runtime> SimActor<R> {
                 Trainer => self.trainer.restore(),
                 Hrm => self.hrm.restore(),
             },
+            SimCommand::SetPedaling { pedaling } => self.pedaling = pedaling,
         }
     }
 
@@ -365,17 +371,26 @@ impl<R: Runtime> SimActor<R> {
             return;
         }
         self.tick += 1;
+        // Not pedaling means no legs on the pedals: power decays to 0 like a coasting
+        // trainer, regardless of the ERG target, and cadence drops to 0 with it.
+        let power_target = if self.pedaling {
+            self.last_target_w.unwrap_or(0)
+        } else {
+            0
+        };
         let power_w = if self.trainer.connected() {
-            self.power_w = sim_step(
-                self.power_w,
-                self.last_target_w.unwrap_or(0),
-                SIM_RAMP_PER_TICK,
-            );
+            self.power_w = sim_step(self.power_w, power_target, SIM_RAMP_PER_TICK);
             Some((self.power_w + sim_noise(self.tick)).max(0))
         } else {
             None
         };
-        let cadence_rpm = self.trainer.connected().then(|| sim_cadence(self.tick));
+        let cadence_rpm = self.trainer.connected().then(|| {
+            if self.pedaling {
+                sim_cadence(self.tick)
+            } else {
+                0
+            }
+        });
         let hr_bpm = if self.hrm.connected() {
             let target = sim_target_hr(self.trainer.connected(), self.power_w);
             self.hr_bpm = sim_step(self.hr_bpm as i16, target as i16, SIM_HR_LAG_PER_TICK) as u16;

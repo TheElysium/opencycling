@@ -209,4 +209,14 @@ impl BleActorHandle {
             .await
             .map_err(|_| AppError::ChannelClosed)
     }
+
+    pub async fn sim_set_pedaling(&self, pedaling: bool) -> Result<(), AppError> {
+        let tx = self
+            .sim_tx
+            .as_ref()
+            .ok_or_else(|| AppError::Other("simulation mode is disabled".to_string()))?;
+        tx.send(SimCommand::SetPedaling { pedaling })
+            .await
+            .map_err(|_| AppError::ChannelClosed)
+    }
 }
