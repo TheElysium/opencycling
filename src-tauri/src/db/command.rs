@@ -92,6 +92,9 @@ pub enum DbCommand {
         file_name: String,
         reply: oneshot::Sender<Result<(), AppError>>,
     },
+    ListLastUsed {
+        reply: oneshot::Sender<Result<Vec<(String, String)>, AppError>>,
+    },
 }
 
 #[derive(Clone)]
@@ -343,6 +346,16 @@ impl DbActorHandle {
                 file_name,
                 reply: tx,
             })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    /// (workout_name, last started_at) pairs, one per distinct workout ever run.
+    pub async fn list_last_used(&self) -> Result<Vec<(String, String)>, AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::ListLastUsed { reply: tx })
             .await
             .map_err(|_| AppError::ChannelClosed)?;
         rx.await.map_err(|_| AppError::ChannelClosed)?

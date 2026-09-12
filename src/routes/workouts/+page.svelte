@@ -5,7 +5,13 @@
   import WorkoutThumb from '$lib/components/WorkoutThumb.svelte';
   import { commands, type FlatBlock } from '$lib/bindings';
   import { workoutSelection, type ParsedWorkout, type WorkoutFileError } from '$lib/workout.svelte';
-  import { formatDuration, totalDuration, displayWorkoutName, toMessage } from '$lib/format';
+  import {
+    formatDuration,
+    totalDuration,
+    displayWorkoutName,
+    formatRelativeDate,
+    toMessage,
+  } from '$lib/format';
   import { computeWorkoutMetrics, workoutTypeColor, type WorkoutType } from '$lib/metrics';
   import { workoutFtp } from '$lib/ftp';
   import { getSettings } from '$lib/settings';
@@ -16,20 +22,23 @@
   // Flat blocks per workout (same index as `workouts`), returned by
   // list_workouts_cmd; drives the card thumbnails.
   let flats          = $state<FlatBlock[][]>([]);
+  // Last-used ISO timestamp per workout, same index as `workouts` (from list_workouts_cmd).
+  let lastUsed       = $state<(string | null)[]>([]);
   let parseErrors    = $state<WorkoutFileError[]>([]);
   let showParseErrors = $state(true);
   let loading        = $state(true);
   let error          = $state<string | null>(null);
   let query          = $state('');
 
-  type SortField = 'name' | 'zone' | 'duration';
+  type SortField = 'name' | 'zone' | 'duration' | 'lastUsed';
   let sortField = $state<SortField>('name');
   let sortDir   = $state<'asc' | 'desc'>('asc');
 
   const sortOptions: { field: SortField; label: string }[] = [
-    { field: 'name',     label: 'Name'     },
-    { field: 'zone',     label: 'Zone'     },
-    { field: 'duration', label: 'Duration' },
+    { field: 'name',     label: 'Name'      },
+    { field: 'zone',     label: 'Zone'      },
+    { field: 'duration', label: 'Duration'  },
+    { field: 'lastUsed', label: 'Last used' },
   ];
 
   // Zone order by ascending intensity, drives the "Zone" sort.
@@ -59,12 +68,15 @@
     workouts.map((w, i) => {
       // A test renders at its reference FTP (watt == %), so metrics/thumb use that.
       const cardFtp = workoutFtp(w, ftp);
+      const lastUsedAt = lastUsed[i] ?? null;
       return {
         w,
         cardFtp,
         flat: flats[i] ?? [],
         m: computeWorkoutMetrics(w.workout_blocks, cardFtp),
         name: displayWorkoutName(w.name),
+        lastUsedAt,
+        lastUsedLabel: formatRelativeDate(lastUsedAt),
       };
     })
   );
@@ -84,6 +96,9 @@
         if (cmp === 0) cmp = a.m.if_ - b.m.if_;
       } else if (sortField === 'duration') {
         cmp = a.m.duration_s - b.m.duration_s;
+      } else if (sortField === 'lastUsed') {
+        // Unparsable/null dates sort as oldest (0), so never-used workouts fall last on desc.
+        cmp = (Date.parse(a.lastUsedAt ?? '') || 0) - (Date.parse(b.lastUsedAt ?? '') || 0);
       } else {
         cmp = a.name.localeCompare(b.name);
       }
@@ -103,6 +118,7 @@
         // `workouts` and at each card's FTP, so thumbnails match the session exactly.
         workouts = lib.workouts;
         flats = lib.flats;
+        lastUsed = lib.last_used;
         parseErrors = lib.errors;
       }
     } catch (e) {
@@ -193,7 +209,7 @@
     <p class="muted">No workouts match "<strong>{query}</strong>".</p>
   {:else}
     <div class="workout-grid">
-      {#each filteredWorkouts as { w, m, name, cardFtp, flat }, i (i)}
+      {#each filteredWorkouts as { w, m, name, cardFtp, flat, lastUsedLabel }, i (i)}
         <button class="workout-card" onclick={() => select(w)}>
           <div class="card-chart">
             <WorkoutThumb blocks={flat} ftpWatts={cardFtp} />
@@ -222,6 +238,8 @@
                 <span class="dot-sep">·</span>
                 <span title="Intensity Factor">{m.if_.toFixed(2)} IF</span>
               {/if}
+              <span class="dot-sep">·</span>
+              <span class="last-used">{lastUsedLabel}</span>
             </div>
           </div>
         </button>
@@ -465,6 +483,10 @@
 
   .dot-sep {
     opacity: 0.6;
+  }
+
+  .last-used {
+    margin-left: auto;
   }
 
   .warn-box {

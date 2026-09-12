@@ -148,6 +148,9 @@ impl DbActor {
                     DbCommand::DeleteWorkout { file_name, reply } => {
                         let _ = reply.send(self.delete_workout(&file_name));
                     }
+                    DbCommand::ListLastUsed { reply } => {
+                        let _ = reply.send(self.list_last_used());
+                    }
                 },
             }
         }
@@ -641,6 +644,15 @@ impl DbActor {
             .execute("DELETE FROM workouts WHERE file_name = ?1", [file_name])?;
         Ok(())
     }
+
+    /// Last `started_at` per `workout_name`, one row per distinct workout ever run.
+    fn list_last_used(&self) -> Result<Vec<(String, String)>, AppError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT workout_name, MAX(started_at) FROM sessions GROUP BY workout_name")?;
+        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
 }
 
 #[cfg(test)]
@@ -712,6 +724,46 @@ mod tests {
         let kd = actor.query_known_devices().unwrap();
         assert_eq!(kd.trainer.as_ref().unwrap().id, "D500-DEF");
         assert_eq!(kd.hrm.as_ref().unwrap().id, "Polar-H10-001");
+    }
+
+    #[test]
+    fn list_last_used_picks_max_started_at_per_workout_name() {
+        let mut actor = test_actor();
+        actor
+            .insert_session(
+                "Sweet Spot".into(),
+                "2024-01-01T00:00:00Z".into(),
+                200,
+                "[]".into(),
+            )
+            .unwrap();
+        actor
+            .insert_session(
+                "Sweet Spot".into(),
+                "2024-06-01T00:00:00Z".into(),
+                200,
+                "[]".into(),
+            )
+            .unwrap();
+        actor
+            .insert_session(
+                "Endurance".into(),
+                "2024-03-01T00:00:00Z".into(),
+                200,
+                "[]".into(),
+            )
+            .unwrap();
+
+        let mut last_used = actor.list_last_used().unwrap();
+        last_used.sort();
+
+        assert_eq!(
+            last_used,
+            vec![
+                ("Endurance".to_string(), "2024-03-01T00:00:00Z".to_string()),
+                ("Sweet Spot".to_string(), "2024-06-01T00:00:00Z".to_string()),
+            ]
+        );
     }
 
     #[test]

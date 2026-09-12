@@ -51,6 +51,16 @@ export function stripHtml(s: string | null | undefined): string {
     .trim();
 }
 
+// `now` defaults to the real clock but is injectable for tests.
+export function formatRelativeDate(iso: string | null, now: number = Date.now()): string {
+  const t = iso ? Date.parse(iso) : NaN;
+  if (Number.isNaN(t)) return 'Never used';
+  const days = Math.floor((now - t) / 86_400_000);
+  if (days <= 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  return `${days} days ago`;
+}
+
 export function toMessage(e: unknown): string {
   if (typeof e === 'string') return e;
   if (e instanceof Error)    return e.message;

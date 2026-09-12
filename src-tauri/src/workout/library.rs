@@ -28,6 +28,9 @@ pub struct WorkoutLibrary {
     /// FTP for tests) so thumbnails render exactly what the session will run.
     pub flats: Vec<Vec<FlatBlock>>,
     pub errors: Vec<WorkoutFileError>,
+    /// Last-used ISO timestamp per workout, parallel to `workouts`. Populated by
+    /// the caller (which owns the DB handle); always `None` right after a scan.
+    pub last_used: Vec<Option<String>>,
 }
 
 /// Diffs a disk listing against the DB cache: decides what needs reparsing
@@ -109,15 +112,31 @@ pub(crate) fn list_workouts_cached(
         &mut to_upsert,
     );
 
+    let last_used = vec![None; workouts.len()];
     Ok(ReconciledLibrary {
         result: WorkoutLibrary {
             workouts,
             flats,
             errors,
+            last_used,
         },
         to_upsert,
         to_delete: plan.to_delete,
     })
+}
+
+/// Builds the last-used column parallel to `workouts`, joined on the parsed
+/// display name -- `sessions.workout_name` stores `ParsedWorkout.name`, not the
+/// file name (see session/actor.rs `Start` handler), so the join key must match.
+pub(crate) fn attach_last_used(
+    workouts: &[ParsedWorkout],
+    last_used_rows: Vec<(String, String)>,
+) -> Vec<Option<String>> {
+    let by_name: HashMap<String, String> = last_used_rows.into_iter().collect();
+    workouts
+        .iter()
+        .map(|w| w.name.as_ref().and_then(|n| by_name.get(n)).cloned())
+        .collect()
 }
 
 /// Disk listing plus a name-indexed mtime lookup, built together in one pass.
@@ -253,6 +272,46 @@ mod reconcile_tests {
         );
         assert_eq!(plan.unchanged, vec!["same.zwo".to_string()]);
         assert_eq!(plan.to_delete, vec!["gone.zwo".to_string()]);
+    }
+}
+
+#[cfg(test)]
+mod attach_last_used_tests {
+    use super::*;
+    use crate::workout::SportType;
+
+    fn workout(name: Option<&str>) -> ParsedWorkout {
+        ParsedWorkout {
+            author: None,
+            name: name.map(str::to_string),
+            description: None,
+            sport_type: SportType::Bike,
+            workout_blocks: Vec::new(),
+            is_ftp_test: false,
+            tags: Vec::new(),
+            file_name: None,
+        }
+    }
+
+    #[test]
+    fn joins_last_used_by_display_name() {
+        let workouts = vec![workout(Some("Sweet Spot")), workout(Some("Endurance"))];
+        let rows = vec![("Sweet Spot".to_string(), "2024-06-01T00:00:00Z".to_string())];
+
+        let last_used = attach_last_used(&workouts, rows);
+
+        assert_eq!(
+            last_used,
+            vec![Some("2024-06-01T00:00:00Z".to_string()), None]
+        );
+    }
+
+    #[test]
+    fn nameless_workout_is_never_used() {
+        let workouts = vec![workout(None)];
+        let rows = vec![("".to_string(), "2024-06-01T00:00:00Z".to_string())];
+
+        assert_eq!(attach_last_used(&workouts, rows), vec![None]);
     }
 }
 

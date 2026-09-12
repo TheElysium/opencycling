@@ -4,8 +4,8 @@ mod library;
 mod types;
 mod zwo;
 
-pub(crate) use library::list_workouts_cached;
 pub use library::{WorkoutFileError, WorkoutLibrary};
+pub(crate) use library::{attach_last_used, list_workouts_cached};
 #[cfg(test)]
 pub use types::SportType;
 pub use types::{ParsedWorkout, WorkoutBlock};

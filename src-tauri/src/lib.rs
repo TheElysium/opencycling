@@ -4,7 +4,9 @@ use crate::db::{DbActorHandle, KnownDevices, SessionCard, SessionDetail, Setting
 use crate::errors::AppError;
 use crate::session::{FlatBlock, SessionActorHandle, SessionSnapshot, StateKind, flatten_workout};
 use crate::strava::types::StravaStatus;
-use crate::workout::{ParsedWorkout, WorkoutLibrary, list_workouts_cached, parse_zwo};
+use crate::workout::{
+    ParsedWorkout, WorkoutLibrary, attach_last_used, list_workouts_cached, parse_zwo,
+};
 use tauri::Manager;
 use tauri_plugin_opener::OpenerExt;
 use tracing::metadata::LevelFilter;
@@ -183,7 +185,7 @@ async fn list_workouts_cmd(
         .into_iter()
         .map(|(name, mtime, json)| (name, (mtime, json)))
         .collect();
-    let reconciled = list_workouts_cached(&folder, ftp_w, cached)?;
+    let mut reconciled = list_workouts_cached(&folder, ftp_w, cached)?;
     for (file_name, mtime, json) in reconciled.to_upsert {
         if let Err(e) = db.upsert_workout(file_name, mtime, json).await {
             tracing::warn!("workout cache upsert failed: {e}");
@@ -194,6 +196,13 @@ async fn list_workouts_cmd(
             tracing::warn!("workout cache delete failed: {e}");
         }
     }
+    // Best-effort like the cache above: a DB hiccup here just means no badges.
+    let last_used_rows = db
+        .list_last_used()
+        .await
+        .inspect_err(|e| tracing::warn!("last-used read failed: {e}"))
+        .unwrap_or_default();
+    reconciled.result.last_used = attach_last_used(&reconciled.result.workouts, last_used_rows);
     Ok(reconciled.result)
 }
 

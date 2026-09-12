@@ -264,6 +264,11 @@ export type WorkoutLibrary = {
 	 */
 	flats: FlatBlock[][],
 	errors: WorkoutFileError[],
+	/**
+	 *  Last-used ISO timestamp per workout, parallel to `workouts`. Populated by
+	 *  the caller (which owns the DB handle); always `None` right after a scan.
+	 */
+	last_used: (string | null)[],
 };
 
 /**  Bridge enum shared with the frontend via generated bindings (src/lib/bindings.ts). */
