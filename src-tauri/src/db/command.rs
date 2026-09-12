@@ -6,6 +6,9 @@ use crate::errors::AppError;
 use tokio::sync::mpsc::{Sender, channel};
 use tokio::sync::oneshot;
 
+/// (file_name, mtime_secs, parsed_json) rows from the `workouts` cache table.
+type WorkoutCacheRows = Vec<(String, i64, String)>;
+
 pub enum DbCommand {
     QuerySettings {
         reply: tokio::sync::oneshot::Sender<Result<Settings, AppError>>,
@@ -75,6 +78,26 @@ pub enum DbCommand {
     SetAutoConnect {
         enabled: bool,
         reply: oneshot::Sender<Result<(), AppError>>,
+    },
+    ListWorkoutCache {
+        reply: oneshot::Sender<Result<WorkoutCacheRows, AppError>>,
+    },
+    UpsertWorkout {
+        file_name: String,
+        mtime_secs: i64,
+        parsed_json: String,
+        reply: oneshot::Sender<Result<(), AppError>>,
+    },
+    DeleteWorkout {
+        file_name: String,
+        reply: oneshot::Sender<Result<(), AppError>>,
+    },
+    ListLastUsed {
+        reply: oneshot::Sender<Result<Vec<(String, String)>, AppError>>,
+    },
+    ListSessionsForWorkout {
+        workout_name: String,
+        reply: oneshot::Sender<Result<Vec<SessionCard>, AppError>>,
     },
 }
 
@@ -287,6 +310,71 @@ impl DbActorHandle {
         let (tx, rx) = oneshot::channel();
         self.sender
             .send(DbCommand::SetAutoConnect { enabled, reply: tx })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    pub async fn list_workout_cache(&self) -> Result<WorkoutCacheRows, AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::ListWorkoutCache { reply: tx })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    pub async fn upsert_workout(
+        &self,
+        file_name: String,
+        mtime_secs: i64,
+        parsed_json: String,
+    ) -> Result<(), AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::UpsertWorkout {
+                file_name,
+                mtime_secs,
+                parsed_json,
+                reply: tx,
+            })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    pub async fn delete_workout(&self, file_name: String) -> Result<(), AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::DeleteWorkout {
+                file_name,
+                reply: tx,
+            })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    /// (workout_name, last started_at) pairs, one per distinct workout ever run.
+    pub async fn list_last_used(&self) -> Result<Vec<(String, String)>, AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::ListLastUsed { reply: tx })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    pub async fn list_sessions_for_workout(
+        &self,
+        workout_name: String,
+    ) -> Result<Vec<SessionCard>, AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::ListSessionsForWorkout {
+                workout_name,
+                reply: tx,
+            })
             .await
             .map_err(|_| AppError::ChannelClosed)?;
         rx.await.map_err(|_| AppError::ChannelClosed)?

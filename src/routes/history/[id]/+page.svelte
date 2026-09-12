@@ -4,7 +4,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import { ArrowLeft, Upload, RotateCw } from '@lucide/svelte';
+  import { ArrowLeft, Upload, RotateCw, Dumbbell } from '@lucide/svelte';
   import { workoutTypeColor } from '$lib/metrics';
   import { toMessage } from '$lib/format';
   import {
@@ -15,12 +15,14 @@
   import { exportSessionTcx } from '$lib/export';
   import { uploadSessionToStrava, activityUrl } from '$lib/strava';
   import SessionDetailRecap from '$lib/components/SessionDetailRecap.svelte';
+  import { workoutSelection, type ParsedWorkout } from '$lib/workout.svelte';
 
-  let detail    = $state<SessionDetail | null>(null);
-  let maxHr     = $state(190);
-  let loading   = $state(true);
-  let error     = $state<string | null>(null);
-  let uploading = $state(false);
+  let detail        = $state<SessionDetail | null>(null);
+  let maxHr         = $state(190);
+  let loading       = $state(true);
+  let error         = $state<string | null>(null);
+  let uploading     = $state(false);
+  let sourceWorkout = $state<ParsedWorkout | null>(null);
 
   let id = $derived(parseInt($page.params.id ?? '0', 10));
 
@@ -32,12 +34,28 @@
       ]);
       detail = d;
       maxHr = s.max_hr_bpm;
+      if (s.workout_path) {
+        // Best-effort: the source file may have been renamed/deleted/moved since
+        // the session ran, so a lookup failure or missing match is not an error.
+        try {
+          const lib = await commands.listWorkoutsCmd(s.workout_path, s.ftp_w);
+          sourceWorkout = lib.workouts.find(w => w.name === detail?.workout_name) ?? null;
+        } catch {
+          sourceWorkout = null;
+        }
+      }
     } catch (e) {
       error = toMessage(e);
     } finally {
       loading = false;
     }
   });
+
+  function onViewWorkout() {
+    if (!sourceWorkout) return;
+    workoutSelection.workout = sourceWorkout;
+    goto('/workouts/detail');
+  }
 
   async function onExportTcx() {
     if (!detail) return;
@@ -128,6 +146,12 @@
     <SessionDetailRecap {detail} {maxHr} />
 
     <div class="actions">
+      {#if sourceWorkout}
+        <button class="btn-export" onclick={onViewWorkout}>
+          <Dumbbell size={16} />
+          View workout
+        </button>
+      {/if}
       {#if detail.strava_activity_id}
         <a
           class="btn-strava"

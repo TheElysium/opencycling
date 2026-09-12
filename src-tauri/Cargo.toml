@@ -48,6 +48,10 @@ tauri = { version = "2", features = ["test"] }
 # start_paused tokio tests auto-advance the sim's 1 s tick / 3 s reconnect cadence.
 tokio = { version = "1.52.3", features = ["test-util"] }
 
+# Native quality gate: threshold lives in clippy.toml (15).
+[lints.clippy]
+cognitive_complexity = "deny"
+
 [package.metadata.release]
 publish = false                                   # desktop app, not a crates.io crate
 push = true

@@ -20,7 +20,7 @@
     <span class="time">remaining <strong>{formatClock(remain)}</strong></span>
   </div>
   <div class="timeline" style="grid-template-columns: {cols};">
-    {#each flat_blocks as b, i}
+    {#each flat_blocks as b, i (i)}
       <div class={stateClass(i, metrics.current_block_idx)} style:background={zoneBg(b, metrics.ftp_w, 'to right')}></div>
     {/each}
   </div>

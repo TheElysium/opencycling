@@ -121,6 +121,31 @@
     }
   }
 
+  // One predicate per audio cue (one branch each), so the $effect below
+  // just enumerates the rules instead of embedding every guard.
+  function runStartCue(prev: string | null, state: string): boolean {
+    // Ramping->Running is handled by the ramp-completion beep below, not here.
+    return (
+      prev !== null && prev !== 'Running' && prev !== 'Ramping' && state === 'Running'
+    );
+  }
+  function finishCue(prev: string | null, state: string): boolean {
+    return prev !== null && prev !== 'Finished' && state === 'Finished';
+  }
+  function rampDoneCue(prev: string | null, state: string): boolean {
+    return prev === 'Ramping' && state === 'Running';
+  }
+  function blockChangeCue(state: string, prevIdx: number | null, idx: number): boolean {
+    return state === 'Running' && prevIdx !== null && prevIdx !== idx;
+  }
+  function blockEndCue(state: string, remaining: number | null, prev: number | null): boolean {
+    return (
+      state === 'Running' &&
+      remaining !== null && remaining >= 1 && remaining <= 3 &&
+      remaining !== prev
+    );
+  }
+
   $effect(() => {
     if (!m) return;
     const curBlock = session.flat_blocks[m.current_block_idx];
@@ -129,26 +154,14 @@
     // A fresh session resets the one-shot auto-upload guard.
     if (m.state === 'WaitingForRider') autoUploaded = false;
 
-    // Ramping->Running is handled by the ramp-completion beep below, not the
-    // generic run-start beep.
-    if (
-      prevState !== null &&
-      prevState !== 'Running' &&
-      prevState !== 'Ramping' &&
-      m.state === 'Running'
-    )
-      beepLow();
-    if (prevState !== null && prevState !== 'Finished' && m.state === 'Finished') {
+    if (runStartCue(prevState, m.state)) beepLow();
+    if (finishCue(prevState, m.state)) {
       beepLow();
       maybeAutoUpload(m.session_id);
     }
-    if (prevState === 'Ramping' && m.state === 'Running') beepLong();
-    if (m.state === 'Running' && prevBlockIdx !== null && prevBlockIdx !== m.current_block_idx) beepLong();
-    if (
-      m.state === 'Running' &&
-      remaining !== null && remaining >= 1 && remaining <= 3 &&
-      remaining !== prevBlockRemaining
-    ) beepShort();
+    if (rampDoneCue(prevState, m.state)) beepLong();
+    if (blockChangeCue(m.state, prevBlockIdx, m.current_block_idx)) beepLong();
+    if (blockEndCue(m.state, remaining, prevBlockRemaining)) beepShort();
 
     prevState = m.state;
     prevBlockIdx = m.current_block_idx;

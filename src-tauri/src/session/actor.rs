@@ -66,6 +66,9 @@ impl SessionActor {
         self.emit_metrics();
     }
 
+    // Command dispatch is a flat match — one arm per command; splitting it
+    // would scatter the state transitions. Baseline for the complexity gate.
+    #[expect(clippy::cognitive_complexity)]
     async fn handle_command(&mut self, cmd: SessionCommand) {
         match cmd {
             SessionCommand::Start {
@@ -187,6 +190,9 @@ impl SessionActor {
         }
     }
 
+    // Tick advances the whole state machine (ramp/pause/finish) in one place;
+    // the transitions share local state. Baseline for the complexity gate.
+    #[expect(clippy::cognitive_complexity)]
     async fn handle_tick(&mut self) {
         let Some(state) = self.state.take() else {
             return;
@@ -493,6 +499,7 @@ mod tests {
                 },
             ],
             is_ftp_test: false,
+            tags: vec![],
             file_name: None,
         };
 
@@ -515,6 +522,9 @@ mod tests {
     // over-under interval that ramps up before the off-block). Verifies that
     // t_offset boundaries and per-block targets are preserved across repeats.
     #[test]
+    // Test enumerates block boundaries linearly; the count is assertions,
+    // not logic. Baseline for the complexity gate.
+    #[expect(clippy::cognitive_complexity)]
     fn flatten_intervals_t_with_ramp_on_block_pins_offsets_and_targets() {
         // 2 repeats: each rep = Ramp ON (60 s, 80%->110% FTP) + Steady OFF (30 s, 55% FTP).
         let workout = ParsedWorkout {
@@ -539,6 +549,7 @@ mod tests {
                 }),
             }],
             is_ftp_test: false,
+            tags: vec![],
             file_name: None,
         };
 
@@ -586,6 +597,7 @@ mod tests {
                 label: Some("Build".to_string()),
             }],
             is_ftp_test: false,
+            tags: vec![],
             file_name: None,
         };
 

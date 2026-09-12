@@ -113,7 +113,7 @@
         <span>OpenCycling</span>
       </div>
       <ul>
-        {#each navItems as item}
+        {#each navItems as item (item.href)}
           {@const active = item.href === '/'
             ? page.url.pathname === '/'
             : page.url.pathname === item.href || page.url.pathname.startsWith(item.href + '/')}

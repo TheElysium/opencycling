@@ -28,7 +28,7 @@
 </script>
 
 <div class="metrics-strip" style="--cells: {tiles.length};">
-  {#each tiles as t}
+  {#each tiles as t, i (i)}
     <div class="metric-tile" title={t.title ?? ''}>
       <span class="metric-family">
         {#if t.icon}

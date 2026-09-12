@@ -11,14 +11,27 @@ cargo fmt --all --check              # formatting check (CI-enforced)
 cargo clippy --all-targets -- -D warnings   # lint (CI-enforced, zero warnings allowed)
 cargo test                           # run all unit tests
 cargo test test_name                 # run a single test by name (partial match)
+cargo audit                          # dependency security audit (RustSec, CI-enforced)
 cargo run --bin export_bindings      # regenerate src/lib/bindings.ts
 ```
+
+Quality gates (CI-enforced, local via `scripts/gate.sh`):
+
+```bash
+bash scripts/gate.sh                 # full gate: fmt + clippy + tests + audit + size + frontend
+bash scripts/check_size.sh           # file size gate only: no source file over 1000 lines
+```
+
+- `scripts/check_size.sh` fails if any source file (`.rs`, `.ts`, `.js`, `.svelte`, excluding the generated `bindings.ts`) exceeds 1000 lines — this is the anti-megafile gate for agent-generated code.
+- Cyclomatic complexity is gated natively by clippy: `cognitive_complexity = "deny"` in `Cargo.toml` with threshold `cognitive-complexity-threshold = 15` in `src-tauri/clippy.toml`. Existing actor loops are baselined with `#[expect(clippy::cognitive_complexity)]` + a why comment; `#[expect]` errors once refactored, so the baseline self-removes. Do not add new `#[expect]` without a justification comment.
+- Frontend complexity is gated the same way by ESLint (`complexity: error 15` in `eslint.config.js`, threshold mirrors clippy.toml). Existing offenders get `/* eslint-disable-next-line complexity */` + a why comment only with justification.
 
 Frontend and full app (from repo root):
 
 ```bash
 pnpm tauri dev                      # run the full Tauri app (frontend + backend); regenerates bindings.ts on startup
 pnpm check                          # TypeScript/Svelte type checking (svelte-check)
+pnpm lint                           # ESLint (0 errors and 0 warnings enforced, CI too)
 pnpm test                           # frontend unit tests (vitest)
 ```
 
@@ -33,7 +46,7 @@ OpenCycling is a **Tauri v2 desktop app**: SvelteKit 5 frontend (Svelte runes) +
 **Pure parsers** — no I/O, no BLE dependencies, operate on `&[u8]` slices or `&str`:
 - `ble/ftms/` — parses FTMS `Indoor Bike Data` notifications (0x2AD2) and builds ERG commands. Split into `mod.rs` (parser logic), `types.rs` (structs, flags, `FeatureVal` enum), `features.rs` (per-field parse functions + FEATURES table).
 - `ble/hrs.rs` — parses HRS `Heart Rate Measurement` notifications (0x2A37).
-- `workout/zwo.rs` — parses `.zwo` Zwift XML into `ParsedWorkout` (`workout/types.rs`).
+- `workout/zwo.rs` — parses `.zwo` Zwift XML into `ParsedWorkout` (`workout/types.rs`). Workout tags follow a light convention: `plan:<name>` marks a workout as belonging to a specific training plan (filterable in the library UI); untagged (or tagged only with generic labels like `Endurance`) means reusable across plans.
 
 **Tokio actors** — communicate exclusively via `mpsc` channels. Each actor module follows the same split: `command.rs` holds the `*Handle` (the channel endpoint Tauri commands delegate to) and the `*Command` enum; `actor.rs`/`types.rs` hold the actor loop and shared types:
 - `ble/` (`BleActorHandle` in `command.rs`) — BLE scan/connect, ERG keep-alive (retransmit last target every 10s), emits `ble_metrics` every second. `sim.rs` is a full simulator standing in for the real actor when env var `OPENYCLING_SIM=1` is set (synthetic 1Hz power/HR/cadence, drop/restore scenarios; UI in `SimPanel.svelte`).

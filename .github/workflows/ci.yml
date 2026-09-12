@@ -27,6 +27,33 @@ jobs:
         working-directory: src-tauri
         run: cargo fmt --all --check
 
+  audit:
+    name: Rust security audit
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Prebuilt binary: much faster than cargo install.
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
+      - name: Audit dependencies (RustSec)
+        working-directory: src-tauri
+        run: cargo audit
+
+  size:
+    name: File size gate
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check source file sizes
+        run: bash scripts/check_size.sh
+
   clippy-test:
     name: Rust clippy + test
     runs-on: ubuntu-22.04
@@ -86,3 +113,6 @@ jobs:
 
       - name: Type check
         run: pnpm check
+
+      - name: Lint (ESLint)
+        run: pnpm lint

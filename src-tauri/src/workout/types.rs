@@ -13,6 +13,8 @@ pub struct ParsedWorkout {
     // frontend sends complete objects, and defaults would export them as optional
     // (`field?:`) in TypeScript.
     pub is_ftp_test: bool,
+    /// General tags from the `<tags>` element, excluding `ftp-test` (see `is_ftp_test`).
+    pub tags: Vec<String>,
     /// Source file name (basename only). None when parsed from raw content
     /// without a file context (e.g. tests or load_workout command).
     pub file_name: Option<String>,

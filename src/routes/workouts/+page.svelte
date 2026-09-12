@@ -1,14 +1,22 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { SvelteSet } from 'svelte/reactivity';
   import { goto } from '$app/navigation';
-  import { Search, X, ArrowUp, ArrowDown } from '@lucide/svelte';
+  import { Search, X, ArrowUp, ArrowDown, RefreshCw } from '@lucide/svelte';
   import WorkoutThumb from '$lib/components/WorkoutThumb.svelte';
   import { commands, type FlatBlock } from '$lib/bindings';
   import { workoutSelection, type ParsedWorkout, type WorkoutFileError } from '$lib/workout.svelte';
-  import { formatDuration, totalDuration, displayWorkoutName, toMessage } from '$lib/format';
+  import {
+    formatDuration,
+    totalDuration,
+    displayWorkoutName,
+    formatRelativeDate,
+    toMessage,
+  } from '$lib/format';
   import { computeWorkoutMetrics, workoutTypeColor, type WorkoutType } from '$lib/metrics';
   import { workoutFtp } from '$lib/ftp';
   import { getSettings } from '$lib/settings';
+  import { uniqueSortedTags, matchesSelectedTags } from '$lib/workout-filter';
 
   let workoutPath    = $state('');
   let ftp            = $state(200);
@@ -16,20 +24,28 @@
   // Flat blocks per workout (same index as `workouts`), returned by
   // list_workouts_cmd; drives the card thumbnails.
   let flats          = $state<FlatBlock[][]>([]);
+  // Last-used ISO timestamp per workout, same index as `workouts` (from list_workouts_cmd).
+  let lastUsed       = $state<(string | null)[]>([]);
   let parseErrors    = $state<WorkoutFileError[]>([]);
   let showParseErrors = $state(true);
   let loading        = $state(true);
   let error          = $state<string | null>(null);
   let query          = $state('');
+  const selectedTags = new SvelteSet<string>();
 
-  type SortField = 'name' | 'zone' | 'duration';
+  function toggleTag(tag: string) {
+    if (selectedTags.has(tag)) selectedTags.delete(tag); else selectedTags.add(tag);
+  }
+
+  type SortField = 'name' | 'zone' | 'duration' | 'lastUsed';
   let sortField = $state<SortField>('name');
   let sortDir   = $state<'asc' | 'desc'>('asc');
 
   const sortOptions: { field: SortField; label: string }[] = [
-    { field: 'name',     label: 'Name'     },
-    { field: 'zone',     label: 'Zone'     },
-    { field: 'duration', label: 'Duration' },
+    { field: 'name',     label: 'Name'      },
+    { field: 'zone',     label: 'Zone'      },
+    { field: 'duration', label: 'Duration'  },
+    { field: 'lastUsed', label: 'Last used' },
   ];
 
   // Zone order by ascending intensity, drives the "Zone" sort.
@@ -59,24 +75,32 @@
     workouts.map((w, i) => {
       // A test renders at its reference FTP (watt == %), so metrics/thumb use that.
       const cardFtp = workoutFtp(w, ftp);
+      const lastUsedAt = lastUsed[i] ?? null;
       return {
         w,
         cardFtp,
         flat: flats[i] ?? [],
         m: computeWorkoutMetrics(w.workout_blocks, cardFtp),
         name: displayWorkoutName(w.name),
+        lastUsedAt,
+        lastUsedLabel: formatRelativeDate(lastUsedAt),
       };
     })
   );
 
+  let allTags = $derived(uniqueSortedTags(workouts));
+
   let filteredWorkouts = $derived.by(() => {
     const q = query.trim().toLowerCase();
-    const list = q
+    const afterQuery = q
       ? decorated.filter(d => d.name.toLowerCase().includes(q))
       : decorated.slice();
+    const withTags = selectedTags.size === 0
+      ? afterQuery
+      : afterQuery.filter(d => matchesSelectedTags(d.w.tags, selectedTags));
 
     const dir = sortDir === 'asc' ? 1 : -1;
-    list.sort((a, b) => {
+    withTags.sort((a, b) => {
       let cmp: number;
       if (sortField === 'zone') {
         cmp = ZONE_ORDER[a.m.type] - ZONE_ORDER[b.m.type];
@@ -84,15 +108,20 @@
         if (cmp === 0) cmp = a.m.if_ - b.m.if_;
       } else if (sortField === 'duration') {
         cmp = a.m.duration_s - b.m.duration_s;
+      } else if (sortField === 'lastUsed') {
+        // Unparsable/null dates sort as oldest (0), so never-used workouts fall last on desc.
+        cmp = (Date.parse(a.lastUsedAt ?? '') || 0) - (Date.parse(b.lastUsedAt ?? '') || 0);
       } else {
         cmp = a.name.localeCompare(b.name);
       }
       return cmp * dir;
     });
-    return list;
+    return withTags;
   });
 
-  onMount(async () => {
+  async function loadWorkouts() {
+    loading = true;
+    error = null;
     try {
       const s = await getSettings();
       workoutPath = s.workout_path;
@@ -103,6 +132,7 @@
         // `workouts` and at each card's FTP, so thumbnails match the session exactly.
         workouts = lib.workouts;
         flats = lib.flats;
+        lastUsed = lib.last_used;
         parseErrors = lib.errors;
       }
     } catch (e) {
@@ -110,7 +140,9 @@
     } finally {
       loading = false;
     }
-  });
+  }
+
+  onMount(loadWorkouts);
 
   function select(w: ParsedWorkout) {
     workoutSelection.workout = w;
@@ -122,15 +154,15 @@
   <h1>
     Workouts
     {#if !loading && workouts.length > 0}
-      <span class="count">{filteredWorkouts.length}{#if query && filteredWorkouts.length !== workouts.length} / {workouts.length}{/if}</span>
+      <span class="count">{filteredWorkouts.length}{#if (query || selectedTags.size > 0) && filteredWorkouts.length !== workouts.length} / {workouts.length}{/if}</span>
     {/if}
   </h1>
 
-  {#if !loading && workouts.length > 0}
+  {#if workouts.length > 0}
     <div class="toolbar">
       <div class="sort">
         <span class="sort-label">Sort</span>
-        {#each sortOptions as opt}
+        {#each sortOptions as opt (opt.field)}
           <button
             class="sort-btn"
             class:active={sortField === opt.field}
@@ -148,21 +180,41 @@
           </button>
         {/each}
       </div>
-      <div class="search">
-        <Search size={14} aria-hidden="true" />
-        <input
-          type="search"
-          placeholder="Search workouts…"
-          bind:value={query}
-          aria-label="Search workouts"
-        />
-        {#if query}
-          <button class="clear-btn" onclick={() => query = ''} aria-label="Clear search">
-            <X size={14} />
-          </button>
-        {/if}
+      <div class="search-group">
+        <div class="search">
+          <Search size={14} aria-hidden="true" />
+          <input
+            type="search"
+            placeholder="Search workouts…"
+            bind:value={query}
+            aria-label="Search workouts"
+          />
+          {#if query}
+            <button class="clear-btn" onclick={() => query = ''} aria-label="Clear search">
+              <X size={14} />
+            </button>
+          {/if}
+        </div>
+        <button class="refresh-btn" onclick={loadWorkouts} disabled={loading} aria-label="Refresh workout library">
+          <RefreshCw size={14} aria-hidden="true" />
+          Refresh
+        </button>
       </div>
     </div>
+    {#if allTags.length > 0}
+      <div class="tag-filters">
+        {#each allTags as tag (tag)}
+          <button
+            class="tag-pill tag-filter"
+            class:active={selectedTags.has(tag)}
+            onclick={() => toggleTag(tag)}
+            aria-pressed={selectedTags.has(tag)}
+          >
+            {tag}
+          </button>
+        {/each}
+      </div>
+    {/if}
   {/if}
 
   {#if parseErrors.length > 0 && showParseErrors}
@@ -179,7 +231,7 @@
 
   {#if loading}
     <div class="workout-grid">
-      {#each Array(4) as _}
+      {#each Array(4) as _, i (i)}
         <div class="skeleton-card"></div>
       {/each}
     </div>
@@ -190,10 +242,12 @@
   {:else if workouts.length === 0}
     <p class="muted">No workouts found in <code>{workoutPath}</code>.</p>
   {:else if filteredWorkouts.length === 0}
-    <p class="muted">No workouts match "<strong>{query}</strong>".</p>
+    <p class="muted">
+      {#if query}No workouts match "<strong>{query}</strong>".{:else}No workouts match the selected tags.{/if}
+    </p>
   {:else}
     <div class="workout-grid">
-      {#each filteredWorkouts as { w, m, name, cardFtp, flat }}
+      {#each filteredWorkouts as { w, m, name, cardFtp, flat, lastUsedLabel }, i (i)}
         <button class="workout-card" onclick={() => select(w)}>
           <div class="card-chart">
             <WorkoutThumb blocks={flat} ftpWatts={cardFtp} />
@@ -215,7 +269,16 @@
                 <span class="dot-sep">·</span>
                 <span title="Intensity Factor">{m.if_.toFixed(2)} IF</span>
               {/if}
+              <span class="dot-sep">·</span>
+              <span class="last-used">{lastUsedLabel}</span>
             </div>
+            {#if w.tags.length > 0}
+              <div class="tag-pills">
+                {#each w.tags as tag (tag)}
+                  <span class="tag-pill">{tag}</span>
+                {/each}
+              </div>
+            {/if}
           </div>
         </button>
       {/each}
@@ -252,10 +315,11 @@
     display: flex;
     align-items: center;
     gap: 0.25rem;
+    height: 2.25rem;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 0.2rem;
+    padding: 0 0.2rem;
   }
 
   .sort-label {
@@ -295,10 +359,11 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    height: 2.25rem;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 0.45rem 0.7rem;
+    padding: 0 0.7rem;
     color: var(--text);
     transition: border-color 0.15s, box-shadow 0.15s;
     min-width: 220px;
@@ -335,6 +400,12 @@
 
   .search input::-webkit-search-cancel-button { display: none; }
 
+  .search-group {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
   .clear-btn {
     background: none;
     border: none;
@@ -346,6 +417,57 @@
   }
 
   .clear-btn:hover { color: var(--text); }
+
+  .refresh-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    height: 2.25rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font: inherit;
+    font-size: 0.82rem;
+    padding: 0 0.7rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+  }
+
+  .refresh-btn:hover:not(:disabled) {
+    color: var(--text);
+    background: var(--bg);
+  }
+
+  .refresh-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+
+  .tag-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: -0.5rem 0 1.25rem;
+  }
+
+  /* .tag-pill (below) provides the shared pastille look; this adds the
+     interactive-button bits (cursor, border, active state, transition). */
+  .tag-filter {
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s, border-color 0.15s;
+  }
+
+  .tag-filter:hover {
+    color: var(--text);
+  }
+
+  .tag-filter.active {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  }
 
   .muted { color: var(--muted); }
   .link  { color: var(--accent); text-decoration: underline; }
@@ -378,7 +500,7 @@
   }
 
   .card-info {
-    padding: 0.75rem 1rem 0.9rem;
+    padding: 1rem 1.15rem 1.1rem;
   }
 
   .type-badge {
@@ -394,7 +516,7 @@
     border-radius: 4px;
     padding: 0.15rem 0.5rem;
     align-self: flex-start;
-    margin-bottom: 0.35rem;
+    margin-bottom: 0.5rem;
   }
 
   .type-dot {
@@ -402,6 +524,24 @@
     height: 6px;
     border-radius: 50%;
     background: var(--type-color);
+  }
+
+  .tag-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-top: 0.75rem;
+  }
+
+  .tag-pill {
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--muted) 12%, transparent);
+    color: var(--muted);
   }
 
   .ftp-badge {
@@ -416,14 +556,14 @@
     border-radius: 4px;
     padding: 0.15rem 0.5rem;
     align-self: flex-start;
-    margin-bottom: 0.35rem;
+    margin-bottom: 0.5rem;
   }
 
   .name {
     display: block;
     font-weight: 600;
     font-size: 0.95rem;
-    margin-bottom: 0.3rem;
+    margin-bottom: 0.5rem;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -433,13 +573,17 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.35rem;
+    gap: 0.45rem;
     font-size: 0.78rem;
     color: var(--muted);
   }
 
   .dot-sep {
     opacity: 0.6;
+  }
+
+  .last-used {
+    margin-left: auto;
   }
 
   .warn-box {

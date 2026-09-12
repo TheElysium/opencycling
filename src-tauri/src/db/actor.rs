@@ -133,6 +133,30 @@ impl DbActor {
                     DbCommand::SetAutoConnect { enabled, reply } => {
                         let _ = reply.send(self.set_auto_connect(enabled));
                     }
+                    DbCommand::ListWorkoutCache { reply } => {
+                        let _ = reply.send(self.list_workout_cache());
+                    }
+                    DbCommand::UpsertWorkout {
+                        file_name,
+                        mtime_secs,
+                        parsed_json,
+                        reply,
+                    } => {
+                        let _ =
+                            reply.send(self.upsert_workout(&file_name, mtime_secs, &parsed_json));
+                    }
+                    DbCommand::DeleteWorkout { file_name, reply } => {
+                        let _ = reply.send(self.delete_workout(&file_name));
+                    }
+                    DbCommand::ListLastUsed { reply } => {
+                        let _ = reply.send(self.list_last_used());
+                    }
+                    DbCommand::ListSessionsForWorkout {
+                        workout_name,
+                        reply,
+                    } => {
+                        let _ = reply.send(self.list_sessions_for_workout(&workout_name));
+                    }
                 },
             }
         }
@@ -372,32 +396,46 @@ impl DbActor {
         Ok(derive_metrics(&powers, ftp_w_used, duration_s))
     }
 
-    fn list_sessions(&self) -> Result<Vec<SessionCard>, AppError> {
-        let mut stmt = self.conn.prepare(
-            "SELECT id, started_at, workout_name, duration_s, \
+    /// Shared column list for `sessions` -> `SessionCard` queries (see
+    /// `list_sessions` / `list_sessions_for_workout`).
+    const SESSION_CARD_COLUMNS: &'static str = "id, started_at, workout_name, duration_s, \
                     avg_power_w, avg_hr_bpm, avg_cadence_rpm, ftp_w_used, workout_type, aero_pct, \
-                    np_w, if_, tss \
-             FROM sessions \
-             ORDER BY started_at DESC",
-        )?;
-        let rows = stmt.query_map([], |row| {
-            let workout_type_str: Option<String> = row.get(8)?;
-            Ok(SessionCard {
-                id: row.get(0)?,
-                started_at: row.get(1)?,
-                workout_name: row.get(2)?,
-                duration_s: row.get(3)?,
-                avg_power_w: row.get(4)?,
-                avg_hr_bpm: row.get(5)?,
-                avg_cadence_rpm: row.get(6)?,
-                ftp_w_used: row.get(7)?,
-                workout_type: workout_type_str.as_deref().and_then(WorkoutType::from_str),
-                aero_pct: row.get(9)?,
-                np_w: row.get(10)?,
-                if_: row.get(11)?,
-                tss: row.get(12)?,
-            })
-        })?;
+                    np_w, if_, tss";
+
+    fn session_card_from_row(row: &rusqlite::Row) -> rusqlite::Result<SessionCard> {
+        let workout_type_str: Option<String> = row.get(8)?;
+        Ok(SessionCard {
+            id: row.get(0)?,
+            started_at: row.get(1)?,
+            workout_name: row.get(2)?,
+            duration_s: row.get(3)?,
+            avg_power_w: row.get(4)?,
+            avg_hr_bpm: row.get(5)?,
+            avg_cadence_rpm: row.get(6)?,
+            ftp_w_used: row.get(7)?,
+            workout_type: workout_type_str.as_deref().and_then(WorkoutType::from_str),
+            aero_pct: row.get(9)?,
+            np_w: row.get(10)?,
+            if_: row.get(11)?,
+            tss: row.get(12)?,
+        })
+    }
+
+    fn list_sessions(&self) -> Result<Vec<SessionCard>, AppError> {
+        let mut stmt = self.conn.prepare(&format!(
+            "SELECT {} FROM sessions ORDER BY started_at DESC",
+            Self::SESSION_CARD_COLUMNS
+        ))?;
+        let rows = stmt.query_map([], Self::session_card_from_row)?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    fn list_sessions_for_workout(&self, workout_name: &str) -> Result<Vec<SessionCard>, AppError> {
+        let mut stmt = self.conn.prepare(&format!(
+            "SELECT {} FROM sessions WHERE workout_name = ?1 ORDER BY started_at DESC",
+            Self::SESSION_CARD_COLUMNS
+        ))?;
+        let rows = stmt.query_map([workout_name], Self::session_card_from_row)?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
@@ -598,6 +636,43 @@ impl DbActor {
         )?;
         Ok(())
     }
+
+    fn list_workout_cache(&self) -> Result<Vec<(String, i64, String)>, AppError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT file_name, mtime_secs, parsed_json FROM workouts")?;
+        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    fn upsert_workout(
+        &self,
+        file_name: &str,
+        mtime_secs: i64,
+        parsed_json: &str,
+    ) -> Result<(), AppError> {
+        self.conn.execute(
+            "INSERT INTO workouts (file_name, mtime_secs, parsed_json) VALUES (?1, ?2, ?3)
+             ON CONFLICT(file_name) DO UPDATE SET mtime_secs = ?2, parsed_json = ?3",
+            (file_name, mtime_secs, parsed_json),
+        )?;
+        Ok(())
+    }
+
+    fn delete_workout(&self, file_name: &str) -> Result<(), AppError> {
+        self.conn
+            .execute("DELETE FROM workouts WHERE file_name = ?1", [file_name])?;
+        Ok(())
+    }
+
+    /// Last `started_at` per `workout_name`, one row per distinct workout ever run.
+    fn list_last_used(&self) -> Result<Vec<(String, String)>, AppError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT workout_name, MAX(started_at) FROM sessions GROUP BY workout_name")?;
+        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
 }
 
 #[cfg(test)]
@@ -669,6 +744,82 @@ mod tests {
         let kd = actor.query_known_devices().unwrap();
         assert_eq!(kd.trainer.as_ref().unwrap().id, "D500-DEF");
         assert_eq!(kd.hrm.as_ref().unwrap().id, "Polar-H10-001");
+    }
+
+    #[test]
+    fn list_last_used_picks_max_started_at_per_workout_name() {
+        let mut actor = test_actor();
+        actor
+            .insert_session(
+                "Sweet Spot".into(),
+                "2024-01-01T00:00:00Z".into(),
+                200,
+                "[]".into(),
+            )
+            .unwrap();
+        actor
+            .insert_session(
+                "Sweet Spot".into(),
+                "2024-06-01T00:00:00Z".into(),
+                200,
+                "[]".into(),
+            )
+            .unwrap();
+        actor
+            .insert_session(
+                "Endurance".into(),
+                "2024-03-01T00:00:00Z".into(),
+                200,
+                "[]".into(),
+            )
+            .unwrap();
+
+        let mut last_used = actor.list_last_used().unwrap();
+        last_used.sort();
+
+        assert_eq!(
+            last_used,
+            vec![
+                ("Endurance".to_string(), "2024-03-01T00:00:00Z".to_string()),
+                ("Sweet Spot".to_string(), "2024-06-01T00:00:00Z".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn list_sessions_for_workout_filters_and_orders_most_recent_first() {
+        let mut actor = test_actor();
+        actor
+            .insert_session(
+                "Sweet Spot".into(),
+                "2024-01-01T00:00:00Z".into(),
+                200,
+                "[]".into(),
+            )
+            .unwrap();
+        actor
+            .insert_session(
+                "Sweet Spot".into(),
+                "2024-06-01T00:00:00Z".into(),
+                200,
+                "[]".into(),
+            )
+            .unwrap();
+        actor
+            .insert_session(
+                "Endurance".into(),
+                "2024-03-01T00:00:00Z".into(),
+                200,
+                "[]".into(),
+            )
+            .unwrap();
+
+        let cards = actor.list_sessions_for_workout("Sweet Spot").unwrap();
+
+        assert_eq!(cards.len(), 2);
+        assert_eq!(cards[0].started_at, "2024-06-01T00:00:00Z");
+        assert_eq!(cards[1].started_at, "2024-01-01T00:00:00Z");
+        assert!(cards.iter().all(|c| c.workout_name == "Sweet Spot"));
     }
 
     #[test]

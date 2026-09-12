@@ -36,6 +36,7 @@ export const commands = {
 	is_ftp_test: boolean,
 } | null>("get_session_snapshot"),
 	listSessions: () => __TAURI_INVOKE<SessionCard[]>("list_sessions"),
+	listSessionsForWorkout: (workoutName: string) => __TAURI_INVOKE<SessionCard[]>("list_sessions_for_workout", { workoutName }),
 	getSession: (id: number) => __TAURI_INVOKE<SessionDetail>("get_session", { id }),
 	deleteSession: (id: number) => __TAURI_INVOKE<null>("delete_session", { id }),
 	exportSessionTcx: (id: number, path: string) => __TAURI_INVOKE<null>("export_session_tcx", { id, path }),
@@ -113,6 +114,8 @@ export type ParsedWorkout = {
 	sport_type: SportType,
 	workout_blocks: WorkoutBlock[],
 	is_ftp_test: boolean,
+	/**  General tags from the `<tags>` element, excluding `ftp-test` (see `is_ftp_test`). */
+	tags: string[],
 	/**
 	 *  Source file name (basename only). None when parsed from raw content
 	 *  without a file context (e.g. tests or load_workout command).
@@ -262,6 +265,11 @@ export type WorkoutLibrary = {
 	 */
 	flats: FlatBlock[][],
 	errors: WorkoutFileError[],
+	/**
+	 *  Last-used ISO timestamp per workout, parallel to `workouts`. Populated by
+	 *  the caller (which owns the DB handle); always `None` right after a scan.
+	 */
+	last_used: (string | null)[],
 };
 
 /**  Bridge enum shared with the frontend via generated bindings (src/lib/bindings.ts). */

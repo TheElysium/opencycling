@@ -80,7 +80,7 @@ a {
 .workout-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 1rem;
+  gap: 1.25rem;
 }
 
 @media (min-width: 720px) {
