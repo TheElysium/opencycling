@@ -20,3 +20,6 @@ vite.config.ts.timestamp-*
 docs/issues/
 docs/superpowers/
 docs/handoff-*.md
+
+# Personal training library: not project content, varies per rider
+/workouts/
