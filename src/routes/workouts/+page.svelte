@@ -500,7 +500,7 @@
   }
 
   .card-info {
-    padding: 0.75rem 1rem 0.9rem;
+    padding: 1rem 1.15rem 1.1rem;
   }
 
   .type-badge {
@@ -516,7 +516,7 @@
     border-radius: 4px;
     padding: 0.15rem 0.5rem;
     align-self: flex-start;
-    margin-bottom: 0.35rem;
+    margin-bottom: 0.5rem;
   }
 
   .type-dot {
@@ -529,8 +529,8 @@
   .tag-pills {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.25rem;
-    margin-top: 0.5rem;
+    gap: 0.3rem;
+    margin-top: 0.75rem;
   }
 
   .tag-pill {
@@ -556,14 +556,14 @@
     border-radius: 4px;
     padding: 0.15rem 0.5rem;
     align-self: flex-start;
-    margin-bottom: 0.35rem;
+    margin-bottom: 0.5rem;
   }
 
   .name {
     display: block;
     font-weight: 600;
     font-size: 0.95rem;
-    margin-bottom: 0.3rem;
+    margin-bottom: 0.5rem;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -573,7 +573,7 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.35rem;
+    gap: 0.45rem;
     font-size: 0.78rem;
     color: var(--muted);
   }
