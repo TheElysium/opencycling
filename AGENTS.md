@@ -46,7 +46,7 @@ OpenCycling is a **Tauri v2 desktop app**: SvelteKit 5 frontend (Svelte runes) +
 **Pure parsers** — no I/O, no BLE dependencies, operate on `&[u8]` slices or `&str`:
 - `ble/ftms/` — parses FTMS `Indoor Bike Data` notifications (0x2AD2) and builds ERG commands. Split into `mod.rs` (parser logic), `types.rs` (structs, flags, `FeatureVal` enum), `features.rs` (per-field parse functions + FEATURES table).
 - `ble/hrs.rs` — parses HRS `Heart Rate Measurement` notifications (0x2A37).
-- `workout/zwo.rs` — parses `.zwo` Zwift XML into `ParsedWorkout` (`workout/types.rs`).
+- `workout/zwo.rs` — parses `.zwo` Zwift XML into `ParsedWorkout` (`workout/types.rs`). Workout tags follow a light convention: `plan:<name>` marks a workout as belonging to a specific training plan (filterable in the library UI); untagged (or tagged only with generic labels like `Endurance`) means reusable across plans.
 
 **Tokio actors** — communicate exclusively via `mpsc` channels. Each actor module follows the same split: `command.rs` holds the `*Handle` (the channel endpoint Tauri commands delegate to) and the `*Command` enum; `actor.rs`/`types.rs` hold the actor loop and shared types:
 - `ble/` (`BleActorHandle` in `command.rs`) — BLE scan/connect, ERG keep-alive (retransmit last target every 10s), emits `ble_metrics` every second. `sim.rs` is a full simulator standing in for the real actor when env var `OPENYCLING_SIM=1` is set (synthetic 1Hz power/HR/cadence, drop/restore scenarios; UI in `SimPanel.svelte`).
