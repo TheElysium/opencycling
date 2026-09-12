@@ -299,10 +299,10 @@
       aria-label="Workout power profile"
     >
       <defs>
-        {#each flat as b, i}
+        {#each flat as b, i (i)}
           {#if isRamp(b)}
             <linearGradient id="ramp-{uid}-{i}" x1="0" x2="1" y1="0" y2="0">
-              {#each rampGradientStops(pStart(b), pEnd(b)) as s}
+              {#each rampGradientStops(pStart(b), pEnd(b)) as s (s.offset)}
                 <stop offset="{s.offset}%" stop-color={s.color} />
               {/each}
             </linearGradient>
@@ -316,7 +316,7 @@
 
       {#if showFtpLine && ftpWatts > 0}
         {@const step = maxWatts > 400 ? 100 : maxWatts > 200 ? 50 : 25}
-        {#each Array.from({ length: Math.floor(maxWatts / step) }, (_, i) => (i + 1) * step) as w}
+        {#each Array.from({ length: Math.floor(maxWatts / step) }, (_, i) => (i + 1) * step) as w (w)}
           {@const y = yOfPowerW(w)}
           <line x1="0" x2={totalDur} y1={y} y2={y} stroke="rgba(255,255,255,0.08)" stroke-width="1" vector-effect="non-scaling-stroke" />
         {/each}
@@ -324,7 +324,7 @@
 
       {#if vTarget}
         <g opacity={targetOpacity}>
-          {#each flat as b, i}
+          {#each flat as b, i (i)}
             {@const x = xPositions[i]}
             {#if isRamp(b)}
               <polygon points={blockPoints(b, x)} fill="url(#ramp-{uid}-{i})" stroke="var(--chart-gap, var(--bg))" stroke-width="1" vector-effect="non-scaling-stroke" />
@@ -391,7 +391,7 @@
 
   {#if showTime && timeMarks.length > 0}
     <div class="time-axis">
-      {#each timeMarks as m}
+      {#each timeMarks as m (m.t)}
         <span class="time-mark" style="left: {(m.t / totalDur) * 100}%;">{m.label}</span>
       {/each}
     </div>
@@ -399,7 +399,7 @@
 
   {#if showZones && zones.length > 0}
     <div class="zone-badges">
-      {#each zones as z}
+      {#each zones as z (z.label)}
         <div class="zone-badge">
           <span class="zone-circle" style="background: {z.color};">{z.label}</span>
           <span class="zone-badge-pct">{Math.round(z.pct * 100)}%</span>

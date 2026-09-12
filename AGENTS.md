@@ -11,14 +11,27 @@ cargo fmt --all --check              # formatting check (CI-enforced)
 cargo clippy --all-targets -- -D warnings   # lint (CI-enforced, zero warnings allowed)
 cargo test                           # run all unit tests
 cargo test test_name                 # run a single test by name (partial match)
+cargo audit                          # dependency security audit (RustSec, CI-enforced)
 cargo run --bin export_bindings      # regenerate src/lib/bindings.ts
 ```
+
+Quality gates (CI-enforced, local via `scripts/gate.sh`):
+
+```bash
+bash scripts/gate.sh                 # full gate: fmt + clippy + tests + audit + size + frontend
+bash scripts/check_size.sh           # file size gate only: no source file over 1000 lines
+```
+
+- `scripts/check_size.sh` fails if any source file (`.rs`, `.ts`, `.js`, `.svelte`, excluding the generated `bindings.ts`) exceeds 1000 lines — this is the anti-megafile gate for agent-generated code.
+- Cyclomatic complexity is gated natively by clippy: `cognitive_complexity = "deny"` in `Cargo.toml` with threshold `cognitive-complexity-threshold = 15` in `src-tauri/clippy.toml`. Existing actor loops are baselined with `#[expect(clippy::cognitive_complexity)]` + a why comment; `#[expect]` errors once refactored, so the baseline self-removes. Do not add new `#[expect]` without a justification comment.
+- Frontend complexity is gated the same way by ESLint (`complexity: error 15` in `eslint.config.js`, threshold mirrors clippy.toml). Existing offenders get `/* eslint-disable-next-line complexity */` + a why comment only with justification.
 
 Frontend and full app (from repo root):
 
 ```bash
 pnpm tauri dev                      # run the full Tauri app (frontend + backend); regenerates bindings.ts on startup
 pnpm check                          # TypeScript/Svelte type checking (svelte-check)
+pnpm lint                           # ESLint (0 errors and 0 warnings enforced, CI too)
 pnpm test                           # frontend unit tests (vitest)
 ```
 

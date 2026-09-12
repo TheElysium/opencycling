@@ -34,12 +34,8 @@ export function hrZoneDistribution(samples: MetricSample[], maxHr: number): numb
   for (const s of samples) {
     if (s.hr_bpm == null) continue;
     const r = s.hr_bpm / maxHr;
-    let z = 0;
-    if (r < 0.60) z = 0;
-    else if (r < 0.70) z = 1;
-    else if (r < 0.80) z = 2;
-    else if (r < 0.90) z = 3;
-    else z = 4;
+    // Z1 <60%, Z2 60-70%, Z3 70-80%, Z4 80-90%, Z5 >=90%.
+    const z = r < 0.6 ? 0 : r < 0.7 ? 1 : r < 0.8 ? 2 : r < 0.9 ? 3 : 4;
     acc[z]++;
     n++;
   }

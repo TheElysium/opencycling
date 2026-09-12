@@ -112,30 +112,38 @@
     }
   }
 
+  // Store slots per device kind, so connect() doesn't branch on kind everywhere.
+  function slots(isTrainer: boolean) {
+    return {
+      setStatus: (s: DeviceStatus) => { if (isTrainer) ble.trainerStatus = s; else ble.hrmStatus = s; },
+      setError: (e: string | null) => { if (isTrainer) ble.trainerError = e; else ble.hrmError = e; },
+      setAuto: (on: boolean) => { if (isTrainer) autoConnecting.trainer = on; else autoConnecting.hrm = on; },
+    };
+  }
+
   async function connect(kind: DeviceKind, target?: DeviceInfo, auto = false) {
     const isTrainer = kind === 'Trainer';
     if (target) {
       if (isTrainer) { trainerId = target.id; ble.trainerName = target.name; }
       else           { hrmId = target.id;     ble.hrmName = target.name; }
     }
+    const s = slots(isTrainer);
     const id = isTrainer ? trainerId : hrmId;
     if (!id) return;
     // Capture before the await: a concurrent scan resets the store name.
     const name = target?.name ?? (isTrainer ? ble.trainerName : ble.hrmName) ?? '';
-    const setStatus = (s: DeviceStatus) => { if (isTrainer) ble.trainerStatus = s; else ble.hrmStatus = s; };
-    const setError = (e: string | null) => { if (isTrainer) ble.trainerError = e; else ble.hrmError = e; };
-    if (auto) { if (isTrainer) autoConnecting.trainer = true; else autoConnecting.hrm = true; }
-    setStatus('connecting');
-    setError(null);
+    if (auto) s.setAuto(true);
+    s.setStatus('connecting');
+    s.setError(null);
     try {
       await (isTrainer ? commands.connectTrainer(id) : commands.connectHrm(id));
-      setStatus('connected');
+      s.setStatus('connected');
       if (name) commands.saveKnownDevice(kind, id, name).catch(() => {});
     } catch (e) {
-      setStatus('error');
-      setError(toMessage(e));
+      s.setStatus('error');
+      s.setError(toMessage(e));
     } finally {
-      if (isTrainer) autoConnecting.trainer = false; else autoConnecting.hrm = false;
+      s.setAuto(false);
     }
   }
 

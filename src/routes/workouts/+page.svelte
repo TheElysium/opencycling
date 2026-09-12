@@ -130,7 +130,7 @@
     <div class="toolbar">
       <div class="sort">
         <span class="sort-label">Sort</span>
-        {#each sortOptions as opt}
+        {#each sortOptions as opt (opt.field)}
           <button
             class="sort-btn"
             class:active={sortField === opt.field}
@@ -179,7 +179,7 @@
 
   {#if loading}
     <div class="workout-grid">
-      {#each Array(4) as _}
+      {#each Array(4) as _, i (i)}
         <div class="skeleton-card"></div>
       {/each}
     </div>
@@ -193,7 +193,7 @@
     <p class="muted">No workouts match "<strong>{query}</strong>".</p>
   {:else}
     <div class="workout-grid">
-      {#each filteredWorkouts as { w, m, name, cardFtp, flat }}
+      {#each filteredWorkouts as { w, m, name, cardFtp, flat }, i (i)}
         <button class="workout-card" onclick={() => select(w)}>
           <div class="card-chart">
             <WorkoutThumb blocks={flat} ftpWatts={cardFtp} />

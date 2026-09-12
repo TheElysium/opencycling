@@ -11,14 +11,14 @@
 
 {#if parts.length > 0}
   <div class="zone-row">
-    {#each parts as p}
+    {#each parts as p (p.label)}
       <div class="zone-seg" style="background:{p.color}; width:{(p.pct*100).toFixed(2)}%">
         {(p.pct*100) >= 6 ? `${Math.round(p.pct*100)}%` : ''}
       </div>
     {/each}
   </div>
   <div class="zone-badges">
-    {#each parts as p}
+    {#each parts as p (p.label)}
       <div class="zone-badge">
         <span class="zone-circle" style="background:{p.color}">{p.label}</span>
         <span class="zone-badge-pct">{Math.round(p.pct*100)}%</span>

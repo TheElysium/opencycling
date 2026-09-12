@@ -47,7 +47,7 @@
   {:else if sessions.length === 0}
     <p class="muted">No sessions yet. Go run a workout.</p>
   {:else}
-    {#each groups as g}
+    {#each groups as g (g.label)}
       <h2 class="list-section">
         {g.label}
         <span class="agg">
@@ -57,7 +57,7 @@
         </span>
       </h2>
       <div class="session-list">
-        {#each g.sessions as s}
+        {#each g.sessions as s (s.id)}
           <button class="session-card" onclick={() => open(s.id)}>
             <div class="day-block">
               <div class="day-num">{formatDayNum(s.started_at)}</div>

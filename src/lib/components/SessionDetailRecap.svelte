@@ -89,7 +89,7 @@
         </tr>
       </thead>
       <tbody>
-        {#each blockRows as row}
+        {#each blockRows as row, i (i)}
           <tr>
             <td class="col-kind">
               <span class="zone-pill" style="background: {row.pill}" title={row.pillTitle} aria-label={row.pillTitle}></span>

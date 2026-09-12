@@ -13,5 +13,12 @@
       "PowerShell(cargo test *)",
       "Bash(curl -fsSL https://www.gnu.org/licenses/gpl-3.0.txt -o \"C:/Users/lukas/Documents/Projets/opencycling/LICENSE\")"
     ]
+  },
+  "skillOverrides": {
+    "opencycling-rust-context": "off",
+    "rust-learning-companion": "off",
+    "to-prd": "off",
+    "to-issue": "off",
+    "grill-me": "off"
   }
 }

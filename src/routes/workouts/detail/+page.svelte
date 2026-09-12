@@ -88,6 +88,33 @@
     };
   }
 
+  // Power % of the first phase of a sub-block (steady or ramp start).
+  function subBlockPowerPct(b: WorkoutBlock): number {
+    if (b.SteadyState) return b.SteadyState.power_pct ?? 0;
+    return (b.Ramp?.power_start_pct ?? 0);
+  }
+
+  function subBlockCadence(b: WorkoutBlock): number | null {
+    return b.SteadyState?.cadence_rpm ?? b.Ramp?.cadence_rpm ?? null;
+  }
+
+  // Ramp power: watts only on an FTP test, otherwise % + resolved watts.
+  function rampPowerLabel(startPct: number, endPct: number): string {
+    if (w?.is_ftp_test) {
+      return `${Math.round(startPct * 100)}→${Math.round(endPct * 100)}W`;
+    }
+    return `${Math.round(startPct * 100)}→${Math.round(endPct * 100)}% · ${Math.round(startPct * ftp)}→${Math.round(endPct * ftp)}W`;
+  }
+
+  function intervalCadenceLabel(on: WorkoutBlock, off: WorkoutBlock): string | null {
+    const onCad = subBlockCadence(on);
+    const offCad = subBlockCadence(off);
+    if (onCad != null && offCad != null) return `${onCad} rpm on / ${offCad} rpm off`;
+    if (onCad != null) return `${onCad} rpm on`;
+    if (offCad != null) return `${offCad} rpm off`;
+    return null;
+  }
+
   function describeBlock(b: WorkoutBlock): BlockRow {
     const p = pillFor(b);
     if (b.SteadyState) {
@@ -103,33 +130,23 @@
     }
     if (b.Ramp) {
       const { duration_s, cadence_rpm, label } = b.Ramp;
-      const power_start_pct = b.Ramp.power_start_pct ?? 0;
-      const power_end_pct = b.Ramp.power_end_pct ?? 0;
       return {
         kind: label ?? 'Ramp',
         duration: formatDuration(duration_s),
-        power: w?.is_ftp_test
-          ? `${Math.round(power_start_pct * 100)}→${Math.round(power_end_pct * 100)}W`
-          : `${Math.round(power_start_pct * 100)}→${Math.round(power_end_pct * 100)}% · ${Math.round(power_start_pct * ftp)}→${Math.round(power_end_pct * ftp)}W`,
+        power: rampPowerLabel(b.Ramp.power_start_pct ?? 0, b.Ramp.power_end_pct ?? 0),
         cadence: cadence_rpm ? `${cadence_rpm} rpm` : null,
         pill: p.bg,
         pillTitle: p.title,
       };
     }
     const { repeat, on, off } = b.IntervalsT;
-    const onPct  = (on.SteadyState  ? on.SteadyState.power_pct  : on.Ramp  ? on.Ramp.power_start_pct  : 0) ?? 0;
-    const offPct = (off.SteadyState ? off.SteadyState.power_pct : off.Ramp ? off.Ramp.power_start_pct : 0) ?? 0;
-    const onCad  = on.SteadyState  ? on.SteadyState.cadence_rpm  : on.Ramp  ? on.Ramp.cadence_rpm  : null;
-    const offCad = off.SteadyState ? off.SteadyState.cadence_rpm : off.Ramp ? off.Ramp.cadence_rpm : null;
-    let cadence: string | null = null;
-    if (onCad != null && offCad != null) cadence = `${onCad} rpm on / ${offCad} rpm off`;
-    else if (onCad != null) cadence = `${onCad} rpm on`;
-    else if (offCad != null) cadence = `${offCad} rpm off`;
+    const onPct  = subBlockPowerPct(on);
+    const offPct = subBlockPowerPct(off);
     return {
       kind: `${repeat}×`,
       duration: `${formatDuration(blockDuration(on))} on · ${formatDuration(blockDuration(off))} off`,
       power: `${pwr(onPct)} on / ${pwr(offPct)} off`,
-      cadence,
+      cadence: intervalCadenceLabel(on, off),
       pill: p.bg,
       pillTitle: p.title,
     };
@@ -292,7 +309,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each blockRows as row}
+            {#each blockRows as row, i (i)}
               <tr>
                 <td class="col-kind">
                   <span class="zone-pill" style="background: {row.pill}" title={row.pillTitle} aria-label={row.pillTitle}></span>

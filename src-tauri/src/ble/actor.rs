@@ -48,6 +48,9 @@ const ERG_FAILURE_THRESHOLD: u32 = 2;
 const STALE_AFTER: Duration = Duration::from_secs(5);
 
 impl<R: Runtime> BleActor<R> {
+    // Actor main loop is one state machine by design; splitting it would scatter
+    // the reconnect/staleness logic. Baseline for the complexity gate (clippy.toml).
+    #[expect(clippy::cognitive_complexity)]
     pub async fn run(mut self) {
         // Subscribe to adapter-level events to detect disconnections.
         // Falls back to a never-resolving stream if subscription fails.

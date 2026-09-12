@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig tsconfig.json --watch",
+    "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
     "test:watch": "vitest",
     "tauri": "tauri"
@@ -27,14 +28,19 @@
     "@tensorflow/tfjs-core": "^4.22.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@sveltejs/adapter-static": "^3.0.6",
     "@sveltejs/kit": "^2.9.0",
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
     "@tauri-apps/cli": "^2",
     "@types/node": "^25.9.3",
+    "eslint": "^10.10.0",
+    "eslint-plugin-svelte": "^3.23.0",
+    "globals": "^17.12.0",
     "svelte": "^5.0.0",
     "svelte-check": "^4.0.0",
     "typescript": "~5.6.2",
+    "typescript-eslint": "^8.70.0",
     "vite": "^6.4.3",
     "vitest": "^4.1.11"
   }
