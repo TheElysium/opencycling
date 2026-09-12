@@ -23,3 +23,6 @@ docs/handoff-*.md
 
 # Personal training library: not project content, varies per rider
 /workouts/
+
+# Local Claude Code permissions/settings: machine-specific, not shared
+.claude/settings.local.json
