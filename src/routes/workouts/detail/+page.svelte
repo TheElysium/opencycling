@@ -361,6 +361,12 @@
               {formatDayNum(s.started_at)} {formatWeekdayShort(s.started_at)}, {formatHourMinute(s.started_at)}
             </span>
             <span class="session-duration">{s.duration_s ? formatHmsShort(s.duration_s) : '—'}</span>
+            {#if s.avg_power_w != null}
+              <span class="session-power">{Math.round(s.avg_power_w)} W</span>
+            {/if}
+            {#if s.avg_hr_bpm != null}
+              <span class="session-hr">{Math.round(s.avg_hr_bpm)} bpm</span>
+            {/if}
             {#if s.tss != null}
               <span class="session-tss">{Math.round(s.tss)} TSS</span>
             {/if}
@@ -687,6 +693,8 @@
   .session-day { flex: 1; }
 
   .session-duration,
+  .session-power,
+  .session-hr,
   .session-tss {
     color: var(--muted);
     white-space: nowrap;
