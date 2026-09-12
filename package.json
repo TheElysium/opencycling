@@ -1,6 +1,6 @@
 {
   "name": "opencycling",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Free local-first indoor cycling training app: FTMS trainer control, .zwo workouts, session recording",
   "type": "module",
   "scripts": {
