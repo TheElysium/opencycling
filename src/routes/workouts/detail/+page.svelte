@@ -218,6 +218,13 @@
     </button>
 
     <header class="hero">
+      {#if w.tags.length > 0}
+        <div class="tag-pills">
+          {#each w.tags as tag (tag)}
+            <span class="tag-pill">{tag}</span>
+          {/each}
+        </div>
+      {/if}
       {#if metrics && metrics.tss > 0 && !w.is_ftp_test}
         <span class="type-badge" style="--type-color: {workoutTypeColor(metrics.type)}">
           <span class="type-dot"></span>{metrics.type}
@@ -351,6 +358,24 @@
 
   .hero {
     margin-bottom: 1.25rem;
+  }
+
+  .tag-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .tag-pill {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--muted) 12%, transparent);
+    color: var(--muted);
   }
 
   .type-badge {

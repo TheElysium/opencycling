@@ -180,24 +180,26 @@
           </button>
         {/each}
       </div>
-      <div class="search">
-        <Search size={14} aria-hidden="true" />
-        <input
-          type="search"
-          placeholder="Search workouts…"
-          bind:value={query}
-          aria-label="Search workouts"
-        />
-        {#if query}
-          <button class="clear-btn" onclick={() => query = ''} aria-label="Clear search">
-            <X size={14} />
-          </button>
-        {/if}
+      <div class="search-group">
+        <div class="search">
+          <Search size={14} aria-hidden="true" />
+          <input
+            type="search"
+            placeholder="Search workouts…"
+            bind:value={query}
+            aria-label="Search workouts"
+          />
+          {#if query}
+            <button class="clear-btn" onclick={() => query = ''} aria-label="Clear search">
+              <X size={14} />
+            </button>
+          {/if}
+        </div>
+        <button class="refresh-btn" onclick={loadWorkouts} disabled={loading} aria-label="Refresh workout library">
+          <RefreshCw size={14} aria-hidden="true" />
+          Refresh
+        </button>
       </div>
-      <button class="refresh-btn" onclick={loadWorkouts} disabled={loading} aria-label="Refresh workout library">
-        <RefreshCw size={14} aria-hidden="true" />
-        Refresh
-      </button>
     </div>
     {#if allTags.length > 0}
       <div class="tag-filters">
@@ -396,6 +398,12 @@
 
   .search input::-webkit-search-cancel-button { display: none; }
 
+  .search-group {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
   .clear-btn {
     background: none;
     border: none;
@@ -529,7 +537,7 @@
     letter-spacing: 0.03em;
     padding: 0.1rem 0.4rem;
     border-radius: 4px;
-    background: var(--border);
+    background: color-mix(in srgb, var(--muted) 12%, transparent);
     color: var(--muted);
   }
 
