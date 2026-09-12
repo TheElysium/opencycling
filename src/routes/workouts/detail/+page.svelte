@@ -355,23 +355,28 @@
       <p class="muted">Never ridden yet.</p>
     {:else}
       <div class="card sessions-card">
-        {#each recentSessions as s (s.id)}
-          <button class="session-row" onclick={() => goto(`/history/${s.id}`)}>
-            <span class="session-day">
-              {formatDayNum(s.started_at)} {formatWeekdayShort(s.started_at)}, {formatHourMinute(s.started_at)}
-            </span>
-            <span class="session-duration">{s.duration_s ? formatHmsShort(s.duration_s) : '—'}</span>
-            {#if s.avg_power_w != null}
-              <span class="session-power">{Math.round(s.avg_power_w)} W</span>
-            {/if}
-            {#if s.avg_hr_bpm != null}
-              <span class="session-hr">{Math.round(s.avg_hr_bpm)} bpm</span>
-            {/if}
-            {#if s.tss != null}
-              <span class="session-tss">{Math.round(s.tss)} TSS</span>
-            {/if}
-          </button>
-        {/each}
+        <table class="block-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Duration</th>
+              <th>Avg power</th>
+              <th>Avg HR</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each recentSessions as s (s.id)}
+              <tr class="session-row" onclick={() => goto(`/history/${s.id}`)}>
+                <td class="col-kind">
+                  {formatDayNum(s.started_at)} {formatWeekdayShort(s.started_at)}, {formatHourMinute(s.started_at)}
+                </td>
+                <td class="col-dur">{s.duration_s ? formatHmsShort(s.duration_s) : '—'}</td>
+                <td class="col-power">{s.avg_power_w != null ? `${Math.round(s.avg_power_w)} W` : '—'}</td>
+                <td class="col-cad">{s.avg_hr_bpm != null ? `${Math.round(s.avg_hr_bpm)} bpm` : '—'}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
       </div>
     {/if}
   </div>
@@ -668,35 +673,16 @@
   .muted { color: var(--muted); }
 
   .sessions-card {
-    padding: 0.25rem 0.5rem;
+    padding: 0.5rem 0.75rem;
     margin-bottom: 1.5rem;
   }
 
-  .session-row {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    width: 100%;
-    background: none;
-    border: none;
-    padding: 0.55rem 0.5rem;
-    font-size: 0.85rem;
-    color: var(--text);
-    cursor: pointer;
-    border-bottom: 1px solid var(--border);
-    text-align: left;
-  }
-
-  .session-row:last-child { border-bottom: none; }
+  .session-row { cursor: pointer; }
   .session-row:hover { background: var(--bg); }
 
-  .session-day { flex: 1; }
-
-  .session-duration,
-  .session-power,
-  .session-hr,
-  .session-tss {
-    color: var(--muted);
+  .session-row .col-kind {
+    font-weight: 400;
+    width: auto;
     white-space: nowrap;
   }
 </style>
