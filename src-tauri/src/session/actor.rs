@@ -493,6 +493,7 @@ mod tests {
                 },
             ],
             is_ftp_test: false,
+            tags: vec![],
             file_name: None,
         };
 
@@ -539,6 +540,7 @@ mod tests {
                 }),
             }],
             is_ftp_test: false,
+            tags: vec![],
             file_name: None,
         };
 
@@ -586,6 +588,7 @@ mod tests {
                 label: Some("Build".to_string()),
             }],
             is_ftp_test: false,
+            tags: vec![],
             file_name: None,
         };
 

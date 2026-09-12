@@ -199,6 +199,13 @@
             <WorkoutThumb blocks={flat} ftpWatts={cardFtp} />
           </div>
           <div class="card-info">
+            {#if w.tags.length > 0}
+              <div class="tag-pills">
+                {#each w.tags as tag (tag)}
+                  <span class="tag-pill">{tag}</span>
+                {/each}
+              </div>
+            {/if}
             {#if w.is_ftp_test}
               <span class="ftp-badge">FTP Test</span>
             {:else if m.tss > 0}
@@ -402,6 +409,24 @@
     height: 6px;
     border-radius: 50%;
     background: var(--type-color);
+  }
+
+  .tag-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .tag-pill {
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    background: var(--border);
+    color: var(--muted);
   }
 
   .ftp-badge {

@@ -113,6 +113,8 @@ export type ParsedWorkout = {
 	sport_type: SportType,
 	workout_blocks: WorkoutBlock[],
 	is_ftp_test: boolean,
+	/**  General tags from the `<tags>` element, excluding `ftp-test` (see `is_ftp_test`). */
+	tags: string[],
 	/**
 	 *  Source file name (basename only). None when parsed from raw content
 	 *  without a file context (e.g. tests or load_workout command).

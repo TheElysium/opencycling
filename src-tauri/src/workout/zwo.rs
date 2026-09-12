@@ -45,29 +45,43 @@ pub(crate) fn parse_zwo(file_content: &str) -> Result<ParsedWorkout, AppError> {
         }
     }
 
+    let ParsedTags { is_ftp_test, tags } = parse_tags(root);
     Ok(ParsedWorkout {
         author,
         name,
         description,
         sport_type,
         workout_blocks: parsed_blocks,
-        is_ftp_test: has_ftp_test_tag(root),
+        is_ftp_test,
+        tags,
         file_name: None,
     })
 }
 
-fn has_ftp_test_tag(root: Node) -> bool {
-    root.children()
-        .find(|n| n.has_tag_name("tags"))
-        .map(|tags| {
-            tags.children().filter(Node::is_element).any(|t| {
-                t.has_tag_name("tag")
-                    && t.attribute("name")
-                        .map(|v| v.eq_ignore_ascii_case("ftp-test"))
-                        .unwrap_or(false)
-            })
-        })
-        .unwrap_or(false)
+struct ParsedTags {
+    is_ftp_test: bool,
+    tags: Vec<String>,
+}
+
+/// Reads all `<tag name="...">` under `<tags>`; `ftp-test` sets the dedicated
+/// flag instead of joining the general list (it drives FTP-test logic elsewhere).
+fn parse_tags(root: Node) -> ParsedTags {
+    let mut is_ftp_test = false;
+    let mut tags = Vec::new();
+    let Some(tags_node) = root.children().find(|n| n.has_tag_name("tags")) else {
+        return ParsedTags { is_ftp_test, tags };
+    };
+    for t in tags_node.children().filter(Node::is_element) {
+        let Some(name) = t.attribute("name").filter(|_| t.has_tag_name("tag")) else {
+            continue;
+        };
+        if name.eq_ignore_ascii_case("ftp-test") {
+            is_ftp_test = true;
+        } else {
+            tags.push(name.to_string());
+        }
+    }
+    ParsedTags { is_ftp_test, tags }
 }
 
 fn zwo_metadata_text(node: Node, tag: &str) -> Option<String> {
@@ -217,6 +231,26 @@ mod tests {
     fn test_parse_without_ftp_test_tag_is_false() -> Result<(), AppError> {
         let xml = r#"<workout_file><sportType>bike</sportType><workout><SteadyState Duration="300" Power="0.85"/></workout></workout_file>"#;
         assert!(!parse_zwo(xml)?.is_ftp_test);
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_multiple_tags_excludes_ftp_test() -> Result<(), AppError> {
+        let xml = r#"<workout_file><sportType>bike</sportType><tags><tag name="Endurance"/><tag name="ftp-test"/><tag name="Recovery"/></tags><workout><SteadyState Duration="60" Power="1.0"/></workout></workout_file>"#;
+        let w = parse_zwo(xml)?;
+        assert!(w.is_ftp_test);
+        assert_eq!(
+            w.tags,
+            vec!["Endurance".to_string(), "Recovery".to_string()]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_no_tags_element_yields_empty_tags() -> Result<(), AppError> {
+        let xml = r#"<workout_file><sportType>bike</sportType><workout><SteadyState Duration="300" Power="0.85"/></workout></workout_file>"#;
+        let w = parse_zwo(xml)?;
+        assert!(w.tags.is_empty());
         Ok(())
     }
 
