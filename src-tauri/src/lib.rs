@@ -4,7 +4,7 @@ use crate::db::{DbActorHandle, KnownDevices, SessionCard, SessionDetail, Setting
 use crate::errors::AppError;
 use crate::session::{FlatBlock, SessionActorHandle, SessionSnapshot, StateKind, flatten_workout};
 use crate::strava::types::StravaStatus;
-use crate::workout::{ParsedWorkout, WorkoutLibrary, list_workouts, parse_zwo};
+use crate::workout::{ParsedWorkout, WorkoutLibrary, list_workouts_cached, parse_zwo};
 use tauri::Manager;
 use tauri_plugin_opener::OpenerExt;
 use tracing::metadata::LevelFilter;
@@ -168,8 +168,33 @@ async fn update_settings(
 
 #[tauri::command]
 #[specta::specta]
-fn list_workouts_cmd(folder: String, ftp_w: u16) -> Result<WorkoutLibrary, AppError> {
-    list_workouts(&folder, ftp_w)
+async fn list_workouts_cmd(
+    folder: String,
+    ftp_w: u16,
+    db: tauri::State<'_, DbActorHandle>,
+) -> Result<WorkoutLibrary, AppError> {
+    // Cache is best-effort: a DB hiccup must not turn a working disk scan into
+    // an error for the frontend, so failures here are logged, not propagated.
+    let cached: std::collections::HashMap<_, _> = db
+        .list_workout_cache()
+        .await
+        .inspect_err(|e| tracing::warn!("workout cache read failed, reparsing all: {e}"))
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(name, mtime, json)| (name, (mtime, json)))
+        .collect();
+    let reconciled = list_workouts_cached(&folder, ftp_w, cached)?;
+    for (file_name, mtime, json) in reconciled.to_upsert {
+        if let Err(e) = db.upsert_workout(file_name, mtime, json).await {
+            tracing::warn!("workout cache upsert failed: {e}");
+        }
+    }
+    for file_name in reconciled.to_delete {
+        if let Err(e) = db.delete_workout(file_name).await {
+            tracing::warn!("workout cache delete failed: {e}");
+        }
+    }
+    Ok(reconciled.result)
 }
 
 // Expand a workout into the canonical flat block list (intervals unfolded, power in

@@ -133,6 +133,21 @@ impl DbActor {
                     DbCommand::SetAutoConnect { enabled, reply } => {
                         let _ = reply.send(self.set_auto_connect(enabled));
                     }
+                    DbCommand::ListWorkoutCache { reply } => {
+                        let _ = reply.send(self.list_workout_cache());
+                    }
+                    DbCommand::UpsertWorkout {
+                        file_name,
+                        mtime_secs,
+                        parsed_json,
+                        reply,
+                    } => {
+                        let _ =
+                            reply.send(self.upsert_workout(&file_name, mtime_secs, &parsed_json));
+                    }
+                    DbCommand::DeleteWorkout { file_name, reply } => {
+                        let _ = reply.send(self.delete_workout(&file_name));
+                    }
                 },
             }
         }
@@ -596,6 +611,34 @@ impl DbActor {
             "UPDATE settings SET auto_connect = ?1 WHERE id = 1",
             [enabled as i64],
         )?;
+        Ok(())
+    }
+
+    fn list_workout_cache(&self) -> Result<Vec<(String, i64, String)>, AppError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT file_name, mtime_secs, parsed_json FROM workouts")?;
+        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    fn upsert_workout(
+        &self,
+        file_name: &str,
+        mtime_secs: i64,
+        parsed_json: &str,
+    ) -> Result<(), AppError> {
+        self.conn.execute(
+            "INSERT INTO workouts (file_name, mtime_secs, parsed_json) VALUES (?1, ?2, ?3)
+             ON CONFLICT(file_name) DO UPDATE SET mtime_secs = ?2, parsed_json = ?3",
+            (file_name, mtime_secs, parsed_json),
+        )?;
+        Ok(())
+    }
+
+    fn delete_workout(&self, file_name: &str) -> Result<(), AppError> {
+        self.conn
+            .execute("DELETE FROM workouts WHERE file_name = ?1", [file_name])?;
         Ok(())
     }
 }

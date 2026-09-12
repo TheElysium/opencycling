@@ -86,6 +86,14 @@ const MIGRATIONS: &[&str] = &[
     r#"
     ALTER TABLE settings ADD COLUMN stall_timeout_s INTEGER NOT NULL DEFAULT 5;
     "#,
+    // v8 -> v9 : workout library cache (avoid reparsing unchanged .zwo files)
+    r#"
+    CREATE TABLE IF NOT EXISTS workouts(
+        file_name   TEXT PRIMARY KEY,
+        mtime_secs  INTEGER NOT NULL,
+        parsed_json TEXT NOT NULL
+    );
+    "#,
 ];
 
 pub fn run(conn: &mut Connection) -> Result<(), AppError> {
