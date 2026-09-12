@@ -12,6 +12,10 @@
   import { workoutFtp } from '$lib/ftp';
   import { getSettings } from '$lib/settings';
   import { session } from '$lib/session.svelte';
+  import {
+    type SessionCard,
+    formatDayNum, formatWeekdayShort, formatHourMinute, formatHmsShort,
+  } from '$lib/db';
 
   let ftp = $state(200);
   let aeroFeature = $state(false); // master switch from Settings; gates the per-ride toggle
@@ -198,6 +202,20 @@
     { icon: Battery, label: 'Work',        value: Math.round(metrics.kj),           unit: 'kJ',                           secondary: { label: 'kJ'  }, title: 'Total energy produced' },
   ] : []);
 
+  // Recent sessions for this workout, keyed by name (only fetched once a named
+  // workout is selected; empty for FTP tests or blank/untagged files).
+  let recentSessions = $state<SessionCard[]>([]);
+  $effect(() => {
+    const name = w?.name;
+    if (!name) {
+      recentSessions = [];
+      return;
+    }
+    commands.listSessionsForWorkout(name).then(cards => {
+      if (workoutSelection.workout?.name === name) recentSessions = cards;
+    }).catch(() => { recentSessions = []; });
+  });
+
   let helpOpen = $state(false);
 
   function onDocClick(e: MouseEvent) {
@@ -329,6 +347,25 @@
             {/each}
           </tbody>
         </table>
+      </div>
+    {/if}
+
+    <h2 class="section-title">Recent sessions</h2>
+    {#if recentSessions.length === 0}
+      <p class="muted">Never ridden yet.</p>
+    {:else}
+      <div class="card sessions-card">
+        {#each recentSessions as s (s.id)}
+          <button class="session-row" onclick={() => goto(`/history/${s.id}`)}>
+            <span class="session-day">
+              {formatDayNum(s.started_at)} {formatWeekdayShort(s.started_at)}, {formatHourMinute(s.started_at)}
+            </span>
+            <span class="session-duration">{s.duration_s ? formatHmsShort(s.duration_s) : '—'}</span>
+            {#if s.tss != null}
+              <span class="session-tss">{Math.round(s.tss)} TSS</span>
+            {/if}
+          </button>
+        {/each}
       </div>
     {/if}
   </div>
@@ -620,5 +657,38 @@
   .col-cad {
     white-space: nowrap;
     color: var(--muted);
+  }
+
+  .muted { color: var(--muted); }
+
+  .sessions-card {
+    padding: 0.25rem 0.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .session-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    width: 100%;
+    background: none;
+    border: none;
+    padding: 0.55rem 0.5rem;
+    font-size: 0.85rem;
+    color: var(--text);
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+  }
+
+  .session-row:last-child { border-bottom: none; }
+  .session-row:hover { background: var(--bg); }
+
+  .session-day { flex: 1; }
+
+  .session-duration,
+  .session-tss {
+    color: var(--muted);
+    white-space: nowrap;
   }
 </style>

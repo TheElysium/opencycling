@@ -151,6 +151,12 @@ impl DbActor {
                     DbCommand::ListLastUsed { reply } => {
                         let _ = reply.send(self.list_last_used());
                     }
+                    DbCommand::ListSessionsForWorkout {
+                        workout_name,
+                        reply,
+                    } => {
+                        let _ = reply.send(self.list_sessions_for_workout(&workout_name));
+                    }
                 },
             }
         }
@@ -390,32 +396,46 @@ impl DbActor {
         Ok(derive_metrics(&powers, ftp_w_used, duration_s))
     }
 
-    fn list_sessions(&self) -> Result<Vec<SessionCard>, AppError> {
-        let mut stmt = self.conn.prepare(
-            "SELECT id, started_at, workout_name, duration_s, \
+    /// Shared column list for `sessions` -> `SessionCard` queries (see
+    /// `list_sessions` / `list_sessions_for_workout`).
+    const SESSION_CARD_COLUMNS: &'static str = "id, started_at, workout_name, duration_s, \
                     avg_power_w, avg_hr_bpm, avg_cadence_rpm, ftp_w_used, workout_type, aero_pct, \
-                    np_w, if_, tss \
-             FROM sessions \
-             ORDER BY started_at DESC",
-        )?;
-        let rows = stmt.query_map([], |row| {
-            let workout_type_str: Option<String> = row.get(8)?;
-            Ok(SessionCard {
-                id: row.get(0)?,
-                started_at: row.get(1)?,
-                workout_name: row.get(2)?,
-                duration_s: row.get(3)?,
-                avg_power_w: row.get(4)?,
-                avg_hr_bpm: row.get(5)?,
-                avg_cadence_rpm: row.get(6)?,
-                ftp_w_used: row.get(7)?,
-                workout_type: workout_type_str.as_deref().and_then(WorkoutType::from_str),
-                aero_pct: row.get(9)?,
-                np_w: row.get(10)?,
-                if_: row.get(11)?,
-                tss: row.get(12)?,
-            })
-        })?;
+                    np_w, if_, tss";
+
+    fn session_card_from_row(row: &rusqlite::Row) -> rusqlite::Result<SessionCard> {
+        let workout_type_str: Option<String> = row.get(8)?;
+        Ok(SessionCard {
+            id: row.get(0)?,
+            started_at: row.get(1)?,
+            workout_name: row.get(2)?,
+            duration_s: row.get(3)?,
+            avg_power_w: row.get(4)?,
+            avg_hr_bpm: row.get(5)?,
+            avg_cadence_rpm: row.get(6)?,
+            ftp_w_used: row.get(7)?,
+            workout_type: workout_type_str.as_deref().and_then(WorkoutType::from_str),
+            aero_pct: row.get(9)?,
+            np_w: row.get(10)?,
+            if_: row.get(11)?,
+            tss: row.get(12)?,
+        })
+    }
+
+    fn list_sessions(&self) -> Result<Vec<SessionCard>, AppError> {
+        let mut stmt = self.conn.prepare(&format!(
+            "SELECT {} FROM sessions ORDER BY started_at DESC",
+            Self::SESSION_CARD_COLUMNS
+        ))?;
+        let rows = stmt.query_map([], Self::session_card_from_row)?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    fn list_sessions_for_workout(&self, workout_name: &str) -> Result<Vec<SessionCard>, AppError> {
+        let mut stmt = self.conn.prepare(&format!(
+            "SELECT {} FROM sessions WHERE workout_name = ?1 ORDER BY started_at DESC",
+            Self::SESSION_CARD_COLUMNS
+        ))?;
+        let rows = stmt.query_map([workout_name], Self::session_card_from_row)?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
@@ -764,6 +784,42 @@ mod tests {
                 ("Sweet Spot".to_string(), "2024-06-01T00:00:00Z".to_string()),
             ]
         );
+    }
+
+    #[test]
+    fn list_sessions_for_workout_filters_and_orders_most_recent_first() {
+        let mut actor = test_actor();
+        actor
+            .insert_session(
+                "Sweet Spot".into(),
+                "2024-01-01T00:00:00Z".into(),
+                200,
+                "[]".into(),
+            )
+            .unwrap();
+        actor
+            .insert_session(
+                "Sweet Spot".into(),
+                "2024-06-01T00:00:00Z".into(),
+                200,
+                "[]".into(),
+            )
+            .unwrap();
+        actor
+            .insert_session(
+                "Endurance".into(),
+                "2024-03-01T00:00:00Z".into(),
+                200,
+                "[]".into(),
+            )
+            .unwrap();
+
+        let cards = actor.list_sessions_for_workout("Sweet Spot").unwrap();
+
+        assert_eq!(cards.len(), 2);
+        assert_eq!(cards[0].started_at, "2024-06-01T00:00:00Z");
+        assert_eq!(cards[1].started_at, "2024-01-01T00:00:00Z");
+        assert!(cards.iter().all(|c| c.workout_name == "Sweet Spot"));
     }
 
     #[test]

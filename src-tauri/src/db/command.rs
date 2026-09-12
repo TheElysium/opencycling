@@ -95,6 +95,10 @@ pub enum DbCommand {
     ListLastUsed {
         reply: oneshot::Sender<Result<Vec<(String, String)>, AppError>>,
     },
+    ListSessionsForWorkout {
+        workout_name: String,
+        reply: oneshot::Sender<Result<Vec<SessionCard>, AppError>>,
+    },
 }
 
 #[derive(Clone)]
@@ -356,6 +360,21 @@ impl DbActorHandle {
         let (tx, rx) = oneshot::channel();
         self.sender
             .send(DbCommand::ListLastUsed { reply: tx })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    pub async fn list_sessions_for_workout(
+        &self,
+        workout_name: String,
+    ) -> Result<Vec<SessionCard>, AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::ListSessionsForWorkout {
+                workout_name,
+                reply: tx,
+            })
             .await
             .map_err(|_| AppError::ChannelClosed)?;
         rx.await.map_err(|_| AppError::ChannelClosed)?

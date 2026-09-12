@@ -277,6 +277,15 @@ async fn list_sessions(
 
 #[tauri::command]
 #[specta::specta]
+async fn list_sessions_for_workout(
+    state: tauri::State<'_, DbActorHandle>,
+    workout_name: String,
+) -> Result<Vec<SessionCard>, AppError> {
+    state.list_sessions_for_workout(workout_name).await
+}
+
+#[tauri::command]
+#[specta::specta]
 async fn get_session(
     state: tauri::State<'_, DbActorHandle>,
     id: i64,
@@ -452,6 +461,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             report_aero,
             get_session_snapshot,
             list_sessions,
+            list_sessions_for_workout,
             get_session,
             delete_session,
             export_session_tcx,

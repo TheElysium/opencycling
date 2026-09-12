@@ -36,6 +36,7 @@ export const commands = {
 	is_ftp_test: boolean,
 } | null>("get_session_snapshot"),
 	listSessions: () => __TAURI_INVOKE<SessionCard[]>("list_sessions"),
+	listSessionsForWorkout: (workoutName: string) => __TAURI_INVOKE<SessionCard[]>("list_sessions_for_workout", { workoutName }),
 	getSession: (id: number) => __TAURI_INVOKE<SessionDetail>("get_session", { id }),
 	deleteSession: (id: number) => __TAURI_INVOKE<null>("delete_session", { id }),
 	exportSessionTcx: (id: number, path: string) => __TAURI_INVOKE<null>("export_session_tcx", { id, path }),
