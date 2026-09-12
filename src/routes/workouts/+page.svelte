@@ -253,13 +253,6 @@
             <WorkoutThumb blocks={flat} ftpWatts={cardFtp} />
           </div>
           <div class="card-info">
-            {#if w.tags.length > 0}
-              <div class="tag-pills">
-                {#each w.tags as tag (tag)}
-                  <span class="tag-pill">{tag}</span>
-                {/each}
-              </div>
-            {/if}
             {#if w.is_ftp_test}
               <span class="ftp-badge">FTP Test</span>
             {:else if m.tss > 0}
@@ -279,6 +272,13 @@
               <span class="dot-sep">·</span>
               <span class="last-used">{lastUsedLabel}</span>
             </div>
+            {#if w.tags.length > 0}
+              <div class="tag-pills">
+                {#each w.tags as tag (tag)}
+                  <span class="tag-pill">{tag}</span>
+                {/each}
+              </div>
+            {/if}
           </div>
         </button>
       {/each}
@@ -315,10 +315,11 @@
     display: flex;
     align-items: center;
     gap: 0.25rem;
+    height: 2.25rem;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 0.2rem;
+    padding: 0 0.2rem;
   }
 
   .sort-label {
@@ -358,10 +359,11 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    height: 2.25rem;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 0.45rem 0.7rem;
+    padding: 0 0.7rem;
     color: var(--text);
     transition: border-color 0.15s, box-shadow 0.15s;
     min-width: 220px;
@@ -420,12 +422,13 @@
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
+    height: 2.25rem;
     background: var(--surface);
     border: 1px solid var(--border);
     color: var(--muted);
     font: inherit;
     font-size: 0.82rem;
-    padding: 0.4rem 0.7rem;
+    padding: 0 0.7rem;
     border-radius: 8px;
     cursor: pointer;
     transition: color 0.15s, background 0.15s;
@@ -527,7 +530,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: 0.25rem;
-    margin-bottom: 0.35rem;
+    margin-top: 0.5rem;
   }
 
   .tag-pill {
