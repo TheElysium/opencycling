@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { SvelteSet } from 'svelte/reactivity';
   import { goto } from '$app/navigation';
   import { Search, X, ArrowUp, ArrowDown } from '@lucide/svelte';
   import WorkoutThumb from '$lib/components/WorkoutThumb.svelte';
@@ -15,6 +16,7 @@
   import { computeWorkoutMetrics, workoutTypeColor, type WorkoutType } from '$lib/metrics';
   import { workoutFtp } from '$lib/ftp';
   import { getSettings } from '$lib/settings';
+  import { uniqueSortedTags, matchesSelectedTags } from '$lib/workout-filter';
 
   let workoutPath    = $state('');
   let ftp            = $state(200);
@@ -29,6 +31,11 @@
   let loading        = $state(true);
   let error          = $state<string | null>(null);
   let query          = $state('');
+  const selectedTags = new SvelteSet<string>();
+
+  function toggleTag(tag: string) {
+    if (selectedTags.has(tag)) selectedTags.delete(tag); else selectedTags.add(tag);
+  }
 
   type SortField = 'name' | 'zone' | 'duration' | 'lastUsed';
   let sortField = $state<SortField>('name');
@@ -81,14 +88,19 @@
     })
   );
 
+  let allTags = $derived(uniqueSortedTags(workouts));
+
   let filteredWorkouts = $derived.by(() => {
     const q = query.trim().toLowerCase();
-    const list = q
+    const afterQuery = q
       ? decorated.filter(d => d.name.toLowerCase().includes(q))
       : decorated.slice();
+    const withTags = selectedTags.size === 0
+      ? afterQuery
+      : afterQuery.filter(d => matchesSelectedTags(d.w.tags, selectedTags));
 
     const dir = sortDir === 'asc' ? 1 : -1;
-    list.sort((a, b) => {
+    withTags.sort((a, b) => {
       let cmp: number;
       if (sortField === 'zone') {
         cmp = ZONE_ORDER[a.m.type] - ZONE_ORDER[b.m.type];
@@ -104,7 +116,7 @@
       }
       return cmp * dir;
     });
-    return list;
+    return withTags;
   });
 
   onMount(async () => {
@@ -138,7 +150,7 @@
   <h1>
     Workouts
     {#if !loading && workouts.length > 0}
-      <span class="count">{filteredWorkouts.length}{#if query && filteredWorkouts.length !== workouts.length} / {workouts.length}{/if}</span>
+      <span class="count">{filteredWorkouts.length}{#if (query || selectedTags.size > 0) && filteredWorkouts.length !== workouts.length} / {workouts.length}{/if}</span>
     {/if}
   </h1>
 
@@ -179,6 +191,20 @@
         {/if}
       </div>
     </div>
+    {#if allTags.length > 0}
+      <div class="tag-filters">
+        {#each allTags as tag (tag)}
+          <button
+            class="tag-pill tag-filter"
+            class:active={selectedTags.has(tag)}
+            onclick={() => toggleTag(tag)}
+            aria-pressed={selectedTags.has(tag)}
+          >
+            {tag}
+          </button>
+        {/each}
+      </div>
+    {/if}
   {/if}
 
   {#if parseErrors.length > 0 && showParseErrors}
@@ -206,7 +232,9 @@
   {:else if workouts.length === 0}
     <p class="muted">No workouts found in <code>{workoutPath}</code>.</p>
   {:else if filteredWorkouts.length === 0}
-    <p class="muted">No workouts match "<strong>{query}</strong>".</p>
+    <p class="muted">
+      {#if query}No workouts match "<strong>{query}</strong>".{:else}No workouts match the selected tags.{/if}
+    </p>
   {:else}
     <div class="workout-grid">
       {#each filteredWorkouts as { w, m, name, cardFtp, flat, lastUsedLabel }, i (i)}
@@ -371,6 +399,31 @@
   }
 
   .clear-btn:hover { color: var(--text); }
+
+  .tag-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: -0.5rem 0 1.25rem;
+  }
+
+  /* .tag-pill (below) provides the shared pastille look; this adds the
+     interactive-button bits (cursor, border, active state, transition). */
+  .tag-filter {
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s, border-color 0.15s;
+  }
+
+  .tag-filter:hover {
+    color: var(--text);
+  }
+
+  .tag-filter.active {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  }
 
   .muted { color: var(--muted); }
   .link  { color: var(--accent); text-decoration: underline; }
