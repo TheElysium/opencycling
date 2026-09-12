@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
   import { goto } from '$app/navigation';
-  import { Search, X, ArrowUp, ArrowDown } from '@lucide/svelte';
+  import { Search, X, ArrowUp, ArrowDown, RefreshCw } from '@lucide/svelte';
   import WorkoutThumb from '$lib/components/WorkoutThumb.svelte';
   import { commands, type FlatBlock } from '$lib/bindings';
   import { workoutSelection, type ParsedWorkout, type WorkoutFileError } from '$lib/workout.svelte';
@@ -119,7 +119,9 @@
     return withTags;
   });
 
-  onMount(async () => {
+  async function loadWorkouts() {
+    loading = true;
+    error = null;
     try {
       const s = await getSettings();
       workoutPath = s.workout_path;
@@ -138,7 +140,9 @@
     } finally {
       loading = false;
     }
-  });
+  }
+
+  onMount(loadWorkouts);
 
   function select(w: ParsedWorkout) {
     workoutSelection.workout = w;
@@ -154,7 +158,7 @@
     {/if}
   </h1>
 
-  {#if !loading && workouts.length > 0}
+  {#if workouts.length > 0}
     <div class="toolbar">
       <div class="sort">
         <span class="sort-label">Sort</span>
@@ -190,6 +194,10 @@
           </button>
         {/if}
       </div>
+      <button class="refresh-btn" onclick={loadWorkouts} disabled={loading} aria-label="Refresh workout library">
+        <RefreshCw size={14} aria-hidden="true" />
+        Refresh
+      </button>
     </div>
     {#if allTags.length > 0}
       <div class="tag-filters">
@@ -399,6 +407,31 @@
   }
 
   .clear-btn:hover { color: var(--text); }
+
+  .refresh-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font: inherit;
+    font-size: 0.82rem;
+    padding: 0.4rem 0.7rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+  }
+
+  .refresh-btn:hover:not(:disabled) {
+    color: var(--text);
+    background: var(--bg);
+  }
+
+  .refresh-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
 
   .tag-filters {
     display: flex;
