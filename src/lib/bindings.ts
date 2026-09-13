@@ -55,6 +55,9 @@ export const commands = {
 	setPlanArchived: (id: number, archived: boolean) => __TAURI_INVOKE<null>("set_plan_archived", { id, archived }),
 	deletePlan: (id: number) => __TAURI_INVOKE<null>("delete_plan", { id }),
 	getPlanWeeks: (id: number) => __TAURI_INVOKE<PlanWeek[]>("get_plan_weeks", { id }),
+	createPlanEntry: (planId: number, date: string, fileName: string, workoutName: string) => __TAURI_INVOKE<PlanEntry>("create_plan_entry", { planId, date, fileName, workoutName }),
+	updatePlanEntry: (entryId: number, fileName: string, workoutName: string) => __TAURI_INVOKE<PlanEntry>("update_plan_entry", { entryId, fileName, workoutName }),
+	deletePlanEntry: (entryId: number) => __TAURI_INVOKE<null>("delete_plan_entry", { entryId }),
 };
 
 /* Types */
@@ -143,6 +146,28 @@ export type PlanDay = {
 	/**  ISO `YYYY-MM-DD`. */
 	date: string,
 	marker: DayMarker,
+	entries: PlanEntryView[],
+};
+
+export type PlanEntry = {
+	id: number,
+	plan_id: number,
+	/**  ISO `YYYY-MM-DD`. */
+	date: string,
+	position: number,
+	file_name: string | null,
+	workout_name: string | null,
+	note: string | null,
+	session_id: number | null,
+};
+
+export type PlanEntryView = {
+	entry_id: number,
+	position: number,
+	file_name: string | null,
+	workout_name: string | null,
+	session_id: number | null,
+	missing: boolean,
 };
 
 /**  One row of the plan grid; `number` is 1-based so the UI renders "Week 1" as is. */

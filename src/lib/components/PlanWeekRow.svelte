@@ -1,15 +1,21 @@
 <script lang="ts">
-  import type { PlanWeek } from '$lib/bindings';
+  import type { PlanDay, PlanWeek } from '$lib/bindings';
   import PlanDayCell from './PlanDayCell.svelte';
 
-  let { week }: { week: PlanWeek } = $props();
+  type Props = {
+    week: PlanWeek;
+    readonly?: boolean;
+    onopen?: (date: string, entries: PlanDay['entries']) => void;
+  };
+
+  let { week, readonly = false, onopen }: Props = $props();
 </script>
 
 <div class="row">
   <span class="week-label">Week {week.number}</span>
   <div class="days">
     {#each week.days as day (day.date)}
-      <PlanDayCell {day} />
+      <PlanDayCell {day} {readonly} {onopen} />
     {/each}
   </div>
 </div>

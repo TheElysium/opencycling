@@ -3,7 +3,7 @@ use crate::db::Settings;
 use crate::db::actor::DbActor;
 use crate::db::types::{KnownDevices, Metric, SessionCard, SessionDetail, StravaAuth};
 use crate::errors::AppError;
-use crate::plan::{NewPlan, TrainingPlan};
+use crate::plan::{NewEntry, NewPlan, PlanEntry, TrainingPlan};
 use tokio::sync::mpsc::{Sender, channel};
 use tokio::sync::oneshot;
 
@@ -125,6 +125,35 @@ pub enum DbCommand {
     DeletePlan {
         id: i64,
         reply: oneshot::Sender<Result<(), AppError>>,
+    },
+    GetPlanEntry {
+        id: i64,
+        reply: oneshot::Sender<Result<PlanEntry, AppError>>,
+    },
+    ListPlanEntries {
+        plan_id: i64,
+        reply: oneshot::Sender<Result<Vec<PlanEntry>, AppError>>,
+    },
+    InsertPlanEntry {
+        entry: NewEntry,
+        reply: oneshot::Sender<Result<PlanEntry, AppError>>,
+    },
+    UpdatePlanEntry {
+        id: i64,
+        file_name: String,
+        workout_name: String,
+        reply: oneshot::Sender<Result<PlanEntry, AppError>>,
+    },
+    DeletePlanEntry {
+        id: i64,
+        reply: oneshot::Sender<Result<(), AppError>>,
+    },
+    WorkoutFileNames {
+        reply: oneshot::Sender<Result<Vec<String>, AppError>>,
+    },
+    EntryExistsFile {
+        file_name: String,
+        reply: oneshot::Sender<Result<bool, AppError>>,
     },
 }
 
@@ -467,6 +496,82 @@ impl DbActorHandle {
         let (tx, rx) = oneshot::channel();
         self.sender
             .send(DbCommand::DeletePlan { id, reply: tx })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    pub async fn get_plan_entry(&self, id: i64) -> Result<PlanEntry, AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::GetPlanEntry { id, reply: tx })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    pub async fn list_plan_entries(&self, plan_id: i64) -> Result<Vec<PlanEntry>, AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::ListPlanEntries { plan_id, reply: tx })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    pub async fn insert_plan_entry(&self, entry: NewEntry) -> Result<PlanEntry, AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::InsertPlanEntry { entry, reply: tx })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    pub async fn update_plan_entry(
+        &self,
+        id: i64,
+        file_name: String,
+        workout_name: String,
+    ) -> Result<PlanEntry, AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::UpdatePlanEntry {
+                id,
+                file_name,
+                workout_name,
+                reply: tx,
+            })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    pub async fn delete_plan_entry(&self, id: i64) -> Result<(), AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::DeletePlanEntry { id, reply: tx })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    pub async fn workout_file_names(&self) -> Result<Vec<String>, AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::WorkoutFileNames { reply: tx })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    pub async fn entry_exists_file(&self, file_name: String) -> Result<bool, AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::EntryExistsFile {
+                file_name,
+                reply: tx,
+            })
             .await
             .map_err(|_| AppError::ChannelClosed)?;
         rx.await.map_err(|_| AppError::ChannelClosed)?

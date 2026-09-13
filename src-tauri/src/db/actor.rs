@@ -183,6 +183,37 @@ impl DbActor {
                     DbCommand::DeletePlan { id, reply } => {
                         let _ = reply.send(plan_store::delete(&self.conn, id));
                     }
+                    DbCommand::GetPlanEntry { id, reply } => {
+                        let _ = reply.send(plan_store::get_entry(&self.conn, id));
+                    }
+                    DbCommand::ListPlanEntries { plan_id, reply } => {
+                        let _ = reply.send(plan_store::list_entries(&self.conn, plan_id));
+                    }
+                    DbCommand::InsertPlanEntry { entry, reply } => {
+                        let _ = reply.send(plan_store::insert_entry(&self.conn, &entry));
+                    }
+                    DbCommand::UpdatePlanEntry {
+                        id,
+                        file_name,
+                        workout_name,
+                        reply,
+                    } => {
+                        let _ = reply.send(plan_store::update_entry(
+                            &self.conn,
+                            id,
+                            file_name,
+                            workout_name,
+                        ));
+                    }
+                    DbCommand::DeletePlanEntry { id, reply } => {
+                        let _ = reply.send(plan_store::delete_entry(&self.conn, id));
+                    }
+                    DbCommand::WorkoutFileNames { reply } => {
+                        let _ = reply.send(plan_store::workout_file_names(&self.conn));
+                    }
+                    DbCommand::EntryExistsFile { file_name, reply } => {
+                        let _ = reply.send(plan_store::entry_exists_file(&self.conn, &file_name));
+                    }
                 },
             }
         }

@@ -2,31 +2,115 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { ArrowLeft } from '@lucide/svelte';
-  import { commands, type PlanWeek, type TrainingPlan } from '$lib/bindings';
+  import { confirm } from '@tauri-apps/plugin-dialog';
+  import {
+    commands,
+    type ParsedWorkout,
+    type PlanEntryView,
+    type PlanWeek,
+    type TrainingPlan,
+  } from '$lib/bindings';
   import { toMessage } from '$lib/format';
   import { formatPlanRange } from '$lib/plan-date';
   import PlanWeekRow from '$lib/components/PlanWeekRow.svelte';
+  import WorkoutPicker from '$lib/components/WorkoutPicker.svelte';
 
   const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-  let plan  = $state<TrainingPlan | null>(null);
+  let plan = $state<TrainingPlan | null>(null);
   let weeks = $state<PlanWeek[]>([]);
   let loading = $state(true);
-  let error   = $state<string | null>(null);
+  let busy = $state(false);
+  let error = $state<string | null>(null);
+
+  let pickerOpen = $state(false);
+  let pickerMode = $state<'create' | 'replace'>('create');
+  let pickerDate = $state<string | null>(null);
+  let replaceEntry = $state<PlanEntryView | null>(null);
 
   let id = $derived(parseInt($page.params.id ?? '0', 10));
+  let archived = $derived(plan?.archived_at !== null);
 
-  onMount(async () => {
+  async function load() {
+    error = null;
     try {
       const [p, w] = await Promise.all([commands.getPlan(id), commands.getPlanWeeks(id)]);
       plan = p;
       weeks = w;
     } catch (e) {
       error = toMessage(e);
-    } finally {
-      loading = false;
     }
+  }
+
+  onMount(async () => {
+    await load();
+    loading = false;
   });
+
+  function openPicker(date: string, entries: PlanEntryView[]) {
+    if (archived || busy) return;
+    pickerDate = date;
+    if (entries.length > 0) {
+      pickerMode = 'replace';
+      replaceEntry = entries[0];
+    } else {
+      pickerMode = 'create';
+      replaceEntry = null;
+    }
+    pickerOpen = true;
+  }
+
+  function closePicker() {
+    pickerOpen = false;
+    pickerDate = null;
+    replaceEntry = null;
+  }
+
+  async function mutate(action: () => Promise<unknown>) {
+    busy = true;
+    error = null;
+    try {
+      await action();
+      await load();
+    } catch (e) {
+      error = toMessage(e);
+    } finally {
+      busy = false;
+    }
+  }
+
+  function currentPickerName(): string | null {
+    return replaceEntry?.workout_name ?? null;
+  }
+
+  async function assign(workout: ParsedWorkout) {
+    // file_name is the library cache key: a scan can yield workouts without one.
+    if (busy || !plan || !pickerDate || !workout.file_name) return;
+    const fileName = workout.file_name;
+    const planId = plan.id;
+    const date = pickerDate;
+    await mutate(async () => {
+      if (pickerMode === 'replace' && replaceEntry) {
+        await commands.updatePlanEntry(replaceEntry.entry_id, fileName, workout.name ?? '');
+      } else {
+        await commands.createPlanEntry(planId, date, fileName, workout.name ?? '');
+      }
+    });
+    closePicker();
+  }
+
+  async function remove() {
+    if (busy || !replaceEntry) return;
+    const ok = await confirm('Remove this workout from the plan?', {
+      title: 'Remove workout',
+      kind: 'warning',
+    });
+    if (!ok) return;
+    await mutate(async () => {
+      await commands.deletePlanEntry(replaceEntry!.entry_id);
+    });
+    closePicker();
+  }
 </script>
 
 <div class="page-wide">
@@ -41,7 +125,12 @@
     <p class="error-box">{error}</p>
   {:else if plan}
     <header>
-      <h1>{plan.name}</h1>
+      <div class="title-line">
+        <h1>{plan.name}</h1>
+        {#if archived}
+          <span class="archived-badge">Archived</span>
+        {/if}
+      </div>
       <p class="meta">{formatPlanRange(plan.start_date, plan.weeks)}</p>
     </header>
 
@@ -52,11 +141,21 @@
         {/each}
       </div>
       {#each weeks as week (week.number)}
-        <PlanWeekRow {week} />
+        <PlanWeekRow {week} readonly={archived || busy} onopen={openPicker} />
       {/each}
     </div>
   {/if}
 </div>
+
+<WorkoutPicker
+  open={pickerOpen}
+  mode={pickerMode}
+  currentName={currentPickerName()}
+  disabled={busy}
+  onpick={assign}
+  onremove={pickerMode === 'replace' ? remove : undefined}
+  onclose={closePicker}
+/>
 
 <style>
   .muted { color: var(--muted); }
@@ -74,10 +173,28 @@
 
   header { margin-bottom: 1.25rem; }
 
+  .title-line {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.25rem;
+  }
+
   h1 {
     font-size: 1.4rem;
     font-weight: 600;
-    margin: 0 0 0.25rem;
+    margin: 0;
+  }
+
+  .archived-badge {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    background: color-mix(in srgb, var(--muted) 12%, transparent);
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
   }
 
   .meta {

@@ -34,6 +34,39 @@ pub struct PlanDay {
     /// ISO `YYYY-MM-DD`.
     pub date: String,
     pub marker: DayMarker,
+    pub entries: Vec<PlanEntryView>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Type)]
+pub struct PlanEntryView {
+    pub entry_id: i64,
+    pub position: i32,
+    pub file_name: Option<String>,
+    pub workout_name: Option<String>,
+    pub session_id: Option<i64>,
+    pub missing: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Type)]
+pub struct PlanEntry {
+    pub id: i64,
+    pub plan_id: i64,
+    /// ISO `YYYY-MM-DD`.
+    pub date: String,
+    pub position: i32,
+    pub file_name: Option<String>,
+    pub workout_name: Option<String>,
+    pub note: Option<String>,
+    pub session_id: Option<i64>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Type)]
+pub struct NewEntry {
+    pub plan_id: i64,
+    /// ISO `YYYY-MM-DD`.
+    pub date: String,
+    pub file_name: String,
+    pub workout_name: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type)]

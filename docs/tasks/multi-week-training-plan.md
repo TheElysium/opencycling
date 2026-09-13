@@ -1,7 +1,7 @@
 # Multi-Week Training Plan (manual, athlete-scheduled)
 
 **Issue:** [github.com/TheElysium/opencycling/issues/15](https://github.com/TheElysium/opencycling/issues/15)
-**Status:** slice 2 committed; slice 3 not started.
+**Status:** slice 3 committed; slice 4 not started.
 
 ## Problem
 
@@ -201,11 +201,38 @@ Subagent metrics (slice 2): implementer `ses_f6539fd14ffec2BxzAoE9eyjsz`
 (8 gates green), `ses_f653065f1ffeGYeiEL95wtPCsN` (7 gates green after fixes);
 reviewer `ses_f65335738ffeK05VqPkG28k28C` (APPROVE then APPROVE on fixes).
 
+Decisions taken while implementing slice 3:
+
+- Archived plans reject entry writes (create/update/delete): the rider confirmed
+  archiving means frozen. Rejection message points at unarchiving. Past days are
+  assignable (any day inside plan bounds; rider logs retroactively).
+- `build_weeks` now takes `(plan, entries, known_files, today)` per the original
+  module sketch: entries attach to their day (sort position then id), out-of-bounds
+  entries are ignored (corrupt row must not fail the whole grid), `missing` flag is
+  computed against the library `workouts.file_name` set.
+- Replacing a workout on an entry sets `session_id` back to NULL: the linked session
+  fulfilled the previous workout.
+- The detail page reads the plan row twice (`getPlan` + `getPlanWeeks`); still
+  accepted for now — revisit when the today card or per-day fetches land.
+- Known follow-up (reviewer): a parsed workout could carry a file_name but a null
+  name, persisting an empty `workout_name`; backend non-empty check worth adding
+  when note-entries land in slice 4.
+- Known issue (pre-existing, not this slice): `scripts/gate.sh` invokes
+  `cargo-audit` without the `audit` subcommand, so the wrapper script fails under
+  WSL where only `cargo-audit.exe` exists; `cargo audit` itself passes.
+
+Subagent metrics (slice 3): explore `ses_f652a4061ffeFTUBGJUm9v8jWg`;
+implementer `ses_f652688adffe0WaS34VKplp02l` (full slice); gate-keeper
+`ses_f650f3814ffeoxPE4DcbsM17GN` (8 gates green), `ses_f650b0393ffeNs9yHAWtLy7BV7`
+(fmt drift caught, fixed); reviewer `ses_f650f1f17ffebo37BcbazCvjQ3`
+(REQUEST_CHANGES on double-submit race, then APPROVE on fixes).
+
 | # | Slice | Status |
 |---|-------|--------|
 | 1 | Schema + plan CRUD + `/plans` list page | done, committed `b5439af` |
-| 2 | Empty week grid at `/plans/[id]` | done, reviewed, gates green |
-| 3 | Assign / replace / remove a workout on a day | not started |
+| 2 | Empty week grid at `/plans/[id]` | done, committed `7469806` |
+| 3 | Assign / replace / remove a workout on a day | done, reviewed, gates green |
+| 4 | Free-text note per day | not started |
 | 4 | Free-text note per day | not started |
 | 5 | Weekly load summary column | not started |
 | 6 | Start a session from a day cell, link `session_id` | not started |

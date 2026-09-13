@@ -2,7 +2,10 @@ use crate::ble::sim;
 use crate::ble::{BleActorHandle, BleEvent, BleMetrics, DeviceInfo, DeviceKind};
 use crate::db::{DbActorHandle, KnownDevices, SessionCard, SessionDetail, Settings, StravaAuth};
 use crate::errors::AppError;
-use crate::plan::{NewPlan, PlanWeek, TrainingPlan, normalize_plan, validate_plan_write};
+use crate::plan::{
+    NewEntry, NewPlan, PlanEntry, PlanWeek, TrainingPlan, normalize_plan, validate_entry_date,
+    validate_plan_write,
+};
 use crate::session::{FlatBlock, SessionActorHandle, SessionSnapshot, StateKind, flatten_workout};
 use crate::strava::types::StravaStatus;
 use crate::workout::{
@@ -393,7 +396,86 @@ async fn get_plan_weeks(
     id: i64,
 ) -> Result<Vec<PlanWeek>, AppError> {
     let plan = state.get_plan(id).await?;
-    crate::plan::build_weeks(&plan, chrono::Local::now().date_naive())
+    let entries = state.list_plan_entries(id).await?;
+    let file_names = state.workout_file_names().await?;
+    crate::plan::build_weeks(
+        &plan,
+        &entries,
+        &file_names.into_iter().collect(),
+        chrono::Local::now().date_naive(),
+    )
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn create_plan_entry(
+    state: tauri::State<'_, DbActorHandle>,
+    plan_id: i64,
+    date: String,
+    file_name: String,
+    workout_name: String,
+) -> Result<PlanEntry, AppError> {
+    let plan = state.get_plan(plan_id).await?;
+    reject_archived(&plan)?;
+    validate_entry_date(&plan, &date)?;
+    reject_missing_file(&state, &file_name).await?;
+    state
+        .insert_plan_entry(NewEntry {
+            plan_id,
+            date,
+            file_name,
+            workout_name,
+        })
+        .await
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn update_plan_entry(
+    state: tauri::State<'_, DbActorHandle>,
+    entry_id: i64,
+    file_name: String,
+    workout_name: String,
+) -> Result<PlanEntry, AppError> {
+    let entry = state.get_plan_entry(entry_id).await?;
+    let plan = state.get_plan(entry.plan_id).await?;
+    reject_archived(&plan)?;
+    validate_entry_date(&plan, &entry.date)?;
+    reject_missing_file(&state, &file_name).await?;
+    state
+        .update_plan_entry(entry_id, file_name, workout_name)
+        .await
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn delete_plan_entry(
+    state: tauri::State<'_, DbActorHandle>,
+    entry_id: i64,
+) -> Result<(), AppError> {
+    let entry = state.get_plan_entry(entry_id).await?;
+    let plan = state.get_plan(entry.plan_id).await?;
+    reject_archived(&plan)?;
+    state.delete_plan_entry(entry_id).await
+}
+
+fn reject_archived(plan: &TrainingPlan) -> Result<(), AppError> {
+    if plan.archived_at.is_some() {
+        return Err(AppError::PlanValidation(format!(
+            "plan '{}' is archived; unarchive it to edit its days",
+            plan.name
+        )));
+    }
+    Ok(())
+}
+
+async fn reject_missing_file(state: &DbActorHandle, file_name: &str) -> Result<(), AppError> {
+    if !state.entry_exists_file(file_name.to_string()).await? {
+        return Err(AppError::PlanValidation(format!(
+            "workout file `{file_name}` is not in the library"
+        )));
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -577,6 +659,9 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             set_plan_archived,
             delete_plan,
             get_plan_weeks,
+            create_plan_entry,
+            update_plan_entry,
+            delete_plan_entry,
         ])
         .typ::<crate::ble::BleMetrics>()
         .typ::<crate::ble::BleError>()

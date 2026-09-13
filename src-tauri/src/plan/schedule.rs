@@ -1,10 +1,15 @@
 use crate::errors::AppError;
-use crate::plan::types::{DayMarker, NewPlan, PlanDay, PlanWeek, TrainingPlan};
+use crate::plan::types::{
+    DayMarker, NewPlan, PlanDay, PlanEntry, PlanEntryView, PlanWeek, TrainingPlan,
+};
 use chrono::{Datelike, Days, NaiveDate, Weekday};
 use std::cmp::Ordering;
+use std::collections::{HashMap, HashSet};
 
 const MAX_WEEKS: u32 = 52;
 const DAYS_PER_WEEK: u64 = 7;
+
+type EntriesByDate<'a> = HashMap<String, Vec<&'a PlanEntry>>;
 
 /// End is EXCLUSIVE: a 4-week plan starting 2026-09-14 ends 2026-10-12.
 pub fn plan_range(start_date: &str, weeks: u32) -> Result<(NaiveDate, NaiveDate), AppError> {
@@ -16,22 +21,34 @@ pub fn plan_range(start_date: &str, weeks: u32) -> Result<(NaiveDate, NaiveDate)
 }
 
 /// The grid shape of a plan: `weeks` rows of 7 dated days, Monday first.
-pub fn build_weeks(plan: &TrainingPlan, today: NaiveDate) -> Result<Vec<PlanWeek>, AppError> {
+pub fn build_weeks(
+    plan: &TrainingPlan,
+    entries: &[PlanEntry],
+    known_files: &HashSet<String>,
+    today: NaiveDate,
+) -> Result<Vec<PlanWeek>, AppError> {
     // Write-time validation cannot be fully trusted: a corrupt row must not
     // render as a silently empty grid.
     if plan.weeks == 0 {
         return Err(invalid(format!("plan {} has weeks = 0", plan.id)));
     }
-    let (start, _) = plan_range(&plan.start_date, plan.weeks)?;
+    let (start, end) = plan_range(&plan.start_date, plan.weeks)?;
+    let entries_by_date = entries_for_days(entries, start, end);
     (0..plan.weeks)
-        .map(|index| build_week(start, index, today))
+        .map(|index| build_week(start, index, &entries_by_date, known_files, today))
         .collect()
 }
 
-fn build_week(start: NaiveDate, index: u32, today: NaiveDate) -> Result<PlanWeek, AppError> {
+fn build_week(
+    start: NaiveDate,
+    index: u32,
+    entries_by_date: &EntriesByDate<'_>,
+    known_files: &HashSet<String>,
+    today: NaiveDate,
+) -> Result<PlanWeek, AppError> {
     let first = u64::from(index) * DAYS_PER_WEEK;
     let days = (first..first + DAYS_PER_WEEK)
-        .map(|offset| build_day(start, offset, today))
+        .map(|offset| build_day(start, offset, entries_by_date, known_files, today))
         .collect::<Result<Vec<_>, AppError>>()?;
     Ok(PlanWeek {
         number: index + 1,
@@ -39,14 +56,81 @@ fn build_week(start: NaiveDate, index: u32, today: NaiveDate) -> Result<PlanWeek
     })
 }
 
-fn build_day(start: NaiveDate, offset: u64, today: NaiveDate) -> Result<PlanDay, AppError> {
+fn build_day(
+    start: NaiveDate,
+    offset: u64,
+    entries_by_date: &EntriesByDate<'_>,
+    known_files: &HashSet<String>,
+    today: NaiveDate,
+) -> Result<PlanDay, AppError> {
     let date = start
         .checked_add_days(Days::new(offset))
         .ok_or_else(|| invalid(format!("day {offset} of {start} is out of range")))?;
+    let date_str = date.format("%Y-%m-%d").to_string();
+    let entries = entries_by_date
+        .get(&date_str)
+        .map(|list| view_entries(list, known_files))
+        .unwrap_or_default();
     Ok(PlanDay {
-        date: date.format("%Y-%m-%d").to_string(),
+        date: date_str,
         marker: marker_of(date, today),
+        entries,
     })
+}
+
+/// Entries whose date falls outside the plan bounds are ignored: a corrupt row
+/// must not fail the whole grid.
+fn entries_for_days(entries: &[PlanEntry], start: NaiveDate, end: NaiveDate) -> EntriesByDate<'_> {
+    let mut by_date: EntriesByDate = HashMap::new();
+    for entry in entries {
+        if let Ok(date) = NaiveDate::parse_from_str(&entry.date, "%Y-%m-%d")
+            && date >= start
+            && date < end
+        {
+            by_date.entry(entry.date.clone()).or_default().push(entry);
+        }
+    }
+    by_date
+}
+
+fn view_entries(entries: &[&PlanEntry], known_files: &HashSet<String>) -> Vec<PlanEntryView> {
+    let mut views: Vec<_> = entries
+        .iter()
+        .map(|e| PlanEntryView {
+            entry_id: e.id,
+            position: e.position,
+            file_name: e.file_name.clone(),
+            workout_name: e.workout_name.clone(),
+            session_id: e.session_id,
+            missing: e
+                .file_name
+                .as_ref()
+                .is_some_and(|f| !known_files.contains(f)),
+        })
+        .collect();
+    views.sort_by(|a, b| {
+        a.position
+            .cmp(&b.position)
+            .then_with(|| a.entry_id.cmp(&b.entry_id))
+    });
+    views
+}
+
+/// Validates an entry date against the plan's half-open range [start, end).
+/// Malformed dates and out-of-bounds dates both surface as PlanValidation errors.
+pub fn validate_entry_date(plan: &TrainingPlan, date: &str) -> Result<(), AppError> {
+    let entry = NaiveDate::parse_from_str(date, "%Y-%m-%d")
+        .map_err(|_| invalid(format!("`{date}` is not a valid YYYY-MM-DD date")))?;
+    let (start, end) = plan_range(&plan.start_date, plan.weeks)?;
+    if entry < start || entry >= end {
+        return Err(invalid(format!(
+            "date `{date}` is outside the plan `{}` ({} to {})",
+            plan.name,
+            start,
+            end.pred_opt().unwrap_or(start)
+        )));
+    }
+    Ok(())
 }
 
 fn marker_of(date: NaiveDate, today: NaiveDate) -> DayMarker {
@@ -403,6 +487,10 @@ mod tests {
         assert!(is_validation_error(result));
     }
 
+    fn empty_files() -> HashSet<String> {
+        HashSet::new()
+    }
+
     fn all_dates(weeks: &[PlanWeek]) -> Vec<NaiveDate> {
         weeks
             .iter()
@@ -419,7 +507,7 @@ mod tests {
 
     #[test]
     fn build_weeks_lays_out_one_row_per_week_of_seven_days() {
-        let weeks = build_weeks(&plan(1, MONDAY, 4), date(MONDAY)).unwrap();
+        let weeks = build_weeks(&plan(1, MONDAY, 4), &[], &empty_files(), date(MONDAY)).unwrap();
         assert_eq!(
             weeks.iter().map(|week| week.number).collect::<Vec<_>>(),
             vec![1, 2, 3, 4]
@@ -429,7 +517,7 @@ mod tests {
 
     #[test]
     fn build_weeks_runs_from_the_start_date_to_the_inclusive_end() {
-        let weeks = build_weeks(&plan(1, MONDAY, 4), date(MONDAY)).unwrap();
+        let weeks = build_weeks(&plan(1, MONDAY, 4), &[], &empty_files(), date(MONDAY)).unwrap();
         let dates = all_dates(&weeks);
         assert_eq!(dates.len(), 28);
         assert_eq!(dates.first(), Some(&date(MONDAY)));
@@ -439,7 +527,8 @@ mod tests {
 
     #[test]
     fn build_weeks_spans_a_year_boundary_without_a_gap() {
-        let weeks = build_weeks(&plan(1, "2026-12-28", 2), date(MONDAY)).unwrap();
+        let weeks =
+            build_weeks(&plan(1, "2026-12-28", 2), &[], &empty_files(), date(MONDAY)).unwrap();
         let dates = all_dates(&weeks);
         assert_eq!(dates.last(), Some(&date("2027-01-10")));
         assert_consecutive(&dates);
@@ -448,7 +537,7 @@ mod tests {
     #[test]
     fn build_weeks_rejects_a_malformed_start_date() {
         assert!(matches!(
-            build_weeks(&plan(1, "not-a-date", 4), date(MONDAY)),
+            build_weeks(&plan(1, "not-a-date", 4), &[], &empty_files(), date(MONDAY)),
             Err(AppError::PlanValidation(_))
         ));
     }
@@ -457,7 +546,7 @@ mod tests {
     #[test]
     fn build_weeks_rejects_a_zero_week_plan_instead_of_an_empty_grid() {
         assert!(matches!(
-            build_weeks(&plan(1, MONDAY, 0), date(MONDAY)),
+            build_weeks(&plan(1, MONDAY, 0), &[], &empty_files(), date(MONDAY)),
             Err(AppError::PlanValidation(_))
         ));
     }
@@ -473,7 +562,8 @@ mod tests {
 
     #[test]
     fn today_inside_the_plan_splits_it_into_past_today_and_future() {
-        let weeks = build_weeks(&plan(1, MONDAY, 4), date("2026-09-24")).unwrap();
+        let weeks =
+            build_weeks(&plan(1, MONDAY, 4), &[], &empty_files(), date("2026-09-24")).unwrap();
         assert_eq!(
             markers_of(&weeks, DayMarker::Today),
             vec![date("2026-09-24")]
@@ -494,19 +584,21 @@ mod tests {
 
     #[test]
     fn a_plan_that_has_not_started_is_all_future() {
-        let weeks = build_weeks(&plan(1, MONDAY, 4), date("2026-09-13")).unwrap();
+        let weeks =
+            build_weeks(&plan(1, MONDAY, 4), &[], &empty_files(), date("2026-09-13")).unwrap();
         assert_eq!(markers_of(&weeks, DayMarker::Future).len(), 28);
     }
 
     #[test]
     fn a_finished_plan_is_all_past() {
-        let weeks = build_weeks(&plan(1, MONDAY, 4), date("2026-11-02")).unwrap();
+        let weeks =
+            build_weeks(&plan(1, MONDAY, 4), &[], &empty_files(), date("2026-11-02")).unwrap();
         assert_eq!(markers_of(&weeks, DayMarker::Past).len(), 28);
     }
 
     #[test]
     fn today_on_the_first_day_marks_only_that_day() {
-        let weeks = build_weeks(&plan(1, MONDAY, 4), date(MONDAY)).unwrap();
+        let weeks = build_weeks(&plan(1, MONDAY, 4), &[], &empty_files(), date(MONDAY)).unwrap();
         assert_eq!(markers_of(&weeks, DayMarker::Today), vec![date(MONDAY)]);
         assert!(markers_of(&weeks, DayMarker::Past).is_empty());
         assert_eq!(markers_of(&weeks, DayMarker::Future).len(), 27);
@@ -514,7 +606,8 @@ mod tests {
 
     #[test]
     fn today_on_the_last_day_marks_only_that_day() {
-        let weeks = build_weeks(&plan(1, MONDAY, 4), date("2026-10-11")).unwrap();
+        let weeks =
+            build_weeks(&plan(1, MONDAY, 4), &[], &empty_files(), date("2026-10-11")).unwrap();
         assert_eq!(
             markers_of(&weeks, DayMarker::Today),
             vec![date("2026-10-11")]
@@ -526,8 +619,130 @@ mod tests {
     /// `plan_range` ends exclusive: the day after the plan is outside it, never `Today`.
     #[test]
     fn today_on_the_exclusive_end_date_is_outside_the_plan() {
-        let weeks = build_weeks(&plan(1, MONDAY, 4), date("2026-10-12")).unwrap();
+        let weeks =
+            build_weeks(&plan(1, MONDAY, 4), &[], &empty_files(), date("2026-10-12")).unwrap();
         assert!(markers_of(&weeks, DayMarker::Today).is_empty());
         assert_eq!(markers_of(&weeks, DayMarker::Past).len(), 28);
+    }
+
+    fn entry(
+        id: i64,
+        date: &str,
+        position: i32,
+        file_name: Option<&str>,
+        workout_name: Option<&str>,
+    ) -> PlanEntry {
+        PlanEntry {
+            id,
+            plan_id: 1,
+            date: date.to_string(),
+            position,
+            file_name: file_name.map(String::from),
+            workout_name: workout_name.map(String::from),
+            note: None,
+            session_id: None,
+        }
+    }
+
+    #[test]
+    fn build_weeks_attaches_entries_to_their_day() {
+        let entries = vec![entry(
+            1,
+            "2026-09-15",
+            0,
+            Some("base.zwo"),
+            Some("Base Endurance"),
+        )];
+        let weeks =
+            build_weeks(&plan(1, MONDAY, 1), &entries, &empty_files(), date(MONDAY)).unwrap();
+        let tuesday = &weeks[0].days[1];
+        assert_eq!(tuesday.entries.len(), 1);
+        assert_eq!(tuesday.entries[0].entry_id, 1);
+        assert_eq!(
+            tuesday.entries[0].workout_name,
+            Some("Base Endurance".to_string())
+        );
+        assert!(tuesday.entries[0].missing);
+    }
+
+    #[test]
+    fn build_weeks_orders_entries_by_position_then_id() {
+        let entries = vec![
+            entry(5, "2026-09-15", 1, None, Some("second")),
+            entry(2, "2026-09-15", 0, None, Some("first")),
+            entry(3, "2026-09-15", 0, None, Some("tie-broken-by-id")),
+        ];
+        let weeks =
+            build_weeks(&plan(1, MONDAY, 1), &entries, &empty_files(), date(MONDAY)).unwrap();
+        let names: Vec<_> = weeks[0].days[1]
+            .entries
+            .iter()
+            .map(|e| e.workout_name.clone())
+            .collect();
+        assert_eq!(
+            names,
+            vec![
+                Some("first".to_string()),
+                Some("tie-broken-by-id".to_string()),
+                Some("second".to_string())
+            ]
+        );
+    }
+
+    #[test]
+    fn build_weeks_marks_entries_missing_when_file_not_in_known_files() {
+        let entries = vec![entry(1, "2026-09-15", 0, Some("gone.zwo"), Some("Gone"))];
+        let mut files = empty_files();
+        files.insert("present.zwo".to_string());
+        let weeks = build_weeks(&plan(1, MONDAY, 1), &entries, &files, date(MONDAY)).unwrap();
+        assert!(weeks[0].days[1].entries[0].missing);
+
+        files.insert("gone.zwo".to_string());
+        let weeks = build_weeks(&plan(1, MONDAY, 1), &entries, &files, date(MONDAY)).unwrap();
+        assert!(!weeks[0].days[1].entries[0].missing);
+    }
+
+    #[test]
+    fn build_weeks_ignores_entries_outside_the_plan_bounds() {
+        let entries = vec![
+            entry(1, "2026-09-13", 0, None, Some("before")),
+            entry(2, "2026-09-21", 0, None, Some("after")),
+        ];
+        let weeks =
+            build_weeks(&plan(1, MONDAY, 1), &entries, &empty_files(), date(MONDAY)).unwrap();
+        assert!(weeks[0].days.iter().all(|d| d.entries.is_empty()));
+    }
+
+    #[test]
+    fn build_weeks_keeps_note_only_entries_without_a_file_name() {
+        let entries = vec![entry(1, "2026-09-15", 0, None, None)];
+        let weeks =
+            build_weeks(&plan(1, MONDAY, 1), &entries, &empty_files(), date(MONDAY)).unwrap();
+        assert_eq!(weeks[0].days[1].entries.len(), 1);
+        assert_eq!(weeks[0].days[1].entries[0].file_name, None);
+        assert!(!weeks[0].days[1].entries[0].missing);
+    }
+
+    #[test]
+    fn validate_entry_date_accepts_start_date() {
+        assert!(validate_entry_date(&plan(1, MONDAY, 4), MONDAY).is_ok());
+    }
+
+    #[test]
+    fn validate_entry_date_rejects_exclusive_end_date() {
+        let result = validate_entry_date(&plan(1, MONDAY, 1), "2026-09-21");
+        assert!(is_validation_error(result));
+    }
+
+    #[test]
+    fn validate_entry_date_rejects_day_before_start() {
+        let result = validate_entry_date(&plan(1, MONDAY, 1), "2026-09-13");
+        assert!(is_validation_error(result));
+    }
+
+    #[test]
+    fn validate_entry_date_rejects_malformed_date() {
+        let result = validate_entry_date(&plan(1, MONDAY, 1), "not-a-date");
+        assert!(is_validation_error(result));
     }
 }
