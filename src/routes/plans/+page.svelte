@@ -157,7 +157,7 @@
       </div>
     {:else}
       <div class="plan-head">
-        <span class="plan-name">{plan.name}</span>
+        <a class="plan-name" href="/plans/{plan.id}">{plan.name}</a>
         <span class="plan-meta">
           {formatPlanRange(plan.start_date, plan.weeks)}
           <span class="sep">·</span>
@@ -288,7 +288,11 @@
   .plan-name {
     font-weight: 600;
     font-size: 0.95rem;
+    color: inherit;
+    text-decoration: none;
   }
+  .plan-name:hover,
+  .plan-name:focus-visible { color: var(--accent); }
 
   .plan-meta {
     font-size: 0.8rem;

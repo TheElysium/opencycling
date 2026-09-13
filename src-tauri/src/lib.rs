@@ -2,7 +2,7 @@ use crate::ble::sim;
 use crate::ble::{BleActorHandle, BleEvent, BleMetrics, DeviceInfo, DeviceKind};
 use crate::db::{DbActorHandle, KnownDevices, SessionCard, SessionDetail, Settings, StravaAuth};
 use crate::errors::AppError;
-use crate::plan::{NewPlan, TrainingPlan, normalize_plan, validate_plan_write};
+use crate::plan::{NewPlan, PlanWeek, TrainingPlan, normalize_plan, validate_plan_write};
 use crate::session::{FlatBlock, SessionActorHandle, SessionSnapshot, StateKind, flatten_workout};
 use crate::strava::types::StravaStatus;
 use crate::workout::{
@@ -388,6 +388,16 @@ async fn delete_plan(state: tauri::State<'_, DbActorHandle>, id: i64) -> Result<
 
 #[tauri::command]
 #[specta::specta]
+async fn get_plan_weeks(
+    state: tauri::State<'_, DbActorHandle>,
+    id: i64,
+) -> Result<Vec<PlanWeek>, AppError> {
+    let plan = state.get_plan(id).await?;
+    crate::plan::build_weeks(&plan, chrono::Local::now().date_naive())
+}
+
+#[tauri::command]
+#[specta::specta]
 async fn export_session_tcx(
     state: tauri::State<'_, DbActorHandle>,
     id: i64,
@@ -566,6 +576,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             update_plan,
             set_plan_archived,
             delete_plan,
+            get_plan_weeks,
         ])
         .typ::<crate::ble::BleMetrics>()
         .typ::<crate::ble::BleError>()

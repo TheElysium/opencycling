@@ -1,6 +1,7 @@
 use crate::errors::AppError;
-use crate::plan::types::{NewPlan, TrainingPlan};
+use crate::plan::types::{DayMarker, NewPlan, PlanDay, PlanWeek, TrainingPlan};
 use chrono::{Datelike, Days, NaiveDate, Weekday};
+use std::cmp::Ordering;
 
 const MAX_WEEKS: u32 = 52;
 const DAYS_PER_WEEK: u64 = 7;
@@ -12,6 +13,48 @@ pub fn plan_range(start_date: &str, weeks: u32) -> Result<(NaiveDate, NaiveDate)
         .checked_add_days(Days::new(u64::from(weeks) * DAYS_PER_WEEK))
         .ok_or_else(|| invalid(format!("{weeks} weeks from {start_date} is out of range")))?;
     Ok((start, end))
+}
+
+/// The grid shape of a plan: `weeks` rows of 7 dated days, Monday first.
+pub fn build_weeks(plan: &TrainingPlan, today: NaiveDate) -> Result<Vec<PlanWeek>, AppError> {
+    // Write-time validation cannot be fully trusted: a corrupt row must not
+    // render as a silently empty grid.
+    if plan.weeks == 0 {
+        return Err(invalid(format!("plan {} has weeks = 0", plan.id)));
+    }
+    let (start, _) = plan_range(&plan.start_date, plan.weeks)?;
+    (0..plan.weeks)
+        .map(|index| build_week(start, index, today))
+        .collect()
+}
+
+fn build_week(start: NaiveDate, index: u32, today: NaiveDate) -> Result<PlanWeek, AppError> {
+    let first = u64::from(index) * DAYS_PER_WEEK;
+    let days = (first..first + DAYS_PER_WEEK)
+        .map(|offset| build_day(start, offset, today))
+        .collect::<Result<Vec<_>, AppError>>()?;
+    Ok(PlanWeek {
+        number: index + 1,
+        days,
+    })
+}
+
+fn build_day(start: NaiveDate, offset: u64, today: NaiveDate) -> Result<PlanDay, AppError> {
+    let date = start
+        .checked_add_days(Days::new(offset))
+        .ok_or_else(|| invalid(format!("day {offset} of {start} is out of range")))?;
+    Ok(PlanDay {
+        date: date.format("%Y-%m-%d").to_string(),
+        marker: marker_of(date, today),
+    })
+}
+
+fn marker_of(date: NaiveDate, today: NaiveDate) -> DayMarker {
+    match date.cmp(&today) {
+        Ordering::Less => DayMarker::Past,
+        Ordering::Equal => DayMarker::Today,
+        Ordering::Greater => DayMarker::Future,
+    }
 }
 
 /// True when two plans share at least one day. Archived plans are the caller's
@@ -358,5 +401,133 @@ mod tests {
         let result =
             validate_plan_write(&candidate("Base", "2026-09-14", 4), Some(9), false, &active);
         assert!(is_validation_error(result));
+    }
+
+    fn all_dates(weeks: &[PlanWeek]) -> Vec<NaiveDate> {
+        weeks
+            .iter()
+            .flat_map(|week| week.days.iter())
+            .map(|day| date(&day.date))
+            .collect()
+    }
+
+    fn assert_consecutive(dates: &[NaiveDate]) {
+        for pair in dates.windows(2) {
+            assert_eq!(pair[1], pair[0].succ_opt().unwrap());
+        }
+    }
+
+    #[test]
+    fn build_weeks_lays_out_one_row_per_week_of_seven_days() {
+        let weeks = build_weeks(&plan(1, MONDAY, 4), date(MONDAY)).unwrap();
+        assert_eq!(
+            weeks.iter().map(|week| week.number).collect::<Vec<_>>(),
+            vec![1, 2, 3, 4]
+        );
+        assert!(weeks.iter().all(|week| week.days.len() == 7));
+    }
+
+    #[test]
+    fn build_weeks_runs_from_the_start_date_to_the_inclusive_end() {
+        let weeks = build_weeks(&plan(1, MONDAY, 4), date(MONDAY)).unwrap();
+        let dates = all_dates(&weeks);
+        assert_eq!(dates.len(), 28);
+        assert_eq!(dates.first(), Some(&date(MONDAY)));
+        assert_eq!(dates.last(), Some(&date("2026-10-11")));
+        assert_consecutive(&dates);
+    }
+
+    #[test]
+    fn build_weeks_spans_a_year_boundary_without_a_gap() {
+        let weeks = build_weeks(&plan(1, "2026-12-28", 2), date(MONDAY)).unwrap();
+        let dates = all_dates(&weeks);
+        assert_eq!(dates.last(), Some(&date("2027-01-10")));
+        assert_consecutive(&dates);
+    }
+
+    #[test]
+    fn build_weeks_rejects_a_malformed_start_date() {
+        assert!(matches!(
+            build_weeks(&plan(1, "not-a-date", 4), date(MONDAY)),
+            Err(AppError::PlanValidation(_))
+        ));
+    }
+
+    /// Only reachable through a corrupt row: writes enforce `weeks BETWEEN 1 AND 52`.
+    #[test]
+    fn build_weeks_rejects_a_zero_week_plan_instead_of_an_empty_grid() {
+        assert!(matches!(
+            build_weeks(&plan(1, MONDAY, 0), date(MONDAY)),
+            Err(AppError::PlanValidation(_))
+        ));
+    }
+
+    fn markers_of(weeks: &[PlanWeek], marker: DayMarker) -> Vec<NaiveDate> {
+        weeks
+            .iter()
+            .flat_map(|week| week.days.iter())
+            .filter(|day| day.marker == marker)
+            .map(|day| date(&day.date))
+            .collect()
+    }
+
+    #[test]
+    fn today_inside_the_plan_splits_it_into_past_today_and_future() {
+        let weeks = build_weeks(&plan(1, MONDAY, 4), date("2026-09-24")).unwrap();
+        assert_eq!(
+            markers_of(&weeks, DayMarker::Today),
+            vec![date("2026-09-24")]
+        );
+        assert_eq!(markers_of(&weeks, DayMarker::Past).len(), 10);
+        assert_eq!(markers_of(&weeks, DayMarker::Future).len(), 17);
+        assert!(
+            markers_of(&weeks, DayMarker::Past)
+                .iter()
+                .all(|day| day < &date("2026-09-24"))
+        );
+        assert!(
+            markers_of(&weeks, DayMarker::Future)
+                .iter()
+                .all(|day| day > &date("2026-09-24"))
+        );
+    }
+
+    #[test]
+    fn a_plan_that_has_not_started_is_all_future() {
+        let weeks = build_weeks(&plan(1, MONDAY, 4), date("2026-09-13")).unwrap();
+        assert_eq!(markers_of(&weeks, DayMarker::Future).len(), 28);
+    }
+
+    #[test]
+    fn a_finished_plan_is_all_past() {
+        let weeks = build_weeks(&plan(1, MONDAY, 4), date("2026-11-02")).unwrap();
+        assert_eq!(markers_of(&weeks, DayMarker::Past).len(), 28);
+    }
+
+    #[test]
+    fn today_on_the_first_day_marks_only_that_day() {
+        let weeks = build_weeks(&plan(1, MONDAY, 4), date(MONDAY)).unwrap();
+        assert_eq!(markers_of(&weeks, DayMarker::Today), vec![date(MONDAY)]);
+        assert!(markers_of(&weeks, DayMarker::Past).is_empty());
+        assert_eq!(markers_of(&weeks, DayMarker::Future).len(), 27);
+    }
+
+    #[test]
+    fn today_on_the_last_day_marks_only_that_day() {
+        let weeks = build_weeks(&plan(1, MONDAY, 4), date("2026-10-11")).unwrap();
+        assert_eq!(
+            markers_of(&weeks, DayMarker::Today),
+            vec![date("2026-10-11")]
+        );
+        assert_eq!(markers_of(&weeks, DayMarker::Past).len(), 27);
+        assert!(markers_of(&weeks, DayMarker::Future).is_empty());
+    }
+
+    /// `plan_range` ends exclusive: the day after the plan is outside it, never `Today`.
+    #[test]
+    fn today_on_the_exclusive_end_date_is_outside_the_plan() {
+        let weeks = build_weeks(&plan(1, MONDAY, 4), date("2026-10-12")).unwrap();
+        assert!(markers_of(&weeks, DayMarker::Today).is_empty());
+        assert_eq!(markers_of(&weeks, DayMarker::Past).len(), 28);
     }
 }

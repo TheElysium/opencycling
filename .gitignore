@@ -26,3 +26,8 @@ docs/handoff-*.md
 
 # Local Claude Code permissions/settings: machine-specific, not shared
 .claude/settings.local.json
+
+# Local editor/agent tool state: machine-specific, not shared
+.claude/
+.opencode/
+.idea/

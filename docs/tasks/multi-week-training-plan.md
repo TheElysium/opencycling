@@ -1,7 +1,7 @@
 # Multi-Week Training Plan (manual, athlete-scheduled)
 
 **Issue:** [github.com/TheElysium/opencycling/issues/15](https://github.com/TheElysium/opencycling/issues/15)
-**Status:** slice 1 done (reviewed, gates green, not committed); slice 2 next.
+**Status:** slice 2 committed; slice 3 not started.
 
 ## Problem
 
@@ -180,10 +180,31 @@ Known follow-ups, deliberately not done in slice 1:
 - SAST is incomplete: `cargo audit` passes on its known baseline, but `gitleaks` is not
   installed on the dev machine.
 
+Decisions taken during the slice 2 review round (peer review APPROVED twice, second
+round on the incremental fixes):
+
+- `build_weeks` rejects `weeks == 0` with a `PlanValidation` error: write-time
+  validation (`CHECK weeks BETWEEN 1 AND 52`) cannot be trusted for rows corrupted
+  outside the app, and a silently empty grid would look like a plan with no weeks.
+- `dayOfMonth` lives in `plan-date.ts` (pure, UTC-only, returns 0 on unparseable
+  input) instead of an inline `new Date(...)` in `PlanDayCell`, so all date
+  arithmetic stays in one tested file.
+- Accepted for now, revisit when slice 3 touches the page: the detail page reads the
+  plan row twice (`getPlan` + `getPlanWeeks` each fetch it); one command returning
+  `{ plan, weeks }` would fix it. `.gitignore` blanket-ignores `.claude/`,
+  `.opencode/`, `.idea/` — this also hides shareable project-level agent overrides;
+  narrow it if those need to be committed.
+- `cargo fmt` reformatted pre-existing uncommitted schedule.rs/types.rs code.
+
+Subagent metrics (slice 2): implementer `ses_f6539fd14ffec2BxzAoE9eyjsz`
+(command + bindings + frontend); gate-keeper `ses_f653364deffeGt991jTZrGG4GM`
+(8 gates green), `ses_f653065f1ffeGYeiEL95wtPCsN` (7 gates green after fixes);
+reviewer `ses_f65335738ffeK05VqPkG28k28C` (APPROVE then APPROVE on fixes).
+
 | # | Slice | Status |
 |---|-------|--------|
-| 1 | Schema + plan CRUD + `/plans` list page | done, awaiting commit |
-| 2 | Empty week grid at `/plans/[id]` | not started |
+| 1 | Schema + plan CRUD + `/plans` list page | done, committed `b5439af` |
+| 2 | Empty week grid at `/plans/[id]` | done, reviewed, gates green |
 | 3 | Assign / replace / remove a workout on a day | not started |
 | 4 | Free-text note per day | not started |
 | 5 | Weekly load summary column | not started |

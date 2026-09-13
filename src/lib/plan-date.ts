@@ -48,6 +48,15 @@ export function planEndDate(startDate: string, weeks: number): string {
   return toIso(Date.parse(startDate) + (weeks * DAYS_PER_WEEK - 1) * MS_PER_DAY);
 }
 
+/**
+ * Day-of-month number for a day cell, e.g. `'2026-09-14'` -> `14`.
+ * Contract: an unparseable input returns 0, never throws.
+ */
+export function dayOfMonth(isoDate: string): number {
+  if (!isParsable(isoDate)) return 0;
+  return parts(isoDate).day;
+}
+
 function parts(isoDate: string): { day: number; month: string; year: number } {
   const d = new Date(Date.parse(isoDate));
   return { day: d.getUTCDate(), month: MONTHS[d.getUTCMonth()], year: d.getUTCFullYear() };

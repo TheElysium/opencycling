@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mondayOf, planEndDate, formatPlanRange, todayMonday } from './plan-date';
+import { mondayOf, planEndDate, formatPlanRange, todayMonday, dayOfMonth } from './plan-date';
 
 describe('mondayOf', () => {
   it('leaves a Monday untouched', () => {
@@ -59,6 +59,18 @@ describe('formatPlanRange', () => {
   it('returns an unparseable start date unchanged instead of throwing', () => {
     expect(formatPlanRange('', 4)).toBe('');
     expect(formatPlanRange('not-a-date', 4)).toBe('not-a-date');
+  });
+});
+
+describe('dayOfMonth', () => {
+  it('extracts the UTC day-of-month number for a day cell', () => {
+    expect(dayOfMonth('2026-09-01')).toBe(1);
+    expect(dayOfMonth('2026-12-31')).toBe(31);
+  });
+
+  it('returns 0 for an unparseable date instead of throwing', () => {
+    expect(dayOfMonth('')).toBe(0);
+    expect(dayOfMonth('not-a-date')).toBe(0);
   });
 });
 

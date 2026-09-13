@@ -20,3 +20,25 @@ pub struct NewPlan {
     pub start_date: String,
     pub weeks: u32,
 }
+
+/// One row of the plan grid; `number` is 1-based so the UI renders "Week 1" as is.
+#[derive(Serialize, Deserialize, Debug, Clone, Type)]
+pub struct PlanWeek {
+    pub number: u32,
+    pub days: Vec<PlanDay>,
+}
+
+/// No weekday name: a week always holds 7 days from Monday, so the index is the weekday.
+#[derive(Serialize, Deserialize, Debug, Clone, Type)]
+pub struct PlanDay {
+    /// ISO `YYYY-MM-DD`.
+    pub date: String,
+    pub marker: DayMarker,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type)]
+pub enum DayMarker {
+    Past,
+    Today,
+    Future,
+}

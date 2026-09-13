@@ -54,6 +54,7 @@ export const commands = {
 	updatePlan: (id: number, plan: NewPlan) => __TAURI_INVOKE<null>("update_plan", { id, plan }),
 	setPlanArchived: (id: number, archived: boolean) => __TAURI_INVOKE<null>("set_plan_archived", { id, archived }),
 	deletePlan: (id: number) => __TAURI_INVOKE<null>("delete_plan", { id }),
+	getPlanWeeks: (id: number) => __TAURI_INVOKE<PlanWeek[]>("get_plan_weeks", { id }),
 };
 
 /* Types */
@@ -77,6 +78,8 @@ export type BleReconnect = {
 	status: string,
 	attempt: number | null,
 };
+
+export type DayMarker = "Past" | "Today" | "Future";
 
 export type DeviceInfo = {
 	id: string,
@@ -133,6 +136,19 @@ export type ParsedWorkout = {
 	 *  without a file context (e.g. tests or load_workout command).
 	 */
 	file_name: string | null,
+};
+
+/**  No weekday name: a week always holds 7 days from Monday, so the index is the weekday. */
+export type PlanDay = {
+	/**  ISO `YYYY-MM-DD`. */
+	date: string,
+	marker: DayMarker,
+};
+
+/**  One row of the plan grid; `number` is 1-based so the UI renders "Week 1" as is. */
+export type PlanWeek = {
+	number: number,
+	days: PlanDay[],
 };
 
 export type SessionCard = {
