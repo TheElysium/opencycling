@@ -48,6 +48,12 @@ export const commands = {
 	saveKnownDevice: (kind: DeviceKind, id: string, name: string) => __TAURI_INVOKE<null>("save_known_device", { kind, id, name }),
 	setAutoConnect: (enabled: boolean) => __TAURI_INVOKE<null>("set_auto_connect", { enabled }),
 	uploadSessionToStrava: (sessionId: number, force: boolean) => __TAURI_INVOKE<number>("upload_session_to_strava", { sessionId, force }),
+	listPlans: (includeArchived: boolean) => __TAURI_INVOKE<TrainingPlan[]>("list_plans", { includeArchived }),
+	getPlan: (id: number) => __TAURI_INVOKE<TrainingPlan>("get_plan", { id }),
+	createPlan: (plan: NewPlan) => __TAURI_INVOKE<number>("create_plan", { plan }),
+	updatePlan: (id: number, plan: NewPlan) => __TAURI_INVOKE<null>("update_plan", { id, plan }),
+	setPlanArchived: (id: number, archived: boolean) => __TAURI_INVOKE<null>("set_plan_archived", { id, archived }),
+	deletePlan: (id: number) => __TAURI_INVOKE<null>("delete_plan", { id }),
 };
 
 /* Types */
@@ -105,6 +111,12 @@ export type Metric = {
 	hr_bpm: number | null,
 	cadence_rpm: number | null,
 	aero_score: number | null,
+};
+
+export type NewPlan = {
+	name: string,
+	start_date: string,
+	weeks: number,
 };
 
 export type ParsedWorkout = {
@@ -227,6 +239,18 @@ export type StravaStatus = {
 	athlete_id: number | null,
 	athlete_name: string | null,
 	auto_upload: boolean,
+};
+
+export type TrainingPlan = {
+	id: number,
+	name: string,
+	/**  ISO `YYYY-MM-DD`, always a Monday. */
+	start_date: string,
+	weeks: number,
+	/**  RFC 3339. */
+	created_at: string,
+	/**  `None` = active. */
+	archived_at: string | null,
 };
 
 export type WorkoutBlock = ({ SteadyState: {

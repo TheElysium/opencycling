@@ -2,7 +2,7 @@
   import { page } from '$app/state';
   import { onMount } from 'svelte';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-  import {Plug, History, Settings, Bike, FlaskConical} from '@lucide/svelte';
+  import {Plug, History, Settings, Bike, CalendarDays, FlaskConical} from '@lucide/svelte';
   import type { BleError } from '$lib/bindings';
   import { commands } from '$lib/bindings';
   import { ble, kindFromWire, type BleMetrics, type DeviceStatus, type DeviceWire, type ReconnectState, type ReconnectStatus } from '$lib/ble.svelte';
@@ -16,6 +16,7 @@
   const navItems = [
     { href: '/',          label: 'Connection', icon: Plug      },
     { href: '/workouts',  label: 'Workouts',   icon: Bike  },
+    { href: '/plans',     label: 'Plan',       icon: CalendarDays },
     { href: '/history',   label: 'History',    icon: History   },
     { href: '/settings',  label: 'Settings',   icon: Settings  },
   ];

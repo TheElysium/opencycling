@@ -94,6 +94,32 @@ const MIGRATIONS: &[&str] = &[
         parsed_json TEXT NOT NULL
     );
     "#,
+    // v9 -> v10 : multi-week training plans (plans + their scheduled days)
+    r#"
+    CREATE TABLE IF NOT EXISTS training_plans(
+        id          INTEGER PRIMARY KEY,
+        name        TEXT    NOT NULL,
+        start_date  TEXT    NOT NULL, -- always a Monday
+        weeks       INTEGER NOT NULL,
+        created_at  TEXT    NOT NULL,
+        archived_at TEXT,             -- NULL = active
+        -- Mirrors MAX_WEEKS in plan/schedule.rs: one bad row breaks list().
+        CHECK (weeks BETWEEN 1 AND 52)
+    );
+    CREATE TABLE IF NOT EXISTS plan_entries(
+        id           INTEGER PRIMARY KEY,
+        plan_id      INTEGER NOT NULL REFERENCES training_plans(id) ON DELETE CASCADE,
+        date         TEXT    NOT NULL,
+        position     INTEGER NOT NULL DEFAULT 0,
+        file_name    TEXT,   -- `workouts` cache key, NULL on a note-only day
+        workout_name TEXT,
+        note         TEXT,
+        session_id   INTEGER REFERENCES sessions(id) ON DELETE SET NULL,
+        CHECK (file_name IS NOT NULL OR note IS NOT NULL)
+    );
+    CREATE INDEX IF NOT EXISTS idx_plan_entries_plan
+        ON plan_entries(plan_id, date, position);
+    "#,
 ];
 
 pub fn run(conn: &mut Connection) -> Result<(), AppError> {
@@ -119,4 +145,112 @@ pub fn run(conn: &mut Connection) -> Result<(), AppError> {
         current = target;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::run;
+    use rusqlite::Connection;
+
+    fn migrated() -> Connection {
+        let mut conn = Connection::open_in_memory().unwrap();
+        run(&mut conn).unwrap();
+        conn
+    }
+
+    fn table_exists(conn: &Connection, name: &str) -> bool {
+        conn.query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?1",
+            [name],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap()
+            == 1
+    }
+
+    #[test]
+    fn migrations_create_the_training_plan_tables() {
+        let conn = migrated();
+        assert!(table_exists(&conn, "training_plans"));
+        assert!(table_exists(&conn, "plan_entries"));
+    }
+
+    #[test]
+    fn deleting_a_plan_cascades_to_its_entries() {
+        let conn = migrated();
+        conn.execute_batch(
+            "INSERT INTO training_plans (id, name, start_date, weeks, created_at)
+                 VALUES (1, 'Base', '2026-09-14', 4, '2026-09-13T00:00:00+00:00');
+             INSERT INTO plan_entries (plan_id, date, file_name)
+                 VALUES (1, '2026-09-15', 'tempo.zwo');",
+        )
+        .unwrap();
+        conn.execute("DELETE FROM training_plans WHERE id = 1", [])
+            .unwrap();
+        let remaining: i64 = conn
+            .query_row("SELECT COUNT(*) FROM plan_entries", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(remaining, 0);
+    }
+
+    #[test]
+    fn a_plan_entry_needs_a_workout_or_a_note() {
+        let conn = migrated();
+        conn.execute_batch(
+            "INSERT INTO training_plans (id, name, start_date, weeks, created_at)
+                 VALUES (1, 'Base', '2026-09-14', 4, '2026-09-13T00:00:00+00:00');",
+        )
+        .unwrap();
+        let empty_day = conn.execute(
+            "INSERT INTO plan_entries (plan_id, date) VALUES (1, ?1)",
+            ["2026-09-15"],
+        );
+        assert!(empty_day.is_err(), "CHECK must reject a day with neither");
+    }
+
+    #[test]
+    fn deleting_a_session_keeps_the_planned_entry() {
+        let conn = migrated();
+        conn.execute_batch(
+            "INSERT INTO sessions (id, started_at, workout_name)
+                 VALUES (9, '2026-09-15T08:00:00+00:00', 'Tempo');
+             INSERT INTO training_plans (id, name, start_date, weeks, created_at)
+                 VALUES (1, 'Base', '2026-09-14', 4, '2026-09-13T00:00:00+00:00');
+             INSERT INTO plan_entries (plan_id, date, file_name, session_id)
+                 VALUES (1, '2026-09-15', 'tempo.zwo', 9);",
+        )
+        .unwrap();
+        conn.execute("DELETE FROM sessions WHERE id = 9", [])
+            .unwrap();
+        let orphaned: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM plan_entries WHERE session_id IS NULL",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(orphaned, 1, "the entry must survive with a NULL session_id");
+    }
+
+    fn insert_plan_with_weeks(conn: &Connection, weeks: i64) -> rusqlite::Result<usize> {
+        conn.execute(
+            "INSERT INTO training_plans (name, start_date, weeks, created_at)
+                 VALUES ('Base', '2026-09-14', ?1, '2026-09-13T00:00:00+00:00')",
+            [weeks],
+        )
+    }
+
+    #[test]
+    fn training_plans_reject_a_week_count_outside_one_to_fifty_two() {
+        let conn = migrated();
+        assert!(insert_plan_with_weeks(&conn, 0).is_err(), "0 weeks");
+        assert!(insert_plan_with_weeks(&conn, 53).is_err(), "53 weeks");
+    }
+
+    #[test]
+    fn training_plans_accept_the_week_count_boundaries() {
+        let conn = migrated();
+        assert!(insert_plan_with_weeks(&conn, 1).is_ok());
+        assert!(insert_plan_with_weeks(&conn, 52).is_ok());
+    }
 }

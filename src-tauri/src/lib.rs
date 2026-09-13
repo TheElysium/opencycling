@@ -2,6 +2,7 @@ use crate::ble::sim;
 use crate::ble::{BleActorHandle, BleEvent, BleMetrics, DeviceInfo, DeviceKind};
 use crate::db::{DbActorHandle, KnownDevices, SessionCard, SessionDetail, Settings, StravaAuth};
 use crate::errors::AppError;
+use crate::plan::{NewPlan, TrainingPlan, normalize_plan, validate_plan_write};
 use crate::session::{FlatBlock, SessionActorHandle, SessionSnapshot, StateKind, flatten_workout};
 use crate::strava::types::StravaStatus;
 use crate::workout::{
@@ -19,6 +20,9 @@ pub mod db;
 pub mod errors;
 mod export;
 mod metrics;
+// pub: `plan_range` / `overlaps` have no consumer before the plan-entries slice,
+// and `-D warnings` rejects them as dead code behind a private module.
+pub mod plan;
 mod session;
 mod strava;
 pub mod workout;
@@ -301,6 +305,89 @@ async fn delete_session(state: tauri::State<'_, DbActorHandle>, id: i64) -> Resu
 
 #[tauri::command]
 #[specta::specta]
+async fn list_plans(
+    state: tauri::State<'_, DbActorHandle>,
+    include_archived: bool,
+) -> Result<Vec<TrainingPlan>, AppError> {
+    state.list_plans(include_archived).await
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn get_plan(
+    state: tauri::State<'_, DbActorHandle>,
+    id: i64,
+) -> Result<TrainingPlan, AppError> {
+    state.get_plan(id).await
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn create_plan(
+    state: tauri::State<'_, DbActorHandle>,
+    plan: NewPlan,
+) -> Result<i64, AppError> {
+    let plan = normalize_plan(&plan);
+    check_plan(&state, &plan, None, false).await?;
+    state.insert_plan(plan).await
+}
+
+/// Every write path (create, update, unarchive) gates here; archived plans skip the
+/// overlap check. Single-user app: the read-then-write race is accepted.
+async fn check_plan(
+    state: &tauri::State<'_, DbActorHandle>,
+    plan: &NewPlan,
+    editing_id: Option<i64>,
+    archived: bool,
+) -> Result<(), AppError> {
+    let active = if archived {
+        Vec::new()
+    } else {
+        state.list_plans(false).await?
+    };
+    validate_plan_write(plan, editing_id, archived, &active)
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn update_plan(
+    state: tauri::State<'_, DbActorHandle>,
+    id: i64,
+    plan: NewPlan,
+) -> Result<(), AppError> {
+    let archived = state.get_plan(id).await?.archived_at.is_some();
+    let plan = normalize_plan(&plan);
+    check_plan(&state, &plan, Some(id), archived).await?;
+    state.update_plan(id, plan).await
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn set_plan_archived(
+    state: tauri::State<'_, DbActorHandle>,
+    id: i64,
+    archived: bool,
+) -> Result<(), AppError> {
+    if !archived {
+        let existing = state.get_plan(id).await?;
+        let candidate = NewPlan {
+            name: existing.name,
+            start_date: existing.start_date,
+            weeks: existing.weeks,
+        };
+        check_plan(&state, &candidate, Some(id), false).await?;
+    }
+    state.set_plan_archived(id, archived).await
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn delete_plan(state: tauri::State<'_, DbActorHandle>, id: i64) -> Result<(), AppError> {
+    state.delete_plan(id).await
+}
+
+#[tauri::command]
+#[specta::specta]
 async fn export_session_tcx(
     state: tauri::State<'_, DbActorHandle>,
     id: i64,
@@ -473,6 +560,12 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             save_known_device,
             set_auto_connect,
             upload_session_to_strava,
+            list_plans,
+            get_plan,
+            create_plan,
+            update_plan,
+            set_plan_archived,
+            delete_plan,
         ])
         .typ::<crate::ble::BleMetrics>()
         .typ::<crate::ble::BleError>()
