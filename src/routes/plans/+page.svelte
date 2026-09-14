@@ -1,9 +1,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { confirm } from '@tauri-apps/plugin-dialog';
-  import { commands, type NewPlan, type TrainingPlan } from '$lib/bindings';
+  import { commands, type NewPlan, type ParsedWorkout, type PlanWeek, type TrainingPlan } from '$lib/bindings';
   import { toMessage } from '$lib/format';
-  import { mondayOf, formatPlanRange, todayMonday } from '$lib/plan-date';
+  import { mondayOf, formatPlanRange, todayMonday, todayIso } from '$lib/plan-date';
+  import { currentPlan } from '$lib/plan-current';
+  import { getSettings } from '$lib/settings';
+  import { indexByFileName, maxWeekTss, weekLoad } from '$lib/plan-load';
+  import PlanWeekRow from '$lib/components/PlanWeekRow.svelte';
 
   const DEFAULT_WEEKS = 4;
   const MIN_WEEKS = 1;
@@ -30,6 +34,24 @@
   let active   = $derived(plans.filter(p => p.archived_at === null));
   let archived = $derived(plans.filter(p => p.archived_at !== null));
 
+  // Current-week preview: library is best-effort (see loadLibrary), the week is
+  // refetched whenever the current plan changes (tracked by weekFetchedForPlanId).
+  let libraryFtp = $state(0);
+  let libraryWorkouts = $state<ParsedWorkout[]>([]);
+  let currentWeek = $state<PlanWeek | null>(null);
+  let currentPlanWeeks = $state<PlanWeek[]>([]);
+  let weekFetchedForPlanId = $state<number | null>(null);
+
+  let plan = $derived(currentPlan(plans, todayIso()));
+  // Distinguishes "still fetching" from "confirmed no current plan" so the empty state never flashes.
+  let weekPending = $derived(plan !== null && weekFetchedForPlanId !== plan.id);
+  let workoutIndex = $derived(indexByFileName(libraryWorkouts));
+  let currentWeekLoad = $derived(currentWeek ? weekLoad(currentWeek, workoutIndex, libraryFtp) : undefined);
+  // Relative to the whole plan (matches /plans/[id]'s planMaxTss), not just this one week.
+  let currentPlanMaxTss = $derived(
+    maxWeekTss(currentPlanWeeks.map((w) => weekLoad(w, workoutIndex, libraryFtp))),
+  );
+
   async function load() {
     error = null;
     try {
@@ -41,7 +63,41 @@
     }
   }
 
-  onMount(load);
+  // Best-effort: a rider without a configured library still gets a usable preview.
+  async function loadLibrary() {
+    try {
+      const s = await getSettings();
+      libraryFtp = s.ftp_w;
+      if (s.workout_path) {
+        const lib = await commands.listWorkoutsCmd(s.workout_path, s.ftp_w);
+        libraryWorkouts = lib.workouts;
+      }
+    } catch {
+      libraryWorkouts = [];
+    }
+  }
+
+  onMount(async () => {
+    await Promise.all([load(), loadLibrary()]);
+  });
+
+  $effect(() => {
+    const p = plan;
+    if (!p || weekFetchedForPlanId === p.id) return;
+    commands
+      .getPlanWeeks(p.id)
+      .then((weeks) => {
+        currentPlanWeeks = weeks;
+        currentWeek = weeks.find((w) => w.days.some((d) => d.marker === 'Today')) ?? null;
+      })
+      .catch(() => {
+        currentPlanWeeks = [];
+        currentWeek = null;
+      })
+      .finally(() => {
+        weekFetchedForPlanId = p.id;
+      });
+  });
 
   // Backend validation is the source of truth: its message is surfaced raw.
   async function mutate(action: () => Promise<unknown>) {
@@ -178,6 +234,22 @@
 <div class="page-wide">
   <h1>Plans</h1>
 
+  <section class="card current-week-card">
+    <div class="current-week-head">
+      <span class="current-week-label">Current week</span>
+      {#if plan}
+        <a class="plan-name" href="/plans/{plan.id}">{plan.name}</a>
+      {/if}
+    </div>
+    {#if loading || weekPending}
+      <p class="muted">Loading…</p>
+    {:else if !plan || !currentWeek}
+      <p class="muted">No active plan this week.</p>
+    {:else}
+      <PlanWeekRow week={currentWeek} readonly={true} load={currentWeekLoad} maxTss={currentPlanMaxTss} />
+    {/if}
+  </section>
+
   <form
     class="card create-card"
     onsubmit={(e) => {
@@ -220,6 +292,23 @@
   .muted { color: var(--muted); }
 
   .create-card { margin-bottom: 1.25rem; }
+
+  .current-week-card { margin-bottom: 1.25rem; }
+
+  .current-week-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .current-week-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
 
   .fields {
     display: flex;

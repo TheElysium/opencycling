@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { PlanDay, PlanEntryView } from '$lib/bindings';
+  import type { WorkoutType } from '$lib/metrics';
   import { dayOfMonth } from '$lib/plan-date';
+  import { workoutTypeColor } from '$lib/metrics';
   import { Play, CircleCheck } from '@lucide/svelte';
 
   type Props = {
@@ -8,9 +10,11 @@
     readonly?: boolean;
     onopen?: (date: string, entries: PlanEntryView[]) => void;
     onstart?: (entry: PlanEntryView) => void;
+    /** Absent when unindexed or the classification is unknown: no dot is drawn. */
+    intensities?: Map<number, WorkoutType | null>;
   };
 
-  let { day, readonly = false, onopen, onstart }: Props = $props();
+  let { day, readonly = false, onopen, onstart, intensities }: Props = $props();
 
   function startClick(event: MouseEvent, entry: PlanEntryView) {
     // The entry sits inside the cell's own click target: stop it from also opening the picker.
@@ -63,7 +67,11 @@
     <span class="entries">
       {#each day.entries as entry (entry.entry_id)}
         {#if entry.file_name}
+          {@const type = intensities?.get(entry.entry_id)}
           <span class="entry-row">
+            {#if type}
+              <span class="intensity-dot" style="background: {workoutTypeColor(type)}"></span>
+            {/if}
             <span class="entry" class:missing={entry.missing} title={entry.file_name}>
               {entry.workout_name || entry.file_name}
             </span>
@@ -137,15 +145,15 @@
   .entries {
     display: flex;
     flex-direction: column;
-    gap: 0.1rem;
+    gap: 0.15rem;
     min-width: 0;
     /* A long note must not stretch the square cell: it truncates instead. */
     overflow: hidden;
   }
 
   .entry {
-    font-size: 0.65rem;
-    font-weight: 500;
+    font-size: 0.75rem;
+    font-weight: 600;
     color: var(--text);
     white-space: nowrap;
     overflow: hidden;
@@ -168,7 +176,7 @@
   .entry-row {
     display: flex;
     align-items: center;
-    gap: 0.15rem;
+    gap: 0.25rem;
     min-width: 0;
   }
 
@@ -177,22 +185,33 @@
     min-width: 0;
   }
 
+  .intensity-dot {
+    flex-shrink: 0;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+  }
+
   .start-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    width: 1rem;
-    height: 1rem;
+    width: 1.35rem;
+    height: 1.35rem;
     padding: 0;
     border: none;
-    background: transparent;
-    color: var(--muted);
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
     cursor: pointer;
-    transition: color 0.15s;
+    transition: filter 0.15s;
   }
-  .start-btn:hover { color: var(--accent); }
-  .today .start-btn { color: #fff; }
+  .start-btn:hover { filter: brightness(1.1); }
+  .today .start-btn {
+    background: color-mix(in srgb, #fff 30%, transparent);
+    color: #fff;
+  }
 
   :global(.done-badge) {
     flex-shrink: 0;

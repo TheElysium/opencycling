@@ -21,7 +21,7 @@
     type DayAction,
   } from '$lib/plan-entry';
   import { getSettings } from '$lib/settings';
-  import { indexByFileName, maxWeekTss, weekLoad } from '$lib/plan-load';
+  import { entryIntensities, indexByFileName, maxWeekTss, weekLoad } from '$lib/plan-load';
   import { workoutFtp } from '$lib/ftp';
   import { session } from '$lib/session.svelte';
   import PlanWeekRow from '$lib/components/PlanWeekRow.svelte';
@@ -79,6 +79,7 @@
   let workoutIndex = $derived(indexByFileName(libraryWorkouts));
   let weekLoads = $derived(weeks.map((w) => weekLoad(w, workoutIndex, libraryFtp)));
   let planMaxTss = $derived(maxWeekTss(weekLoads));
+  let planIntensities = $derived(entryIntensities(weeks, workoutIndex, libraryFtp));
 
   onMount(async () => {
     await Promise.all([load(), loadLibrary()]);
@@ -213,6 +214,7 @@
           onstart={startEntry}
           load={weekLoads[i]}
           maxTss={planMaxTss}
+          intensities={planIntensities}
         />
       {/each}
     </div>

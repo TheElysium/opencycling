@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mondayOf, planEndDate, formatPlanRange, todayMonday, dayOfMonth } from './plan-date';
+import { mondayOf, planEndDate, formatPlanRange, todayMonday, todayIso, dayOfMonth } from './plan-date';
 
 describe('mondayOf', () => {
   it('leaves a Monday untouched', () => {
@@ -71,6 +71,12 @@ describe('dayOfMonth', () => {
   it('returns 0 for an unparseable date instead of throwing', () => {
     expect(dayOfMonth('')).toBe(0);
     expect(dayOfMonth('not-a-date')).toBe(0);
+  });
+});
+
+describe('todayIso', () => {
+  it('reads the rider local calendar date, not UTC', () => {
+    expect(todayIso(new Date(2026, 8, 14, 0, 30, 0))).toBe('2026-09-14');
   });
 });
 

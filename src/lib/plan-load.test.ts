@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import type { ParsedWorkout, PlanDay, PlanEntryView, PlanWeek, WorkoutBlock } from '$lib/bindings';
-import { indexByFileName, loadBarRatio, maxWeekTss, weekLoad } from './plan-load';
+import {
+  entryIntensities,
+  entryIntensity,
+  indexByFileName,
+  loadBarRatio,
+  maxWeekTss,
+  weekLoad,
+} from './plan-load';
 
 function steadyBlock(duration_s: number, power_pct: number): WorkoutBlock {
   return { SteadyState: { duration_s, power_pct, cadence_rpm: null, label: null } };
@@ -142,6 +149,52 @@ describe('weekLoad', () => {
   it('returns an all-zero load for an empty week', () => {
     const load = weekLoad(week([day([])]), indexByFileName([]), 200);
     expect(load).toEqual({ durationS: 0, tss: 0, workouts: 0, missing: 0 });
+  });
+});
+
+describe('entryIntensity', () => {
+  const base = workout({ file_name: 'base.zwo', workout_blocks: [steadyBlock(3600, 0.7)] });
+
+  it('classifies a found workout by its computed type', () => {
+    const index = indexByFileName([base]);
+    expect(entryIntensity(entry({ file_name: 'base.zwo' }), index, 200)).toBe('Endurance');
+  });
+
+  it('returns null for a note-only entry', () => {
+    const index = indexByFileName([base]);
+    expect(entryIntensity(entry({ note: 'swim 45min' }), index, 200)).toBeNull();
+  });
+
+  it('returns null for an entry the backend flagged missing, even if the file is indexed', () => {
+    const index = indexByFileName([base]);
+    expect(entryIntensity(entry({ file_name: 'base.zwo', missing: true }), index, 200)).toBeNull();
+  });
+
+  it('returns null for an entry whose file is absent from the index', () => {
+    expect(entryIntensity(entry({ file_name: 'base.zwo' }), indexByFileName([]), 200)).toBeNull();
+  });
+});
+
+describe('entryIntensities', () => {
+  const base = workout({ file_name: 'base.zwo', workout_blocks: [steadyBlock(3600, 0.7)] });
+  const vo2 = workout({ file_name: 'vo2.zwo', workout_blocks: [steadyBlock(1800, 1.1)] });
+
+  it('maps every entry across all weeks by its own entry_id', () => {
+    const index = indexByFileName([base, vo2]);
+    const weeks = [
+      week([day([entry({ entry_id: 1, file_name: 'base.zwo' })])]),
+      week([day([entry({ entry_id: 2, file_name: 'vo2.zwo' })])]),
+    ];
+    const map = entryIntensities(weeks, index, 200);
+    expect(map.get(1)).toBe('Endurance');
+    expect(map.get(2)).toBe('VO2max');
+    expect(map.size).toBe(2);
+  });
+
+  it('maps a note-only or unindexed entry to null rather than omitting it', () => {
+    const weeks = [week([day([entry({ entry_id: 1, note: 'swim 45min' })])])];
+    const map = entryIntensities(weeks, indexByFileName([]), 200);
+    expect(map.get(1)).toBeNull();
   });
 });
 

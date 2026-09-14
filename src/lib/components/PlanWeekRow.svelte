@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { PlanDay, PlanEntryView, PlanWeek } from '$lib/bindings';
   import type { WeekLoad } from '$lib/plan-load';
+  import type { WorkoutType } from '$lib/metrics';
   import PlanDayCell from './PlanDayCell.svelte';
   import WeekLoadSummary from './WeekLoadSummary.svelte';
 
@@ -12,9 +13,10 @@
     /** Absent when the library/settings could not be loaded: the grid still renders. */
     load?: WeekLoad;
     maxTss?: number;
+    intensities?: Map<number, WorkoutType | null>;
   };
 
-  let { week, readonly = false, onopen, onstart, load, maxTss = 0 }: Props = $props();
+  let { week, readonly = false, onopen, onstart, load, maxTss = 0, intensities }: Props = $props();
 </script>
 
 <div class="row">
@@ -26,7 +28,7 @@
   </div>
   <div class="days">
     {#each week.days as day (day.date)}
-      <PlanDayCell {day} {readonly} {onopen} {onstart} />
+      <PlanDayCell {day} {readonly} {onopen} {onstart} {intensities} />
     {/each}
   </div>
 </div>

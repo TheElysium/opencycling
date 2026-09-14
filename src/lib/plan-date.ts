@@ -31,11 +31,16 @@ export function mondayOf(isoDate: string): string {
 }
 
 /**
- * Today's Monday, from the rider's LOCAL calendar date: "what day is it here"
- * is the one question UTC cannot answer (UTC+13 on a Monday morning is Sunday).
+ * Today as a plain ISO `YYYY-MM-DD`, from the rider's LOCAL calendar date: "what day is
+ * it here" is the one question UTC cannot answer (UTC+13 on a Monday morning is Sunday).
  */
+export function todayIso(now: Date = new Date()): string {
+  return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+}
+
+/** Today's Monday, from the rider's LOCAL calendar date (see todayIso). */
 export function todayMonday(now: Date = new Date()): string {
-  return mondayOf(`${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`);
+  return mondayOf(todayIso(now));
 }
 
 /**
