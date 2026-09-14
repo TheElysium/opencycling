@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
+  import { goto } from '$app/navigation';
   import { ArrowLeft } from '@lucide/svelte';
   import { confirm } from '@tauri-apps/plugin-dialog';
   import {
@@ -21,6 +22,8 @@
   } from '$lib/plan-entry';
   import { getSettings } from '$lib/settings';
   import { indexByFileName, maxWeekTss, weekLoad } from '$lib/plan-load';
+  import { workoutFtp } from '$lib/ftp';
+  import { session } from '$lib/session.svelte';
   import PlanWeekRow from '$lib/components/PlanWeekRow.svelte';
   import PlanNoteField from '$lib/components/PlanNoteField.svelte';
   import WorkoutPicker from '$lib/components/WorkoutPicker.svelte';
@@ -35,6 +38,7 @@
 
   // Library/settings feed the week summaries only: their failure must not break the grid.
   let libraryFtp = $state(0);
+  let libraryAero = $state(false);
   let libraryWorkouts = $state<ParsedWorkout[]>([]);
 
   let pickerOpen = $state(false);
@@ -62,6 +66,7 @@
     try {
       const s = await getSettings();
       libraryFtp = s.ftp_w;
+      libraryAero = s.aero_enabled;
       if (s.workout_path) {
         const lib = await commands.listWorkoutsCmd(s.workout_path, s.ftp_w);
         libraryWorkouts = lib.workouts;
@@ -93,6 +98,18 @@
     pickerDate = null;
     dayEntry = null;
     noteDraft = '';
+  }
+
+  async function startEntry(entry: PlanEntryView) {
+    if (busy || !entry.file_name) return;
+    error = null;
+    const workout = workoutIndex.get(entry.file_name);
+    if (!workout) {
+      error = 'Workout not found in the library, rescan the library from Settings.';
+      return;
+    }
+    session.prepare(workout, workoutFtp(workout, libraryFtp), libraryAero, entry.entry_id);
+    await goto('/session');
   }
 
   async function mutate(action: () => Promise<unknown>) {
@@ -193,6 +210,7 @@
           {week}
           readonly={archived || busy}
           onopen={openPicker}
+          onstart={startEntry}
           load={weekLoads[i]}
           maxTss={planMaxTss}
         />

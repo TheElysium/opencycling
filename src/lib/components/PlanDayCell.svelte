@@ -1,18 +1,33 @@
 <script lang="ts">
   import type { PlanDay, PlanEntryView } from '$lib/bindings';
   import { dayOfMonth } from '$lib/plan-date';
+  import { Play, CircleCheck } from '@lucide/svelte';
 
   type Props = {
     day: PlanDay;
     readonly?: boolean;
     onopen?: (date: string, entries: PlanEntryView[]) => void;
+    onstart?: (entry: PlanEntryView) => void;
   };
 
-  let { day, readonly = false, onopen }: Props = $props();
+  let { day, readonly = false, onopen, onstart }: Props = $props();
+
+  function startClick(event: MouseEvent, entry: PlanEntryView) {
+    // The entry sits inside the cell's own click target: stop it from also opening the picker.
+    event.stopPropagation();
+    onstart?.(entry);
+  }
+
+  function cellKeydown(event: KeyboardEvent) {
+    // Keydown bubbles from the nested Start button: only the div's own keydown should open the picker.
+    if (event.target !== event.currentTarget) return;
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    onopen?.(day.date, day.entries);
+  }
 </script>
 
-<!-- span blocks: a button only permits phrasing content -->
-{#snippet entries()}
+{#snippet readonlyEntries()}
   <span class="entries">
     {#each day.entries as entry (entry.entry_id)}
       <!-- Gate on the file: early rows stored an empty name and must not read as a rest day. -->
@@ -31,19 +46,48 @@
 {#if readonly}
   <div class="cell readonly" class:today={day.marker === 'Today'} class:past={day.marker === 'Past'}>
     <span class="date">{dayOfMonth(day.date)}</span>
-    {@render entries()}
+    {@render readonlyEntries()}
   </div>
 {:else}
-  <button
+  <div
     class="cell"
     class:today={day.marker === 'Today'}
     class:past={day.marker === 'Past'}
+    role="button"
+    tabindex="0"
     onclick={() => onopen?.(day.date, day.entries)}
+    onkeydown={cellKeydown}
     aria-label="Edit {day.date}"
   >
     <span class="date">{dayOfMonth(day.date)}</span>
-    {@render entries()}
-  </button>
+    <span class="entries">
+      {#each day.entries as entry (entry.entry_id)}
+        {#if entry.file_name}
+          <span class="entry-row">
+            <span class="entry" class:missing={entry.missing} title={entry.file_name}>
+              {entry.workout_name || entry.file_name}
+            </span>
+            {#if entry.session_id != null}
+              <CircleCheck class="done-badge" size={12} strokeWidth={2.5} />
+            {/if}
+            {#if !entry.missing}
+              <button
+                type="button"
+                class="start-btn"
+                aria-label="Start {entry.workout_name || entry.file_name}"
+                onclick={(event) => startClick(event, entry)}
+              >
+                <Play size={14} strokeWidth={2.5} />
+              </button>
+            {/if}
+          </span>
+        {/if}
+        {#if entry.note}
+          <span class="entry note" title={entry.note}>{entry.note}</span>
+        {/if}
+      {/each}
+    </span>
+  </div>
 {/if}
 
 <style>
@@ -120,4 +164,39 @@
     color: var(--danger);
     text-decoration: line-through;
   }
+
+  .entry-row {
+    display: flex;
+    align-items: center;
+    gap: 0.15rem;
+    min-width: 0;
+  }
+
+  .entry-row .entry {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .start-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 1rem;
+    height: 1rem;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: color 0.15s;
+  }
+  .start-btn:hover { color: var(--accent); }
+  .today .start-btn { color: #fff; }
+
+  :global(.done-badge) {
+    flex-shrink: 0;
+    color: var(--success);
+  }
+  .today :global(.done-badge) { color: #fff; }
 </style>

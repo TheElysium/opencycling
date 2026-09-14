@@ -2,7 +2,7 @@
 
 **Issue:** [github.com/TheElysium/opencycling/issues/15](https://github.com/TheElysium/opencycling/issues/15)
 **Status:** slices 1-5 committed (latest `613711f`); slice 6a (link `session_id` back,
-pure mapping) committed `5020ac2`; slice 6b (day-cell start affordance + manual QA) not started.
+pure mapping) committed `ea8d947`; slice 6b (day-cell start affordance + manual QA) not started.
 
 ## Problem
 
@@ -314,6 +314,38 @@ Decisions for 6a:
   repeated `Finished` tick never double-calls the command, a session with no pending plan
   entry never calls it, and a null `session_id` never calls it.
 
+Decisions for 6b:
+
+- `PlanDayCell.svelte`'s outer element changes from `<button class="cell">` to
+  `<div class="cell" role="button" tabindex="0">` (click / Enter / Space still opens the
+  picker), which frees each entry with `file_name && !missing` to carry a real nested
+  `<button>` "Start" affordance (`Play` icon, matching the icon set already used for
+  session controls) without violating button-in-button nesting. The start click calls
+  `stopPropagation()` so it does not also open the picker. An entry with `session_id`
+  set gets a `CircleCheck` "done" badge, but its Start button stays enabled: redoing a
+  day (manual QA step 6) must remain possible.
+- No archived-plan gate on starting a ride from a day cell, symmetric with 6a's decision
+  on the link write itself: starting a ride records history, it does not edit plan
+  content.
+- `/plans/[id]/+page.svelte` gets `startEntry(entry)`: resolves the `ParsedWorkout` via
+  the existing `workoutIndex` (keyed by `file_name`, already built for the load summary),
+  reads `aero_enabled` from the settings already fetched in `loadLibrary()`, calls
+  `session.prepare(workout, workoutFtp(workout, libraryFtp), aero, entry.entry_id)`, then
+  `goto('/session')`. A workout not found in the index (library not scanned yet, or the
+  file went missing) shows the existing error box and does not navigate.
+- `session.svelte.ts`'s `prepare()` gains a 4th optional parameter `planEntryId: number |
+  null = null`, stored privately (`pendingPlanEntryId`) and cleared in `reset()`.
+  `ingestMetrics()` calls the already-tested `shouldLinkPlanEntry` (from `plan-link.ts`)
+  on every tick; when it returns true, `commands.linkPlanEntrySessionCmd(...)` fires
+  fire-and-forget with `.catch(() => {})`, matching the existing convention at
+  `aero.svelte.ts:227` (a link failure must not crash the live session UI), and the
+  linked `session_id` is recorded privately so the next tick does not call it again.
+- No new unit test for this slice: it is plumbing (store + page wiring), which is what
+  the HITL classification exists for; the pure decision it drives (`shouldLinkPlanEntry`)
+  is already covered by 6a's tests. Returning to `/plans/[id]` re-triggers the existing
+  `onMount` -> `load()` -> `getPlanWeeks`, so the "done" badge appears with no extra
+  wiring.
+
 Manual QA script for 6b, written before implementing it:
 
 1. Open a plan at `/plans/[id]` with a workout assigned on a day cell.
@@ -352,8 +384,8 @@ Review round 1 findings, all fixed before the approval:
 | 2 | Empty week grid at `/plans/[id]` | done, committed `7469806` |
 | 3 | Assign / replace / remove a workout on a day | done, committed `5161ceb` |
 | 4 | Free-text note per day | done, committed `1a7473c` |
-| 5 | Weekly load summary column | done, committed `613711f` (manual QA pending) |
-| 6 | Start a session from a day cell, link `session_id` | 6a done (uncommitted), 6b not started |
+| 5 | Weekly load summary column | done, committed `613711f`, manual QA confirmed |
+| 6 | Start a session from a day cell, link `session_id` | 6a done, committed `ea8d947`; 6b implemented + APPROVE + gates green, uncommitted; manual QA pending |
 | 7 | Today card on the connection page | not started |
 
 ## Slice 6a orchestration log, 2026-09-14
@@ -395,3 +427,86 @@ confirm it goes green against the new `HEAD`; if it doesn't, that would be a rea
 Result: all 7 gate keys pass in substance (bindings pending the commit above); reviewer
 APPROVE stands on the current diff. Not committed yet - pending explicit request per
 project convention on this task.
+
+## Slice 6b orchestration log, 2026-09-14
+
+Subagent metrics (tokens / tool uses / duration), logged at each subagent's completion:
+
+| Agent | Round | Tokens | Tool uses | Duration |
+|---|---|---|---|---|
+| implementer | 1 | 77742 | 36 | 150453 ms |
+| gate-keeper | 1 | 57581 | 9 | 123401 ms |
+| reviewer | 1 | - | - | failed (session rate limit, see below) |
+
+Implementer report: `PlanDayCell.svelte`'s outer element changed from `<button>` to
+`<div role="button" tabindex="0">` (click + Enter/Space) so entries can carry a real
+nested `<button>` Start affordance (`Play` icon, entries with `file_name && !missing`)
+and a `CircleCheck` done badge (entries with `session_id != null`, Start stays enabled
+so redoing a day is still possible); `PlanWeekRow.svelte` forwards the new `onstart`
+prop; `session.svelte.ts`'s `prepare()` gained an optional `planEntryId` 4th param,
+`ingestMetrics()` now calls `shouldLinkPlanEntry` and fires
+`commands.linkPlanEntrySessionCmd(...).catch(() => {})` (fire-and-forget, matching the
+existing convention at `aero.svelte.ts:227`); `/plans/[id]/+page.svelte` gained
+`startEntry()` resolving the workout via the existing `workoutIndex` and navigating to
+`/session` after `session.prepare(...)`. One deviation: the "workout not found" error
+string uses a comma instead of an em dash, per the project's no-em-dash convention.
+Self-reported gates: `pnpm check` 0/0, `pnpm test` 105 tests green, `pnpm lint` 0/0.
+
+Gate-keeper round 1: 6/7 green (`format`, `lint`, `typecheck`, `test` 216 Rust + 105
+vitest, `bindings` no drift, `size`). `sast` failed: `cargo audit` found
+RUSTSEC-2026-0285 (rustls 0.23.40, TLS 1.3 handshake messages accepted across
+encryption level boundaries, medium 5.3), dated 2026-09-14, i.e. new today and not a
+previously accepted gap. Not related to the slice 6b diff (frontend-only); rustls is a
+transitive dependency pulled in only via `reqwest`'s `rustls-tls` feature (not pinned
+in `Cargo.toml`). Fixed directly rather than accepted as a gap, since the advisory
+names a fix (`>=0.23.45`) that a plain `cargo update -p rustls --precise 0.23.45`
+satisfies with no `Cargo.toml` change: bumped `rustls` 0.23.40 -> 0.23.45 (and
+`rustls-webpki` 0.103.13 -> 0.103.15 as its dependent), re-ran `cargo audit` (exit 0,
+advisory gone, still the same 11 pre-existing allowed unmaintained/unsound warnings)
+and `cargo check --all-targets` (compiles clean) to confirm nothing else moved. This
+touches only `Cargo.lock`, orchestrator-applied (mechanical dependency bump, no
+production logic, no TDD applies), not part of the reviewed 6b diff.
+
+Reviewer round 1 hit the session's rate limit mid-review (HTTP 429, "You've hit your
+session limit", resets 7:50pm Europe/Paris) after confirming `session_id` field-name
+consistency between `PlanEntryView` and the link command and starting to check the
+keyboard-equivalence and `busy`/`readonly` prop interaction; no verdict produced.
+Re-run once the limit resets.
+
+Reviewer round 1 (retry, 74894 tokens / 17 tool uses / 227108 ms): **REQUEST_CHANGES**,
+1 major + 3 minor. Major: `PlanDayCell.svelte`'s `cellKeydown` is bound on the outer
+`.cell` div with no `target`/`currentTarget` guard; `keydown` bubbles from the nested
+Start `<button>`, so Enter/Space while it is focused also fired the div's handler,
+which called `preventDefault()` (canceling the button's own native activation) and
+`onopen?.(...)` - keyboard users could not activate Start at all, it silently opened
+the picker instead. Mouse click was already fine (`startClick` calls
+`stopPropagation()`); keydown had no equivalent guard. Minor: `startEntry` didn't
+reset `error` first, unlike the `mutate()` convention in the same file; the `.start-btn`
+button had no explicit `type="button"`; two informational-only notes requiring no
+action (`libraryAero`-from-settings-only vs `/workouts/detail`'s per-ride toggle,
+matches the agreed spec; `SessionStore.reset()` has no current call site, pre-existing).
+
+Fixed directly by the orchestrator, not delegated to `implementer`: this repo has no
+component-test tooling at all (`grep` for `testing-library`/`jsdom`/`happy-dom` in
+`package.json` finds nothing, no `*.test.*` file exists under
+`src/lib/components/`), so DOM event wiring in a `.svelte` file is exactly the
+irreducibly-manual part TDD does not reach here - the fix is a one-line guard
+(`if (event.target !== event.currentTarget) return;` as the first line of
+`cellKeydown`), plus the two trivial minors (`type="button"`, `error = null` first in
+`startEntry`). Both spec-matching minors left as-is.
+
+Reviewer round 2 (resumed, same agent, 80026 tokens / 2 tool uses / 17305 ms):
+verified the guard closes the bug (bubbled Enter/Space now returns early, so the
+button's native activation reaches `startClick` -> `onstart` instead of `onopen`) and
+both trivial minors are applied exactly as described. **APPROVE**, same two
+informational minors repeated (non-blocking).
+
+Gate-keeper round 2 (58128 tokens / 10 tool uses / 215763 ms): all 7 keys PASS,
+including `sast` now clean (the rustls fix above holds, 11 pre-existing allowed
+warnings only, no advisory), `bindings` no drift, 210+6 Rust tests and 105 vitest
+tests green.
+
+Result: reviewer APPROVE on the latest diff (round 2) + all 7 gate keys green
+(round 2). Not committed yet - pending explicit request per project convention on
+this task. Manual QA script above still needs a real ride before slice 6 as a whole
+is "done".

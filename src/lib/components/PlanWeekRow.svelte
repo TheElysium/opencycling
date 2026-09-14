@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { PlanDay, PlanWeek } from '$lib/bindings';
+  import type { PlanDay, PlanEntryView, PlanWeek } from '$lib/bindings';
   import type { WeekLoad } from '$lib/plan-load';
   import PlanDayCell from './PlanDayCell.svelte';
   import WeekLoadSummary from './WeekLoadSummary.svelte';
@@ -8,12 +8,13 @@
     week: PlanWeek;
     readonly?: boolean;
     onopen?: (date: string, entries: PlanDay['entries']) => void;
+    onstart?: (entry: PlanEntryView) => void;
     /** Absent when the library/settings could not be loaded: the grid still renders. */
     load?: WeekLoad;
     maxTss?: number;
   };
 
-  let { week, readonly = false, onopen, load, maxTss = 0 }: Props = $props();
+  let { week, readonly = false, onopen, onstart, load, maxTss = 0 }: Props = $props();
 </script>
 
 <div class="row">
@@ -25,7 +26,7 @@
   </div>
   <div class="days">
     {#each week.days as day (day.date)}
-      <PlanDayCell {day} {readonly} {onopen} />
+      <PlanDayCell {day} {readonly} {onopen} {onstart} />
     {/each}
   </div>
 </div>
