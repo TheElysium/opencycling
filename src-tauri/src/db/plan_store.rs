@@ -195,6 +195,23 @@ pub(crate) fn workout_file_names(conn: &Connection) -> Result<Vec<String>, AppEr
     Ok(rows.collect::<Result<Vec<_>, _>>()?)
 }
 
+/// No archived-plan check: recording which session fulfilled a finished ride is
+/// history, not a plan-content edit, unlike create/update/delete on entries.
+pub(crate) fn link_session(
+    conn: &Connection,
+    entry_id: i64,
+    session_id: i64,
+) -> Result<PlanEntry, AppError> {
+    let affected = conn.execute(
+        "UPDATE plan_entries SET session_id = ?1 WHERE id = ?2",
+        rusqlite::params![session_id, entry_id],
+    )?;
+    if affected == 0 {
+        return Err(entry_not_found(entry_id));
+    }
+    get_entry(conn, entry_id)
+}
+
 pub(crate) fn get_entry(conn: &Connection, id: i64) -> Result<PlanEntry, AppError> {
     conn.query_row(
         &format!("SELECT {ENTRY_COLUMNS} FROM plan_entries WHERE id = ?1"),
@@ -445,7 +462,7 @@ mod tests {
         conn.last_insert_rowid()
     }
 
-    fn link_session(conn: &Connection, entry_id: i64) -> i64 {
+    fn seed_linked_session(conn: &Connection, entry_id: i64) -> i64 {
         let session_id = insert_dummy_session(conn);
         conn.execute(
             "UPDATE plan_entries SET session_id = ?1 WHERE id = ?2",
@@ -478,7 +495,7 @@ mod tests {
     #[test]
     fn update_entry_changes_file_workout_and_clears_session() {
         let (conn, _, entry_id) = seeded_with_entry();
-        link_session(&conn, entry_id);
+        seed_linked_session(&conn, entry_id);
         let updated = update_entry(
             &conn,
             entry_id,
@@ -493,7 +510,7 @@ mod tests {
     #[test]
     fn update_entry_keeps_the_session_link_when_only_the_note_changes() {
         let (conn, _, entry_id) = seeded_with_entry();
-        let session_id = link_session(&conn, entry_id);
+        let session_id = seed_linked_session(&conn, entry_id);
         let updated = update_entry(
             &conn,
             entry_id,
@@ -507,7 +524,7 @@ mod tests {
     #[test]
     fn update_entry_clears_the_session_link_when_the_workout_is_dropped() {
         let (conn, _, entry_id) = seeded_with_entry();
-        link_session(&conn, entry_id);
+        seed_linked_session(&conn, entry_id);
         let updated = update_entry(&conn, entry_id, &note_content("swim 45min")).unwrap();
         assert_eq!(updated.file_name, None);
         assert_eq!(updated.workout_name, None);
@@ -559,5 +576,35 @@ mod tests {
         let mut names = workout_file_names(&conn).unwrap();
         names.sort();
         assert_eq!(names, vec!["a.zwo".to_string()]);
+    }
+
+    #[test]
+    fn link_session_sets_the_session_id_and_returns_the_updated_row() {
+        let (conn, _, entry_id) = seeded_with_entry();
+        let session_id = insert_dummy_session(&conn);
+        let updated = link_session(&conn, entry_id, session_id).unwrap();
+        assert_eq!(updated.session_id, Some(session_id));
+        assert_eq!(
+            get_entry(&conn, entry_id).unwrap().session_id,
+            Some(session_id)
+        );
+    }
+
+    #[test]
+    fn link_session_overwrites_an_already_linked_session() {
+        let (conn, _, entry_id) = seeded_with_entry();
+        seed_linked_session(&conn, entry_id);
+        let redo_session_id = insert_dummy_session(&conn);
+        let updated = link_session(&conn, entry_id, redo_session_id).unwrap();
+        assert_eq!(updated.session_id, Some(redo_session_id));
+    }
+
+    #[test]
+    fn link_session_on_missing_entry_reports_not_found() {
+        let conn = store();
+        let session_id = insert_dummy_session(&conn);
+        assert!(is_not_found(
+            link_session(&conn, 404, session_id).map(|_| ())
+        ));
     }
 }

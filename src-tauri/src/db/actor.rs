@@ -198,6 +198,14 @@ impl DbActor {
                     DbCommand::DeletePlanEntry { id, reply } => {
                         let _ = reply.send(plan_store::delete_entry(&self.conn, id));
                     }
+                    DbCommand::LinkPlanEntrySession {
+                        entry_id,
+                        session_id,
+                        reply,
+                    } => {
+                        let _ =
+                            reply.send(plan_store::link_session(&self.conn, entry_id, session_id));
+                    }
                     DbCommand::WorkoutFileNames { reply } => {
                         let _ = reply.send(plan_store::workout_file_names(&self.conn));
                     }

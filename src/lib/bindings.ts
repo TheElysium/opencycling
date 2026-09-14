@@ -58,6 +58,7 @@ export const commands = {
 	createPlanEntry: (entry: NewEntry) => __TAURI_INVOKE<PlanEntry>("create_plan_entry", { entry }),
 	updatePlanEntry: (entryId: number, content: EntryContent) => __TAURI_INVOKE<PlanEntry>("update_plan_entry", { entryId, content }),
 	deletePlanEntry: (entryId: number) => __TAURI_INVOKE<null>("delete_plan_entry", { entryId }),
+	linkPlanEntrySessionCmd: (entryId: number, sessionId: number) => __TAURI_INVOKE<PlanEntry>("link_plan_entry_session_cmd", { entryId, sessionId }),
 };
 
 /* Types */

@@ -455,6 +455,16 @@ async fn delete_plan_entry(
     state.delete_plan_entry(entry_id).await
 }
 
+#[tauri::command]
+#[specta::specta]
+async fn link_plan_entry_session_cmd(
+    entry_id: i64,
+    session_id: i64,
+    db: tauri::State<'_, DbActorHandle>,
+) -> Result<PlanEntry, AppError> {
+    db.link_plan_entry_session(entry_id, session_id).await
+}
+
 fn reject_archived(plan: &TrainingPlan) -> Result<(), AppError> {
     if plan.archived_at.is_some() {
         return Err(AppError::PlanValidation(format!(
@@ -688,6 +698,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             create_plan_entry,
             update_plan_entry,
             delete_plan_entry,
+            link_plan_entry_session_cmd,
         ])
         .typ::<crate::ble::BleMetrics>()
         .typ::<crate::ble::BleError>()

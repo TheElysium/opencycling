@@ -147,6 +147,11 @@ pub enum DbCommand {
         id: i64,
         reply: oneshot::Sender<Result<(), AppError>>,
     },
+    LinkPlanEntrySession {
+        entry_id: i64,
+        session_id: i64,
+        reply: oneshot::Sender<Result<PlanEntry, AppError>>,
+    },
     WorkoutFileNames {
         reply: oneshot::Sender<Result<Vec<String>, AppError>>,
     },
@@ -548,6 +553,23 @@ impl DbActorHandle {
         let (tx, rx) = oneshot::channel();
         self.sender
             .send(DbCommand::DeletePlanEntry { id, reply: tx })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    pub async fn link_plan_entry_session(
+        &self,
+        entry_id: i64,
+        session_id: i64,
+    ) -> Result<PlanEntry, AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::LinkPlanEntrySession {
+                entry_id,
+                session_id,
+                reply: tx,
+            })
             .await
             .map_err(|_| AppError::ChannelClosed)?;
         rx.await.map_err(|_| AppError::ChannelClosed)?
