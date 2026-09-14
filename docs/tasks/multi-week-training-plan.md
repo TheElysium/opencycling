@@ -1,7 +1,7 @@
 # Multi-Week Training Plan (manual, athlete-scheduled)
 
 **Issue:** [github.com/TheElysium/opencycling/issues/15](https://github.com/TheElysium/opencycling/issues/15)
-**Status:** slice 3 committed; slice 4 implemented, gates green, reviewer APPROVE (not committed).
+**Status:** slices 1-4 committed (latest `1a7473c`); slice 5 in progress.
 
 ## Problem
 
@@ -227,12 +227,63 @@ implementer `ses_f652688adffe0WaS34VKplp02l` (full slice); gate-keeper
 (fmt drift caught, fixed); reviewer `ses_f650f1f17ffebo37BcbazCvjQ3`
 (REQUEST_CHANGES on double-submit race, then APPROVE on fixes).
 
+Decisions taken while implementing slice 5:
+
+- The weekly load is computed **in the frontend**, not in Rust, against the original
+  module sketch. Reason: two planned-load formulas already exist and disagree.
+  `computeWorkoutMetrics` (`src/lib/metrics.ts:86`, used by `/workouts`) takes a plain
+  4th-power mean over the flattened 1 Hz series, while `metrics::derive_metrics`
+  (`src-tauri/src/metrics.rs:91`, used for real sessions) applies the Coggan 30 s
+  rolling average. A Rust `week_load` would have shown a different TSS in the grid than
+  the library shows for the same workout, or required mirroring the TS formula into a
+  third place. Reusing the TS function keeps the numbers consistent by construction and
+  adds zero duplication. `plan/schedule.rs::week_load` is therefore not built, and
+  `build_weeks` keeps its `known_files: HashSet<String>` signature. Unifying both
+  formulas behind a single Rust computation (and rewiring `/workouts` onto it) is the
+  real fix, deliberately deferred: it changes the TSS values already displayed.
+- The summary cell shows duration, TSS and a mini bar normalized on the plan's largest
+  week TSS, so deload weeks read at a glance.
+- Entries whose `.zwo` left the library are excluded from the totals and the week is
+  flagged incomplete (`*` + tooltip). A silently under-reported total is worse than an
+  annotated one.
+- FTP tests contribute duration but not TSS: their blocks are authored against
+  `FTP_TEST_REFERENCE_W`, so their TSS is not comparable. Mirrors the library page,
+  which already hides TSS for FTP tests.
+- Layout: `PlanWeekRow` stacks its label above a 7-column day grid, so the "summary
+  column" lands right-aligned on the week-label line rather than as an 8th column,
+  which would have squeezed the day cells.
+- Slice 5 touches no Rust and no bindings.
+
+Subagent metrics (slice 5): explore 49k tokens / 57 tool uses / 166 s (code map);
+implementer 57k tokens / 45 tool uses / 239 s (full slice, red then green);
+reviewer round 1 42k tokens / 18 tool uses / 108 s (REQUEST_CHANGES, 1 major + 2 minor);
+reviewer round 2 49k tokens / 4 tool uses / 13 s (APPROVE);
+gate-keeper round 2 26k tokens / 10 tool uses / 119 s (all green except gitleaks).
+
+Pending before slice 5 can be called done:
+- [ ] Manual QA (no automated gate covers CSS/layout): run `pnpm tauri dev`, open a plan
+      at `/plans/[id]`, check the duration / TSS / bar rendering on the week label line,
+      that the deload week's bar reads visibly shorter, and that a week with a deleted
+      `.zwo` shows the `*` with its tooltip.
+- [x] SAST gap: `gitleaks` is not installed on this machine (pre-existing since
+      slice 1). Decided on 2026-09-14 to accept the gap rather than install it, so
+      the secrets scan stays absent from the local gate; `cargo audit` still runs.
+
+Review round 1 findings, all fixed before the approval:
+- major: `weekLoad` derived `missing` from its own library scan, which could contradict
+  the backend `PlanEntryView.missing` flag that colors the day cells. It now counts
+  `missing` from that flag only; an entry absent from the index but not flagged
+  contributes nothing and is not reported missing (library not scanned yet).
+- minor: the TSS guard rounded after testing `> 0`, so a sub-0.5 TSS week rendered
+  "0 TSS". The guard now tests the rounded value.
+- minor: a 3-line comment exceeded the 2-line rule.
+
 | # | Slice | Status |
 |---|-------|--------|
 | 1 | Schema + plan CRUD + `/plans` list page | done, committed `b5439af` |
 | 2 | Empty week grid at `/plans/[id]` | done, committed `7469806` |
 | 3 | Assign / replace / remove a workout on a day | done, committed `5161ceb` |
-| 4 | Free-text note per day | done |
-| 5 | Weekly load summary column | not started |
+| 4 | Free-text note per day | done, committed `1a7473c` |
+| 5 | Weekly load summary column | in progress |
 | 6 | Start a session from a day cell, link `session_id` | not started |
 | 7 | Today card on the connection page | not started |

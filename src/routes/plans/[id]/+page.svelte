@@ -19,6 +19,8 @@
     removeWorkoutAction,
     type DayAction,
   } from '$lib/plan-entry';
+  import { getSettings } from '$lib/settings';
+  import { indexByFileName, maxWeekTss, weekLoad } from '$lib/plan-load';
   import PlanWeekRow from '$lib/components/PlanWeekRow.svelte';
   import PlanNoteField from '$lib/components/PlanNoteField.svelte';
   import WorkoutPicker from '$lib/components/WorkoutPicker.svelte';
@@ -30,6 +32,10 @@
   let loading = $state(true);
   let busy = $state(false);
   let error = $state<string | null>(null);
+
+  // Library/settings feed the week summaries only: their failure must not break the grid.
+  let libraryFtp = $state(0);
+  let libraryWorkouts = $state<ParsedWorkout[]>([]);
 
   let pickerOpen = $state(false);
   let pickerDate = $state<string | null>(null);
@@ -51,8 +57,26 @@
     }
   }
 
+  // Best-effort: a rider without a configured library still gets a usable plan grid.
+  async function loadLibrary() {
+    try {
+      const s = await getSettings();
+      libraryFtp = s.ftp_w;
+      if (s.workout_path) {
+        const lib = await commands.listWorkoutsCmd(s.workout_path, s.ftp_w);
+        libraryWorkouts = lib.workouts;
+      }
+    } catch {
+      libraryWorkouts = [];
+    }
+  }
+
+  let workoutIndex = $derived(indexByFileName(libraryWorkouts));
+  let weekLoads = $derived(weeks.map((w) => weekLoad(w, workoutIndex, libraryFtp)));
+  let planMaxTss = $derived(maxWeekTss(weekLoads));
+
   onMount(async () => {
-    await load();
+    await Promise.all([load(), loadLibrary()]);
     loading = false;
   });
 
@@ -164,8 +188,14 @@
           <span class="weekday-label">{wd}</span>
         {/each}
       </div>
-      {#each weeks as week (week.number)}
-        <PlanWeekRow {week} readonly={archived || busy} onopen={openPicker} />
+      {#each weeks as week, i (week.number)}
+        <PlanWeekRow
+          {week}
+          readonly={archived || busy}
+          onopen={openPicker}
+          load={weekLoads[i]}
+          maxTss={planMaxTss}
+        />
       {/each}
     </div>
   {/if}

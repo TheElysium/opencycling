@@ -1,18 +1,28 @@
 <script lang="ts">
   import type { PlanDay, PlanWeek } from '$lib/bindings';
+  import type { WeekLoad } from '$lib/plan-load';
   import PlanDayCell from './PlanDayCell.svelte';
+  import WeekLoadSummary from './WeekLoadSummary.svelte';
 
   type Props = {
     week: PlanWeek;
     readonly?: boolean;
     onopen?: (date: string, entries: PlanDay['entries']) => void;
+    /** Absent when the library/settings could not be loaded: the grid still renders. */
+    load?: WeekLoad;
+    maxTss?: number;
   };
 
-  let { week, readonly = false, onopen }: Props = $props();
+  let { week, readonly = false, onopen, load, maxTss = 0 }: Props = $props();
 </script>
 
 <div class="row">
-  <span class="week-label">Week {week.number}</span>
+  <div class="label-line">
+    <span class="week-label">Week {week.number}</span>
+    {#if load}
+      <WeekLoadSummary {load} {maxTss} />
+    {/if}
+  </div>
   <div class="days">
     {#each week.days as day (day.date)}
       <PlanDayCell {day} {readonly} {onopen} />
@@ -25,6 +35,13 @@
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
+  }
+
+  .label-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
   }
 
   .week-label {
