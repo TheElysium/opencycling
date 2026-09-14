@@ -2,7 +2,7 @@
 //! file under the 1000-line size gate; the DB actor is the only consumer.
 
 use crate::errors::AppError;
-use crate::plan::{NewEntry, NewPlan, PlanEntry, TrainingPlan};
+use crate::plan::{EntryContent, NewEntry, NewPlan, PlanEntry, TrainingPlan, clears_session};
 use rusqlite::{Connection, Row};
 
 const PLAN_COLUMNS: &str = "id, name, start_date, weeks, created_at, archived_at";
@@ -134,33 +134,41 @@ pub(crate) fn insert_entry(conn: &Connection, entry: &NewEntry) -> Result<PlanEn
         |row| row.get(0),
     )?;
     conn.execute(
-        "INSERT INTO plan_entries (plan_id, date, position, file_name, workout_name) \
-         VALUES (?1, ?2, ?3, ?4, ?5)",
+        "INSERT INTO plan_entries (plan_id, date, position, file_name, workout_name, note) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         rusqlite::params![
             entry.plan_id,
             entry.date,
             position,
             entry.file_name,
-            entry.workout_name
+            entry.workout_name,
+            entry.note
         ],
     )?;
     let id = conn.last_insert_rowid();
     get_entry(conn, id)
 }
 
+/// Reads the row first: whether the linked session survives the edit is decided
+/// by `plan::clears_session`, not by this SQL.
 pub(crate) fn update_entry(
     conn: &Connection,
     id: i64,
-    file_name: String,
-    workout_name: String,
+    content: &EntryContent,
 ) -> Result<PlanEntry, AppError> {
-    let affected = conn.execute(
-        "UPDATE plan_entries SET file_name = ?1, workout_name = ?2, session_id = NULL WHERE id = ?3",
-        rusqlite::params![file_name, workout_name, id],
+    let previous = get_entry(conn, id)?;
+    let keeps_link = !clears_session(previous.file_name.as_deref(), content.file_name.as_deref());
+    let session_id = previous.session_id.filter(|_| keeps_link);
+    conn.execute(
+        "UPDATE plan_entries SET file_name = ?1, workout_name = ?2, note = ?3, session_id = ?4 WHERE id = ?5",
+        rusqlite::params![
+            content.file_name,
+            content.workout_name,
+            content.note,
+            session_id,
+            id
+        ],
     )?;
-    if affected == 0 {
-        return Err(entry_not_found(id));
-    }
     get_entry(conn, id)
 }
 
@@ -350,8 +358,35 @@ mod tests {
         NewEntry {
             plan_id,
             date: date.to_string(),
-            file_name: file_name.to_string(),
-            workout_name: workout_name.to_string(),
+            file_name: Some(file_name.to_string()),
+            workout_name: Some(workout_name.to_string()),
+            note: None,
+        }
+    }
+
+    fn note_entry(plan_id: i64, date: &str, note: &str) -> NewEntry {
+        NewEntry {
+            plan_id,
+            date: date.to_string(),
+            file_name: None,
+            workout_name: None,
+            note: Some(note.to_string()),
+        }
+    }
+
+    fn workout_content(file_name: &str, workout_name: &str, note: Option<&str>) -> EntryContent {
+        EntryContent {
+            file_name: Some(file_name.to_string()),
+            workout_name: Some(workout_name.to_string()),
+            note: note.map(String::from),
+        }
+    }
+
+    fn note_content(note: &str) -> EntryContent {
+        EntryContent {
+            file_name: None,
+            workout_name: None,
+            note: Some(note.to_string()),
         }
     }
 
@@ -410,20 +445,44 @@ mod tests {
         conn.last_insert_rowid()
     }
 
-    #[test]
-    fn update_entry_changes_file_workout_and_clears_session() {
-        let (conn, _, entry_id) = seeded_with_entry();
-        let session_id = insert_dummy_session(&conn);
+    fn link_session(conn: &Connection, entry_id: i64) -> i64 {
+        let session_id = insert_dummy_session(conn);
         conn.execute(
             "UPDATE plan_entries SET session_id = ?1 WHERE id = ?2",
             rusqlite::params![session_id, entry_id],
         )
         .unwrap();
+        session_id
+    }
+
+    #[test]
+    fn insert_entry_persists_a_note_only_entry() {
+        let (conn, plan_id) = seeded();
+        let entry = insert_entry(&conn, &note_entry(plan_id, "2026-09-17", "swim 45min")).unwrap();
+        assert_eq!(entry.file_name, None);
+        assert_eq!(entry.workout_name, None);
+        assert_eq!(entry.note, Some("swim 45min".to_string()));
+        assert_eq!(entry.position, 0);
+    }
+
+    #[test]
+    fn insert_entry_persists_a_note_next_to_a_workout() {
+        let (conn, plan_id) = seeded();
+        let mut new = new_entry(plan_id, "2026-09-15", "base.zwo", "Base");
+        new.note = Some("easy gearing".to_string());
+        let entry = insert_entry(&conn, &new).unwrap();
+        assert_eq!(entry.file_name, Some("base.zwo".to_string()));
+        assert_eq!(entry.note, Some("easy gearing".to_string()));
+    }
+
+    #[test]
+    fn update_entry_changes_file_workout_and_clears_session() {
+        let (conn, _, entry_id) = seeded_with_entry();
+        link_session(&conn, entry_id);
         let updated = update_entry(
             &conn,
             entry_id,
-            "build.zwo".to_string(),
-            "Build".to_string(),
+            &workout_content("build.zwo", "Build", None),
         )
         .unwrap();
         assert_eq!(updated.file_name, Some("build.zwo".to_string()));
@@ -432,10 +491,35 @@ mod tests {
     }
 
     #[test]
+    fn update_entry_keeps_the_session_link_when_only_the_note_changes() {
+        let (conn, _, entry_id) = seeded_with_entry();
+        let session_id = link_session(&conn, entry_id);
+        let updated = update_entry(
+            &conn,
+            entry_id,
+            &workout_content("base.zwo", "Base", Some("legs felt heavy")),
+        )
+        .unwrap();
+        assert_eq!(updated.note, Some("legs felt heavy".to_string()));
+        assert_eq!(updated.session_id, Some(session_id));
+    }
+
+    #[test]
+    fn update_entry_clears_the_session_link_when_the_workout_is_dropped() {
+        let (conn, _, entry_id) = seeded_with_entry();
+        link_session(&conn, entry_id);
+        let updated = update_entry(&conn, entry_id, &note_content("swim 45min")).unwrap();
+        assert_eq!(updated.file_name, None);
+        assert_eq!(updated.workout_name, None);
+        assert_eq!(updated.note, Some("swim 45min".to_string()));
+        assert_eq!(updated.session_id, None);
+    }
+
+    #[test]
     fn update_entry_on_missing_id_reports_not_found() {
         let conn = store();
         assert!(is_not_found(
-            update_entry(&conn, 404, "x.zwo".to_string(), "X".to_string()).map(|_| ())
+            update_entry(&conn, 404, &workout_content("x.zwo", "X", None)).map(|_| ())
         ));
     }
 

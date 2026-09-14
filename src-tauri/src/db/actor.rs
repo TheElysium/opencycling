@@ -192,18 +192,8 @@ impl DbActor {
                     DbCommand::InsertPlanEntry { entry, reply } => {
                         let _ = reply.send(plan_store::insert_entry(&self.conn, &entry));
                     }
-                    DbCommand::UpdatePlanEntry {
-                        id,
-                        file_name,
-                        workout_name,
-                        reply,
-                    } => {
-                        let _ = reply.send(plan_store::update_entry(
-                            &self.conn,
-                            id,
-                            file_name,
-                            workout_name,
-                        ));
+                    DbCommand::UpdatePlanEntry { id, content, reply } => {
+                        let _ = reply.send(plan_store::update_entry(&self.conn, id, &content));
                     }
                     DbCommand::DeletePlanEntry { id, reply } => {
                         let _ = reply.send(plan_store::delete_entry(&self.conn, id));

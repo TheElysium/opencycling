@@ -3,7 +3,8 @@ use crate::ble::{BleActorHandle, BleEvent, BleMetrics, DeviceInfo, DeviceKind};
 use crate::db::{DbActorHandle, KnownDevices, SessionCard, SessionDetail, Settings, StravaAuth};
 use crate::errors::AppError;
 use crate::plan::{
-    NewEntry, NewPlan, PlanEntry, PlanWeek, TrainingPlan, normalize_plan, validate_entry_date,
+    EntryContent, NewEntry, NewPlan, PlanEntry, PlanWeek, TrainingPlan, introduced_file,
+    normalize_entry, normalize_plan, validate_entry_content, validate_entry_date,
     validate_plan_write,
 };
 use crate::session::{FlatBlock, SessionActorHandle, SessionSnapshot, StateKind, flatten_workout};
@@ -410,21 +411,19 @@ async fn get_plan_weeks(
 #[specta::specta]
 async fn create_plan_entry(
     state: tauri::State<'_, DbActorHandle>,
-    plan_id: i64,
-    date: String,
-    file_name: String,
-    workout_name: String,
+    entry: NewEntry,
 ) -> Result<PlanEntry, AppError> {
-    let plan = state.get_plan(plan_id).await?;
+    let plan = state.get_plan(entry.plan_id).await?;
     reject_archived(&plan)?;
-    validate_entry_date(&plan, &date)?;
-    reject_missing_file(&state, &file_name).await?;
+    validate_entry_date(&plan, &entry.date)?;
+    let content = checked_content(&state, content_of(&entry), None).await?;
     state
         .insert_plan_entry(NewEntry {
-            plan_id,
-            date,
-            file_name,
-            workout_name,
+            plan_id: entry.plan_id,
+            date: entry.date,
+            file_name: content.file_name,
+            workout_name: content.workout_name,
+            note: content.note,
         })
         .await
 }
@@ -434,17 +433,14 @@ async fn create_plan_entry(
 async fn update_plan_entry(
     state: tauri::State<'_, DbActorHandle>,
     entry_id: i64,
-    file_name: String,
-    workout_name: String,
+    content: EntryContent,
 ) -> Result<PlanEntry, AppError> {
     let entry = state.get_plan_entry(entry_id).await?;
     let plan = state.get_plan(entry.plan_id).await?;
     reject_archived(&plan)?;
     validate_entry_date(&plan, &entry.date)?;
-    reject_missing_file(&state, &file_name).await?;
-    state
-        .update_plan_entry(entry_id, file_name, workout_name)
-        .await
+    let content = checked_content(&state, content, entry.file_name.as_deref()).await?;
+    state.update_plan_entry(entry_id, content).await
 }
 
 #[tauri::command]
@@ -469,7 +465,37 @@ fn reject_archived(plan: &TrainingPlan) -> Result<(), AppError> {
     Ok(())
 }
 
-async fn reject_missing_file(state: &DbActorHandle, file_name: &str) -> Result<(), AppError> {
+fn content_of(entry: &NewEntry) -> EntryContent {
+    EntryContent {
+        file_name: entry.file_name.clone(),
+        workout_name: entry.workout_name.clone(),
+        note: entry.note.clone(),
+    }
+}
+
+/// The single entry-content gate both write commands go through: normalize, then
+/// validate shape and library membership.
+/// `previous_file` is the file the entry already holds: an untouched one is not
+/// re-checked, so a deleted `.zwo` never blocks a note edit.
+async fn checked_content(
+    state: &DbActorHandle,
+    content: EntryContent,
+    previous_file: Option<&str>,
+) -> Result<EntryContent, AppError> {
+    let content = normalize_entry(&content);
+    validate_entry_content(&content)?;
+    let added = introduced_file(previous_file, content.file_name.as_deref());
+    reject_missing_file(state, added).await?;
+    Ok(content)
+}
+
+async fn reject_missing_file(
+    state: &DbActorHandle,
+    file_name: Option<&str>,
+) -> Result<(), AppError> {
+    let Some(file_name) = file_name else {
+        return Ok(());
+    };
     if !state.entry_exists_file(file_name.to_string()).await? {
         return Err(AppError::PlanValidation(format!(
             "workout file `{file_name}` is not in the library"

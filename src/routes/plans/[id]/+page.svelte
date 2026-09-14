@@ -12,7 +12,15 @@
   } from '$lib/bindings';
   import { toMessage } from '$lib/format';
   import { formatPlanRange } from '$lib/plan-date';
+  import {
+    assignAction,
+    entryWorkoutName,
+    noteAction,
+    removeWorkoutAction,
+    type DayAction,
+  } from '$lib/plan-entry';
   import PlanWeekRow from '$lib/components/PlanWeekRow.svelte';
+  import PlanNoteField from '$lib/components/PlanNoteField.svelte';
   import WorkoutPicker from '$lib/components/WorkoutPicker.svelte';
 
   const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -24,12 +32,13 @@
   let error = $state<string | null>(null);
 
   let pickerOpen = $state(false);
-  let pickerMode = $state<'create' | 'replace'>('create');
   let pickerDate = $state<string | null>(null);
-  let replaceEntry = $state<PlanEntryView | null>(null);
+  let dayEntry = $state<PlanEntryView | null>(null);
+  let noteDraft = $state('');
 
   let id = $derived(parseInt($page.params.id ?? '0', 10));
   let archived = $derived(plan?.archived_at !== null);
+  let pickerMode = $derived<'create' | 'replace'>(dayEntry?.file_name ? 'replace' : 'create');
 
   async function load() {
     error = null;
@@ -50,20 +59,16 @@
   function openPicker(date: string, entries: PlanEntryView[]) {
     if (archived || busy) return;
     pickerDate = date;
-    if (entries.length > 0) {
-      pickerMode = 'replace';
-      replaceEntry = entries[0];
-    } else {
-      pickerMode = 'create';
-      replaceEntry = null;
-    }
+    dayEntry = entries[0] ?? null;
+    noteDraft = dayEntry?.note ?? '';
     pickerOpen = true;
   }
 
   function closePicker() {
     pickerOpen = false;
     pickerDate = null;
-    replaceEntry = null;
+    dayEntry = null;
+    noteDraft = '';
   }
 
   async function mutate(action: () => Promise<unknown>) {
@@ -80,36 +85,55 @@
   }
 
   function currentPickerName(): string | null {
-    return replaceEntry?.workout_name ?? null;
+    return entryWorkoutName(dayEntry?.file_name ?? null, dayEntry?.workout_name ?? null);
+  }
+
+  // Sends one decided action to the backend; a `none` action never reaches it.
+  async function apply(action: DayAction, planId: number, date: string) {
+    // A no-op is not a failure: it must not keep a stale error on screen.
+    if (action.kind === 'none') {
+      error = null;
+      return;
+    }
+    await mutate(async () => {
+      if (action.kind === 'create') {
+        await commands.createPlanEntry({ plan_id: planId, date, ...action.content });
+      } else if (action.kind === 'update') {
+        await commands.updatePlanEntry(action.entryId, action.content);
+      } else {
+        await commands.deletePlanEntry(action.entryId);
+      }
+    });
   }
 
   async function assign(workout: ParsedWorkout) {
     // file_name is the library cache key: a scan can yield workouts without one.
     if (busy || !plan || !pickerDate || !workout.file_name) return;
-    const fileName = workout.file_name;
-    const planId = plan.id;
-    const date = pickerDate;
-    await mutate(async () => {
-      if (pickerMode === 'replace' && replaceEntry) {
-        await commands.updatePlanEntry(replaceEntry.entry_id, fileName, workout.name ?? '');
-      } else {
-        await commands.createPlanEntry(planId, date, fileName, workout.name ?? '');
-      }
-    });
-    closePicker();
+    const picked = { file_name: workout.file_name, workout_name: workout.name };
+    const action = assignAction(dayEntry, picked, noteDraft);
+    await apply(action, plan.id, pickerDate);
+    // A refused save must keep the modal open: closing it would discard the draft.
+    if (!error) closePicker();
+  }
+
+  async function saveNote() {
+    if (busy || !plan || !pickerDate) return;
+    const action = noteAction(dayEntry, noteDraft);
+    await apply(action, plan.id, pickerDate);
+    if (!error) closePicker();
   }
 
   async function remove() {
-    if (busy || !replaceEntry) return;
+    if (busy || !plan || !pickerDate || !dayEntry) return;
+    // Captured before the dialog: closing the picker meanwhile nulls dayEntry.
+    const entry = dayEntry;
     const ok = await confirm('Remove this workout from the plan?', {
       title: 'Remove workout',
       kind: 'warning',
     });
     if (!ok) return;
-    await mutate(async () => {
-      await commands.deletePlanEntry(replaceEntry!.entry_id);
-    });
-    closePicker();
+    await apply(removeWorkoutAction(entry, noteDraft), plan.id, pickerDate);
+    if (!error) closePicker();
   }
 </script>
 
@@ -147,11 +171,16 @@
   {/if}
 </div>
 
+{#snippet noteEditor()}
+  <PlanNoteField bind:note={noteDraft} disabled={busy} onsave={saveNote} />
+{/snippet}
+
 <WorkoutPicker
   open={pickerOpen}
   mode={pickerMode}
   currentName={currentPickerName()}
   disabled={busy}
+  aside={noteEditor}
   onpick={assign}
   onremove={pickerMode === 'replace' ? remove : undefined}
   onclose={closePicker}

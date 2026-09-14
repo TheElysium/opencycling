@@ -55,8 +55,8 @@ export const commands = {
 	setPlanArchived: (id: number, archived: boolean) => __TAURI_INVOKE<null>("set_plan_archived", { id, archived }),
 	deletePlan: (id: number) => __TAURI_INVOKE<null>("delete_plan", { id }),
 	getPlanWeeks: (id: number) => __TAURI_INVOKE<PlanWeek[]>("get_plan_weeks", { id }),
-	createPlanEntry: (planId: number, date: string, fileName: string, workoutName: string) => __TAURI_INVOKE<PlanEntry>("create_plan_entry", { planId, date, fileName, workoutName }),
-	updatePlanEntry: (entryId: number, fileName: string, workoutName: string) => __TAURI_INVOKE<PlanEntry>("update_plan_entry", { entryId, fileName, workoutName }),
+	createPlanEntry: (entry: NewEntry) => __TAURI_INVOKE<PlanEntry>("create_plan_entry", { entry }),
+	updatePlanEntry: (entryId: number, content: EntryContent) => __TAURI_INVOKE<PlanEntry>("update_plan_entry", { entryId, content }),
 	deletePlanEntry: (entryId: number) => __TAURI_INVOKE<null>("delete_plan_entry", { entryId }),
 };
 
@@ -92,6 +92,16 @@ export type DeviceInfo = {
 
 export type DeviceKind = "Trainer" | "Hrm";
 
+/**
+ *  The editable part of an entry: a workout, a note, or both (mirrors the
+ *  `plan_entries` CHECK constraint).
+ */
+export type EntryContent = {
+	file_name: string | null,
+	workout_name: string | null,
+	note: string | null,
+};
+
 export type FlatBlock = {
 	duration_s: number,
 	power_start_w: number,
@@ -117,6 +127,15 @@ export type Metric = {
 	hr_bpm: number | null,
 	cadence_rpm: number | null,
 	aero_score: number | null,
+};
+
+export type NewEntry = {
+	plan_id: number,
+	/**  ISO `YYYY-MM-DD`. */
+	date: string,
+	file_name: string | null,
+	workout_name: string | null,
+	note: string | null,
 };
 
 export type NewPlan = {
@@ -166,6 +185,7 @@ export type PlanEntryView = {
 	position: number,
 	file_name: string | null,
 	workout_name: string | null,
+	note: string | null,
 	session_id: number | null,
 	missing: boolean,
 };

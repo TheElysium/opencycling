@@ -11,16 +11,27 @@
   let { day, readonly = false, onopen }: Props = $props();
 </script>
 
+<!-- span blocks: a button only permits phrasing content -->
+{#snippet entries()}
+  <span class="entries">
+    {#each day.entries as entry (entry.entry_id)}
+      <!-- Gate on the file: early rows stored an empty name and must not read as a rest day. -->
+      {#if entry.file_name}
+        <span class="entry" class:missing={entry.missing} title={entry.file_name}>
+          {entry.workout_name || entry.file_name}
+        </span>
+      {/if}
+      {#if entry.note}
+        <span class="entry note" title={entry.note}>{entry.note}</span>
+      {/if}
+    {/each}
+  </span>
+{/snippet}
+
 {#if readonly}
   <div class="cell readonly" class:today={day.marker === 'Today'} class:past={day.marker === 'Past'}>
     <span class="date">{dayOfMonth(day.date)}</span>
-    <span class="entries">
-      {#each day.entries as entry (entry.entry_id)}
-        <span class="entry" class:missing={entry.missing} title={entry.file_name ?? undefined}>
-          {entry.workout_name ?? 'Note'}
-        </span>
-      {/each}
-    </span>
+    {@render entries()}
   </div>
 {:else}
   <button
@@ -31,14 +42,7 @@
     aria-label="Edit {day.date}"
   >
     <span class="date">{dayOfMonth(day.date)}</span>
-    <!-- span blocks: a button only permits phrasing content -->
-    <span class="entries">
-      {#each day.entries as entry (entry.entry_id)}
-        <span class="entry" class:missing={entry.missing} title={entry.file_name ?? undefined}>
-          {entry.workout_name ?? 'Note'}
-        </span>
-      {/each}
-    </span>
+    {@render entries()}
   </button>
 {/if}
 
@@ -91,6 +95,8 @@
     flex-direction: column;
     gap: 0.1rem;
     min-width: 0;
+    /* A long note must not stretch the square cell: it truncates instead. */
+    overflow: hidden;
   }
 
   .entry {
@@ -101,6 +107,14 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+
+  .entry.note {
+    color: var(--muted);
+    font-style: italic;
+    font-weight: 400;
+  }
+
+  .today .entry.note { color: #e8eefc; }
 
   .entry.missing {
     color: var(--danger);

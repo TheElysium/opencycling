@@ -3,7 +3,7 @@ use crate::db::Settings;
 use crate::db::actor::DbActor;
 use crate::db::types::{KnownDevices, Metric, SessionCard, SessionDetail, StravaAuth};
 use crate::errors::AppError;
-use crate::plan::{NewEntry, NewPlan, PlanEntry, TrainingPlan};
+use crate::plan::{EntryContent, NewEntry, NewPlan, PlanEntry, TrainingPlan};
 use tokio::sync::mpsc::{Sender, channel};
 use tokio::sync::oneshot;
 
@@ -140,8 +140,7 @@ pub enum DbCommand {
     },
     UpdatePlanEntry {
         id: i64,
-        file_name: String,
-        workout_name: String,
+        content: EntryContent,
         reply: oneshot::Sender<Result<PlanEntry, AppError>>,
     },
     DeletePlanEntry {
@@ -531,15 +530,13 @@ impl DbActorHandle {
     pub async fn update_plan_entry(
         &self,
         id: i64,
-        file_name: String,
-        workout_name: String,
+        content: EntryContent,
     ) -> Result<PlanEntry, AppError> {
         let (tx, rx) = oneshot::channel();
         self.sender
             .send(DbCommand::UpdatePlanEntry {
                 id,
-                file_name,
-                workout_name,
+                content,
                 reply: tx,
             })
             .await

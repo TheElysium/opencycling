@@ -1,7 +1,7 @@
 # Multi-Week Training Plan (manual, athlete-scheduled)
 
 **Issue:** [github.com/TheElysium/opencycling/issues/15](https://github.com/TheElysium/opencycling/issues/15)
-**Status:** slice 3 committed; slice 4 not started.
+**Status:** slice 3 committed; slice 4 implemented, gates green, reviewer APPROVE (not committed).
 
 ## Problem
 
@@ -231,9 +231,8 @@ implementer `ses_f652688adffe0WaS34VKplp02l` (full slice); gate-keeper
 |---|-------|--------|
 | 1 | Schema + plan CRUD + `/plans` list page | done, committed `b5439af` |
 | 2 | Empty week grid at `/plans/[id]` | done, committed `7469806` |
-| 3 | Assign / replace / remove a workout on a day | done, reviewed, gates green |
-| 4 | Free-text note per day | not started |
-| 4 | Free-text note per day | not started |
+| 3 | Assign / replace / remove a workout on a day | done, committed `5161ceb` |
+| 4 | Free-text note per day | done |
 | 5 | Weekly load summary column | not started |
 | 6 | Start a session from a day cell, link `session_id` | not started |
 | 7 | Today card on the connection page | not started |

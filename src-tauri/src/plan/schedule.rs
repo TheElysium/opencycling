@@ -101,6 +101,7 @@ fn view_entries(entries: &[&PlanEntry], known_files: &HashSet<String>) -> Vec<Pl
             position: e.position,
             file_name: e.file_name.clone(),
             workout_name: e.workout_name.clone(),
+            note: e.note.clone(),
             session_id: e.session_id,
             missing: e
                 .file_name
@@ -721,6 +722,33 @@ mod tests {
         assert_eq!(weeks[0].days[1].entries.len(), 1);
         assert_eq!(weeks[0].days[1].entries[0].file_name, None);
         assert!(!weeks[0].days[1].entries[0].missing);
+    }
+
+    fn with_note(mut entry: PlanEntry, note: &str) -> PlanEntry {
+        entry.note = Some(note.to_string());
+        entry
+    }
+
+    #[test]
+    fn build_weeks_surfaces_the_note_of_an_entry() {
+        let entries = vec![
+            with_note(entry(1, "2026-09-15", 0, None, None), "swim 45min"),
+            with_note(
+                entry(2, "2026-09-16", 0, Some("base.zwo"), Some("Base")),
+                "easy gearing",
+            ),
+        ];
+        let weeks =
+            build_weeks(&plan(1, MONDAY, 1), &entries, &empty_files(), date(MONDAY)).unwrap();
+        assert_eq!(
+            weeks[0].days[1].entries[0].note.as_deref(),
+            Some("swim 45min")
+        );
+        assert!(!weeks[0].days[1].entries[0].missing);
+        assert_eq!(
+            weeks[0].days[2].entries[0].note.as_deref(),
+            Some("easy gearing")
+        );
     }
 
     #[test]

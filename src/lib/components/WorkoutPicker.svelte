@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Snippet } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
   import { Search, X } from '@lucide/svelte';
   import { commands, type ParsedWorkout, type WorkoutLibrary } from '$lib/bindings';
@@ -13,12 +14,23 @@
     mode: 'create' | 'replace';
     currentName: string | null;
     disabled?: boolean;
+    /** Day editors rendered above the list; the overlay shell lives here only. */
+    aside?: Snippet;
     onpick: (workout: ParsedWorkout) => void;
     onremove?: () => void;
     onclose: () => void;
   };
 
-  let { open, mode, currentName, disabled = false, onpick, onremove, onclose }: Props = $props();
+  let {
+    open,
+    mode,
+    currentName,
+    disabled = false,
+    aside,
+    onpick,
+    onremove,
+    onclose,
+  }: Props = $props();
 
   let workouts = $state<ParsedWorkout[]>([]);
   let noFolder = $state(false);
@@ -93,10 +105,10 @@
     else selectedTags.add(tag);
   }
 
+  // The consumer decides when to close: a rejected write must keep the modal open.
   function pick(w: ParsedWorkout) {
     if (disabled) return;
     onpick(w);
-    onclose();
   }
 
   function close() {
@@ -107,7 +119,7 @@
   function trapFocus(e: KeyboardEvent) {
     if (e.key !== 'Tab') return;
     const focusables = (e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>(
-      'button:not([disabled]), input:not([disabled])',
+      'button:not([disabled]), input:not([disabled]), textarea:not([disabled])',
     );
     if (focusables.length === 0) return;
     const first = focusables[0];
@@ -146,6 +158,8 @@
       {#if error}
         <p class="error-box">{error}</p>
       {/if}
+
+      {@render aside?.()}
 
       <div class="search">
         <Search size={14} aria-hidden="true" />
