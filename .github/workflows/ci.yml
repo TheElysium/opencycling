@@ -91,7 +91,7 @@ jobs:
         run: cargo run --bin export_bindings && git diff --exit-code -- ../src/lib/bindings.ts
 
   frontend:
-    name: Frontend (svelte-check)
+    name: Frontend (check, lint, tests)
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
@@ -116,3 +116,6 @@ jobs:
 
       - name: Lint (ESLint)
         run: pnpm lint
+
+      - name: Unit tests (vitest)
+        run: pnpm test

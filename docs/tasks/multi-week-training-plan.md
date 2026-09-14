@@ -1,7 +1,7 @@
 # Multi-Week Training Plan (manual, athlete-scheduled)
 
 **Issue:** [github.com/TheElysium/opencycling/issues/15](https://github.com/TheElysium/opencycling/issues/15)
-**Status:** slices 1-4 committed (latest `1a7473c`); slice 5 in progress.
+**Status:** slices 1-5 committed (latest `613711f`); slice 5 manual QA still pending; slice 6 not started.
 
 ## Problem
 
@@ -260,6 +260,9 @@ reviewer round 1 42k tokens / 18 tool uses / 108 s (REQUEST_CHANGES, 1 major + 2
 reviewer round 2 49k tokens / 4 tool uses / 13 s (APPROVE);
 gate-keeper round 2 26k tokens / 10 tool uses / 119 s (all green except gitleaks).
 
+Workflow retrospective for this slice (cost, friction, refinements to apply before
+slice 6): [slice-5-workflow-report.md](slice-5-workflow-report.md).
+
 Pending before slice 5 can be called done:
 - [ ] Manual QA (no automated gate covers CSS/layout): run `pnpm tauri dev`, open a plan
       at `/plans/[id]`, check the duration / TSS / bar rendering on the week label line,
@@ -284,6 +287,6 @@ Review round 1 findings, all fixed before the approval:
 | 2 | Empty week grid at `/plans/[id]` | done, committed `7469806` |
 | 3 | Assign / replace / remove a workout on a day | done, committed `5161ceb` |
 | 4 | Free-text note per day | done, committed `1a7473c` |
-| 5 | Weekly load summary column | in progress |
+| 5 | Weekly load summary column | done, committed `613711f` (manual QA pending) |
 | 6 | Start a session from a day cell, link `session_id` | not started |
 | 7 | Today card on the connection page | not started |

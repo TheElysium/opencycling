@@ -15,10 +15,12 @@ cargo audit                          # dependency security audit (RustSec, CI-en
 cargo run --bin export_bindings      # regenerate src/lib/bindings.ts
 ```
 
-Quality gates (CI-enforced, local via `scripts/gate.sh`):
+Quality gates. The commands live in `.gates.yml` at the repo root, which agents read
+verbatim; `scripts/gate.sh` runs the same list in one shot and `ci.yml` enforces it
+per job. Change all three together.
 
 ```bash
-bash scripts/gate.sh                 # full gate: fmt + clippy + tests + audit + size + frontend
+bash scripts/gate.sh                 # full gate: fmt + clippy + tests + bindings drift + audit + size + frontend
 bash scripts/check_size.sh           # file size gate only: no source file over 1000 lines
 ```
 
