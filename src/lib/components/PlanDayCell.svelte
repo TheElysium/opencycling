@@ -113,11 +113,22 @@
     text-align: left;
     font: inherit;
     width: 100%;
+    /* Without this a long entry name grows this grid item's content-based
+       min-width, forcing its column wider than the other 6 (uneven squares,
+       week overflow). */
+    min-width: 0;
+    overflow: hidden;
   }
 
   .cell:not(.readonly):hover {
     border-color: var(--accent);
     background: color-mix(in srgb, var(--accent) 6%, transparent);
+  }
+
+  /* Hover feedback on the name itself, not just the border/background.
+     Excludes .today: its white text needs the darkening rule below instead. */
+  .cell:not(.readonly):not(.today):hover .entry:not(.note):not(.missing) {
+    color: var(--accent);
   }
 
   .cell.readonly {
@@ -140,6 +151,13 @@
   .today .entry { color: #fff; }
   .today .entry.missing { color: #ffdad8; }
 
+  /* The generic hover rule above lightens the background (higher specificity
+     than .today), which washes out this white text. Darken instead on today. */
+  .cell.today:not(.readonly):hover {
+    background: color-mix(in srgb, var(--accent) 80%, black);
+    border-color: color-mix(in srgb, var(--accent) 80%, black);
+  }
+
   .past { opacity: 0.55; }
 
   .entries {
@@ -147,7 +165,9 @@
     flex-direction: column;
     gap: 0.15rem;
     min-width: 0;
-    /* A long note must not stretch the square cell: it truncates instead. */
+    min-height: 0;
+    flex: 1;
+    /* A long note must not stretch the square cell: it clips instead. */
     overflow: hidden;
   }
 
@@ -155,9 +175,15 @@
     font-size: 0.75rem;
     font-weight: 600;
     color: var(--text);
-    white-space: nowrap;
+    /* Wrap into the square instead of truncating to one line: the cell is
+       fixed-size (aspect-ratio above), so this uses its space instead of
+       just cutting long names short. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
+    word-break: break-word;
   }
 
   .entry.note {

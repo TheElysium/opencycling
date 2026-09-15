@@ -55,7 +55,9 @@
 
   .days {
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
+    /* minmax(0, 1fr), not 1fr: caps each column's min size at 0 instead of
+       its content, in case a child ever reintroduces a nowrap min-width. */
+    grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 0.4rem;
   }
 </style>

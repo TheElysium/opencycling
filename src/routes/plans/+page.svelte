@@ -1,12 +1,22 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
   import { confirm } from '@tauri-apps/plugin-dialog';
-  import { commands, type NewPlan, type ParsedWorkout, type PlanWeek, type TrainingPlan } from '$lib/bindings';
+  import {
+    commands,
+    type NewPlan,
+    type ParsedWorkout,
+    type PlanEntryView,
+    type PlanWeek,
+    type TrainingPlan,
+  } from '$lib/bindings';
   import { toMessage } from '$lib/format';
   import { mondayOf, formatPlanRange, todayMonday, todayIso } from '$lib/plan-date';
   import { currentPlan } from '$lib/plan-current';
   import { getSettings } from '$lib/settings';
   import { indexByFileName, maxWeekTss, weekLoad } from '$lib/plan-load';
+  import { workoutFtp } from '$lib/ftp';
+  import { session } from '$lib/session.svelte';
   import PlanWeekRow from '$lib/components/PlanWeekRow.svelte';
 
   const DEFAULT_WEEKS = 4;
@@ -37,6 +47,7 @@
   // Current-week preview: library is best-effort (see loadLibrary), the week is
   // refetched whenever the current plan changes (tracked by weekFetchedForPlanId).
   let libraryFtp = $state(0);
+  let libraryAero = $state(false);
   let libraryWorkouts = $state<ParsedWorkout[]>([]);
   let currentWeek = $state<PlanWeek | null>(null);
   let currentPlanWeeks = $state<PlanWeek[]>([]);
@@ -68,6 +79,7 @@
     try {
       const s = await getSettings();
       libraryFtp = s.ftp_w;
+      libraryAero = s.aero_enabled;
       if (s.workout_path) {
         const lib = await commands.listWorkoutsCmd(s.workout_path, s.ftp_w);
         libraryWorkouts = lib.workouts;
@@ -168,6 +180,24 @@
     if (!ok) return;
     await mutate(() => commands.deletePlan(plan.id));
   }
+
+  // Mirrors /plans/[id]'s startEntry: same tile, same launch path.
+  async function startEntry(entry: PlanEntryView) {
+    if (busy || !entry.file_name) return;
+    error = null;
+    const workout = workoutIndex.get(entry.file_name);
+    if (!workout) {
+      error = 'Workout not found in the library, rescan the library from Settings.';
+      return;
+    }
+    session.prepare(workout, workoutFtp(workout, libraryFtp), libraryAero, entry.entry_id);
+    await goto('/session');
+  }
+
+  // Editing a day belongs to the full plan view (it owns the picker modal): jump there.
+  function openInPlan() {
+    if (plan) goto(`/plans/${plan.id}`);
+  }
 </script>
 
 {#snippet planFields(form: PlanForm, prefix: string)}
@@ -234,6 +264,7 @@
 <div class="page-wide">
   <h1>Plans</h1>
 
+  <h2 class="section-title">Current plan</h2>
   <section class="card current-week-card">
     <div class="current-week-head">
       <span class="current-week-label">Current week</span>
@@ -246,10 +277,17 @@
     {:else if !plan || !currentWeek}
       <p class="muted">No active plan this week.</p>
     {:else}
-      <PlanWeekRow week={currentWeek} readonly={true} load={currentWeekLoad} maxTss={currentPlanMaxTss} />
+      <PlanWeekRow
+        week={currentWeek}
+        load={currentWeekLoad}
+        maxTss={currentPlanMaxTss}
+        onopen={openInPlan}
+        onstart={startEntry}
+      />
     {/if}
   </section>
 
+  <h2 class="section-title">Create plan</h2>
   <form
     class="card create-card"
     onsubmit={(e) => {
@@ -265,6 +303,7 @@
     <p class="error-box">{error}</p>
   {/if}
 
+  <h2 class="section-title">Plans</h2>
   {#if loading}
     <p class="muted">Loading…</p>
   {:else if plans.length === 0}
@@ -276,7 +315,7 @@
       {/each}
     </div>
     {#if archived.length > 0}
-      <h2 class="list-section">Archived</h2>
+      <h3 class="list-section">Archived</h3>
       <div class="plan-list">
         {#each archived as plan (plan.id)}
           {@render planCard(plan)}
@@ -288,6 +327,13 @@
 
 <style>
   h1 { font-size: 1.4rem; font-weight: 600; margin: 0 0 1.25rem; }
+
+  .section-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text);
+    margin: 0 0 0.6rem;
+  }
 
   .muted { color: var(--muted); }
 
