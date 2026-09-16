@@ -20,9 +20,15 @@ vite.config.ts.timestamp-*
 docs/issues/
 docs/superpowers/
 docs/handoff-*.md
+docs/tasks/
 
 # Personal training library: not project content, varies per rider
 /workouts/
 
 # Local Claude Code permissions/settings: machine-specific, not shared
 .claude/settings.local.json
+
+# Local editor/agent tool state: machine-specific, not shared
+.claude/
+.opencode/
+.idea/

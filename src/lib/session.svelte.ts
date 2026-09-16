@@ -2,6 +2,7 @@ import { commands } from './bindings';
 import type { FlatBlock, ParsedWorkout, SessionMetrics, SessionSnapshot } from './bindings';
 import { stepDropDetector, INITIAL_DROP_STATE, type DropState } from './ftp';
 import { getSettings } from './settings';
+import { shouldLinkPlanEntry } from './plan-link';
 
 // All bridge types are generated from the Rust structs (src/lib/bindings.ts);
 // re-exported so existing import sites keep working.
@@ -35,7 +36,12 @@ class SessionStore {
   private pendingWorkout: ParsedWorkout | null = null;
   private pendingFtp = 0;
 
-  prepare(workout: ParsedWorkout, ftpW: number, aero: boolean): void {
+  // Plan entry this run should link back to once finished, and the session_id already
+  // linked for it (see shouldLinkPlanEntry's no-double-call contract in plan-link.ts).
+  private pendingPlanEntryId: number | null = null;
+  private linkedPlanSessionId: number | null = null;
+
+  prepare(workout: ParsedWorkout, ftpW: number, aero: boolean, planEntryId: number | null = null): void {
     // Drop the previous session's display state so the session page doesn't show the
     // last ride behind the calibration overlay while this one waits to be armed.
     this.apply(null);
@@ -44,6 +50,7 @@ class SessionStore {
     this.pendingWorkout = workout;
     this.pendingFtp = ftpW;
     this.aeroEnabled = aero;
+    this.pendingPlanEntryId = planEntryId;
   }
 
   get hasPendingStart(): boolean {
@@ -95,6 +102,20 @@ class SessionStore {
   // an FTP test, advances the exhaustion detector (see stepDropDetector in lib/ftp.ts).
   ingestMetrics(m: SessionMetrics): void {
     this.metrics = m;
+    if (shouldLinkPlanEntry(
+      { pendingEntryId: this.pendingPlanEntryId, linkedSessionId: this.linkedPlanSessionId },
+      m.state,
+      m.session_id
+    )) {
+      const sessionId = m.session_id!;
+      this.linkedPlanSessionId = sessionId;
+      // Reset (not swallow) a failure so the next session_metrics tick retries the
+      // link instead of losing it permanently (shouldLinkPlanEntry never retries on its own).
+      commands.linkPlanEntrySessionCmd(this.pendingPlanEntryId!, sessionId).catch((e) => {
+        console.warn('link_plan_entry_session_cmd failed, will retry', e);
+        if (this.linkedPlanSessionId === sessionId) this.linkedPlanSessionId = null;
+      });
+    }
     if (!this.isFtpTest) return;
     this.drop = stepDropDetector(this.drop, {
       running: m.state === 'Running',
@@ -122,6 +143,8 @@ class SessionStore {
     this.aeroEnabled = false;
     this.isFtpTest = false;
     this.drop = INITIAL_DROP_STATE;
+    this.pendingPlanEntryId = null;
+    this.linkedPlanSessionId = null;
   }
 }
 

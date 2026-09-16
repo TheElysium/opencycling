@@ -29,6 +29,8 @@ pub enum AppError {
     DbError(#[from] rusqlite::Error),
     #[error("Session already active")]
     SessionAlreadyActive,
+    #[error("Invalid plan: {0}")]
+    PlanValidation(String),
     /// Wraps a std::io::Error directly, preserving the source for logging.
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),

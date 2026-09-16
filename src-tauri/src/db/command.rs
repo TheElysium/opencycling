@@ -3,6 +3,7 @@ use crate::db::Settings;
 use crate::db::actor::DbActor;
 use crate::db::types::{KnownDevices, Metric, SessionCard, SessionDetail, StravaAuth};
 use crate::errors::AppError;
+use crate::plan::{EntryContent, NewEntry, NewPlan, PlanEntry, TrainingPlan};
 use tokio::sync::mpsc::{Sender, channel};
 use tokio::sync::oneshot;
 
@@ -98,6 +99,62 @@ pub enum DbCommand {
     ListSessionsForWorkout {
         workout_name: String,
         reply: oneshot::Sender<Result<Vec<SessionCard>, AppError>>,
+    },
+    ListPlans {
+        include_archived: bool,
+        reply: oneshot::Sender<Result<Vec<TrainingPlan>, AppError>>,
+    },
+    GetPlan {
+        id: i64,
+        reply: oneshot::Sender<Result<TrainingPlan, AppError>>,
+    },
+    InsertPlan {
+        plan: NewPlan,
+        reply: oneshot::Sender<Result<i64, AppError>>,
+    },
+    UpdatePlan {
+        id: i64,
+        plan: NewPlan,
+        reply: oneshot::Sender<Result<(), AppError>>,
+    },
+    SetPlanArchived {
+        id: i64,
+        archived: bool,
+        reply: oneshot::Sender<Result<(), AppError>>,
+    },
+    DeletePlan {
+        id: i64,
+        reply: oneshot::Sender<Result<(), AppError>>,
+    },
+    GetPlanEntry {
+        id: i64,
+        reply: oneshot::Sender<Result<PlanEntry, AppError>>,
+    },
+    ListPlanEntries {
+        plan_id: i64,
+        reply: oneshot::Sender<Result<Vec<PlanEntry>, AppError>>,
+    },
+    InsertPlanEntry {
+        entry: NewEntry,
+        reply: oneshot::Sender<Result<PlanEntry, AppError>>,
+    },
+    UpdatePlanEntry {
+        id: i64,
+        content: EntryContent,
+        reply: oneshot::Sender<Result<PlanEntry, AppError>>,
+    },
+    DeletePlanEntry {
+        id: i64,
+        reply: oneshot::Sender<Result<(), AppError>>,
+    },
+    LinkPlanEntrySession {
+        entry_id: i64,
+        session_id: i64,
+        reply: oneshot::Sender<Result<PlanEntry, AppError>>,
+    },
+    WorkoutFileExists {
+        file_name: String,
+        reply: oneshot::Sender<Result<bool, AppError>>,
     },
 }
 
@@ -373,6 +430,153 @@ impl DbActorHandle {
         self.sender
             .send(DbCommand::ListSessionsForWorkout {
                 workout_name,
+                reply: tx,
+            })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    pub async fn list_plans(&self, include_archived: bool) -> Result<Vec<TrainingPlan>, AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::ListPlans {
+                include_archived,
+                reply: tx,
+            })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    pub async fn get_plan(&self, id: i64) -> Result<TrainingPlan, AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::GetPlan { id, reply: tx })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    pub async fn insert_plan(&self, plan: NewPlan) -> Result<i64, AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::InsertPlan { plan, reply: tx })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    pub async fn update_plan(&self, id: i64, plan: NewPlan) -> Result<(), AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::UpdatePlan {
+                id,
+                plan,
+                reply: tx,
+            })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    pub async fn set_plan_archived(&self, id: i64, archived: bool) -> Result<(), AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::SetPlanArchived {
+                id,
+                archived,
+                reply: tx,
+            })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    pub async fn delete_plan(&self, id: i64) -> Result<(), AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::DeletePlan { id, reply: tx })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    pub async fn get_plan_entry(&self, id: i64) -> Result<PlanEntry, AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::GetPlanEntry { id, reply: tx })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    pub async fn list_plan_entries(&self, plan_id: i64) -> Result<Vec<PlanEntry>, AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::ListPlanEntries { plan_id, reply: tx })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    pub async fn insert_plan_entry(&self, entry: NewEntry) -> Result<PlanEntry, AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::InsertPlanEntry { entry, reply: tx })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    pub async fn update_plan_entry(
+        &self,
+        id: i64,
+        content: EntryContent,
+    ) -> Result<PlanEntry, AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::UpdatePlanEntry {
+                id,
+                content,
+                reply: tx,
+            })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    pub async fn delete_plan_entry(&self, id: i64) -> Result<(), AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::DeletePlanEntry { id, reply: tx })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    pub async fn link_plan_entry_session(
+        &self,
+        entry_id: i64,
+        session_id: i64,
+    ) -> Result<PlanEntry, AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::LinkPlanEntrySession {
+                entry_id,
+                session_id,
+                reply: tx,
+            })
+            .await
+            .map_err(|_| AppError::ChannelClosed)?;
+        rx.await.map_err(|_| AppError::ChannelClosed)?
+    }
+
+    pub async fn workout_file_exists(&self, file_name: String) -> Result<bool, AppError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(DbCommand::WorkoutFileExists {
+                file_name,
                 reply: tx,
             })
             .await
