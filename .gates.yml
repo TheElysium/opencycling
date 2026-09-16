@@ -1,37 +1,16 @@
-# Verification gate for this repo. The gate-keeper agent reads this file and runs
-# every key verbatim from the repo root, reporting pass/fail per command.
-#
-# Three copies of this gate exist and must change together:
-#   .gates.yml                  this file, what agents run
-#   scripts/gate.sh             the runnable one-shot version
-#   .github/workflows/ci.yml    the enforced version, per-job
-#
-stack: tauri # SvelteKit 5 frontend (src/) + Rust backend (src-tauri/)
+# Keep in sync with scripts/gate.sh and .github/workflows/ci.yml.
+stack: tauri
 
 format: cd src-tauri && cargo fmt --all --check
 
-# Rust lints are denied at zero warnings, incl. the cognitive-complexity gate
-# (clippy.toml). ESLint runs with --max-warnings 0 and its own complexity rule.
 lint: cd src-tauri && cargo clippy --all-targets -- -D warnings && cd .. && pnpm lint
 
-# svelte-check must report 0 errors AND 0 warnings.
 typecheck: pnpm check
 
 test: cd src-tauri && cargo test && cd .. && pnpm test
 
-# The tauri-specta bridge is generated, never hand-edited: regenerate and fail on
-# drift, exactly as CI does. This also compiles the crate.
 bindings: cd src-tauri && cargo run --bin export_bindings && git diff --exit-code -- ../src/lib/bindings.ts
 
-# No `build` key on purpose: `cargo clippy --all-targets` already compiles every
-# Rust target, `pnpm check` type-checks the frontend, and the packaged build is
-# exercised by .github/workflows/release.yml rather than on every task.
-
-# Dependency audit only. Secrets scanning (`gitleaks detect`) is NOT part of this
-# gate: gitleaks is not installed on the author's machine and, on 2026-09-14, the
-# author chose to accept that gap rather than install it. Re-add `&& gitleaks
-# detect --no-banner` here the day it is available.
 sast: cd src-tauri && cargo audit
 
-# Anti-megafile gate: no source file over 1000 lines (bindings.ts excluded).
 size: bash scripts/check_size.sh
