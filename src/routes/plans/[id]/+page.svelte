@@ -22,7 +22,7 @@
   } from '$lib/plan-entry';
   import { getSettings } from '$lib/settings';
   import { entryIntensities, indexByFileName, maxWeekTss, weekLoad } from '$lib/plan-load';
-  import { workoutFtp } from '$lib/ftp';
+  import { resolvePlanStart } from '$lib/plan-start';
   import { session } from '$lib/session.svelte';
   import PlanWeekRow from '$lib/components/PlanWeekRow.svelte';
   import PlanNoteField from '$lib/components/PlanNoteField.svelte';
@@ -104,12 +104,12 @@
   async function startEntry(entry: PlanEntryView) {
     if (busy || !entry.file_name) return;
     error = null;
-    const workout = workoutIndex.get(entry.file_name);
-    if (!workout) {
-      error = 'Workout not found in the library, rescan the library from Settings.';
+    const result = resolvePlanStart(entry, workoutIndex, libraryFtp);
+    if (!result.ok) {
+      error = result.error;
       return;
     }
-    session.prepare(workout, workoutFtp(workout, libraryFtp), libraryAero, entry.entry_id);
+    session.prepare(result.workout, result.ftpW, libraryAero, entry.entry_id);
     await goto('/session');
   }
 

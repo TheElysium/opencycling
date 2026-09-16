@@ -65,7 +65,7 @@ Actors are wired in `lib.rs::run()` (`.setup()` closure) and registered with `ap
 
 ### Frontend (`src/`)
 
-SvelteKit routes: `/` (connection), `/workouts`, `/workouts/detail`, `/session`, `/history`, `/history/[id]`, `/settings`. Sidebar hidden on `/session`.
+SvelteKit routes: `/` (home: today card + device connection), `/workouts`, `/workouts/detail`, `/session`, `/history`, `/history/[id]`, `/settings`. Sidebar hidden on `/session`.
 
 Shared state lives in `.svelte.ts` rune stores: `lib/ble.svelte.ts`, `lib/session.svelte.ts`, `lib/workout.svelte.ts`, `lib/aero.svelte.ts`. Helpers: `lib/db.ts`, `lib/settings.ts`, `lib/format.ts`, `lib/metrics.ts`, `lib/ftp.ts`, `lib/audio.ts`, `lib/devices.ts` (auto-connect matching), `lib/chart-scale.ts`, `lib/session-visuals.ts`, `lib/strava.ts` (thin wrappers over generated commands), `lib/updater.ts` (`@tauri-apps/plugin-updater`, no-op under `tauri dev`), `lib/export.ts` (save dialog, then delegates to the Rust `export_session_tcx` command), `lib/aero.ts` (pure, unit-tested webcam aero-position scoring; `lib/aero.svelte.ts` owns the MoveNet detector, bundled offline under `static/models/`).
 
