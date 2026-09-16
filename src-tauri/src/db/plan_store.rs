@@ -2,17 +2,27 @@
 //! file under the 1000-line size gate; the DB actor is the only consumer.
 
 use crate::errors::AppError;
-use crate::plan::{EntryContent, NewEntry, NewPlan, PlanEntry, TrainingPlan, clears_session};
+use crate::plan::{
+    EntryContent, NewEntry, NewPlan, PlanEntry, TrainingPlan, clears_session, plan_range,
+};
 use rusqlite::{Connection, Row};
 
 const PLAN_COLUMNS: &str = "id, name, start_date, weeks, created_at, archived_at";
 
 fn plan_from_row(row: &Row) -> rusqlite::Result<TrainingPlan> {
+    let start_date: String = row.get(2)?;
+    let weeks: u32 = row.get(3)?;
+    // A corrupt start_date/weeks must not fail the whole row: end_date falls
+    // back to empty, matching how schedule.rs treats corrupt rows elsewhere.
+    let end_date = plan_range(&start_date, weeks)
+        .map(|(_, end)| end.format("%Y-%m-%d").to_string())
+        .unwrap_or_default();
     Ok(TrainingPlan {
         id: row.get(0)?,
         name: row.get(1)?,
-        start_date: row.get(2)?,
-        weeks: row.get(3)?,
+        start_date,
+        weeks,
+        end_date,
         created_at: row.get(4)?,
         archived_at: row.get(5)?,
     })
@@ -140,9 +150,9 @@ pub(crate) fn insert_entry(conn: &Connection, entry: &NewEntry) -> Result<PlanEn
             entry.plan_id,
             entry.date,
             position,
-            entry.file_name,
-            entry.workout_name,
-            entry.note
+            entry.content.file_name,
+            entry.content.workout_name,
+            entry.content.note
         ],
     )?;
     let id = conn.last_insert_rowid();
@@ -180,19 +190,13 @@ pub(crate) fn delete_entry(conn: &Connection, id: i64) -> Result<(), AppError> {
     Ok(())
 }
 
-pub(crate) fn entry_exists_file(conn: &Connection, file_name: &str) -> Result<bool, AppError> {
+pub(crate) fn workout_file_exists(conn: &Connection, file_name: &str) -> Result<bool, AppError> {
     let exists: bool = conn.query_row(
         "SELECT EXISTS(SELECT 1 FROM workouts WHERE file_name = ?1)",
         [file_name],
         |row| row.get(0),
     )?;
     Ok(exists)
-}
-
-pub(crate) fn workout_file_names(conn: &Connection) -> Result<Vec<String>, AppError> {
-    let mut stmt = conn.prepare("SELECT file_name FROM workouts")?;
-    let rows = stmt.query_map([], |row| row.get(0))?;
-    Ok(rows.collect::<Result<Vec<_>, _>>()?)
 }
 
 /// No archived-plan check: recording which session fulfilled a finished ride is
@@ -272,6 +276,13 @@ mod tests {
         assert_eq!(stored.weeks, 4);
         assert!(!stored.created_at.is_empty(), "created_at is stamped here");
         assert_eq!(stored.archived_at, None, "a new plan is active");
+    }
+
+    #[test]
+    fn get_computes_the_exclusive_end_date_from_start_and_weeks() {
+        let (conn, id) = seeded(); // "Base", start_date "2026-09-14", weeks 4
+        let stored = get(&conn, id).unwrap();
+        assert_eq!(stored.end_date, "2026-10-12");
     }
 
     #[test]
@@ -375,9 +386,11 @@ mod tests {
         NewEntry {
             plan_id,
             date: date.to_string(),
-            file_name: Some(file_name.to_string()),
-            workout_name: Some(workout_name.to_string()),
-            note: None,
+            content: EntryContent {
+                file_name: Some(file_name.to_string()),
+                workout_name: Some(workout_name.to_string()),
+                note: None,
+            },
         }
     }
 
@@ -385,9 +398,11 @@ mod tests {
         NewEntry {
             plan_id,
             date: date.to_string(),
-            file_name: None,
-            workout_name: None,
-            note: Some(note.to_string()),
+            content: EntryContent {
+                file_name: None,
+                workout_name: None,
+                note: Some(note.to_string()),
+            },
         }
     }
 
@@ -486,7 +501,7 @@ mod tests {
     fn insert_entry_persists_a_note_next_to_a_workout() {
         let (conn, plan_id) = seeded();
         let mut new = new_entry(plan_id, "2026-09-15", "base.zwo", "Base");
-        new.note = Some("easy gearing".to_string());
+        new.content.note = Some("easy gearing".to_string());
         let entry = insert_entry(&conn, &new).unwrap();
         assert_eq!(entry.file_name, Some("base.zwo".to_string()));
         assert_eq!(entry.note, Some("easy gearing".to_string()));
@@ -554,28 +569,15 @@ mod tests {
     }
 
     #[test]
-    fn entry_exists_file_checks_the_workouts_cache() {
+    fn workout_file_exists_checks_the_workouts_cache() {
         let conn = store();
         conn.execute(
             "INSERT INTO workouts (file_name, mtime_secs, parsed_json) VALUES (?1, ?2, ?3)",
             ("known.zwo", 1, "{}"),
         )
         .unwrap();
-        assert!(entry_exists_file(&conn, "known.zwo").unwrap());
-        assert!(!entry_exists_file(&conn, "missing.zwo").unwrap());
-    }
-
-    #[test]
-    fn workout_file_names_returns_all_cache_keys() {
-        let conn = store();
-        conn.execute(
-            "INSERT INTO workouts (file_name, mtime_secs, parsed_json) VALUES (?1, ?2, ?3)",
-            ("a.zwo", 1, "{}"),
-        )
-        .unwrap();
-        let mut names = workout_file_names(&conn).unwrap();
-        names.sort();
-        assert_eq!(names, vec!["a.zwo".to_string()]);
+        assert!(workout_file_exists(&conn, "known.zwo").unwrap());
+        assert!(!workout_file_exists(&conn, "missing.zwo").unwrap());
     }
 
     #[test]

@@ -134,9 +134,7 @@ export type NewEntry = {
 	plan_id: number,
 	/**  ISO `YYYY-MM-DD`. */
 	date: string,
-	file_name: string | null,
-	workout_name: string | null,
-	note: string | null,
+	content: EntryContent,
 };
 
 export type NewPlan = {
@@ -183,7 +181,6 @@ export type PlanEntry = {
 
 export type PlanEntryView = {
 	entry_id: number,
-	position: number,
 	file_name: string | null,
 	workout_name: string | null,
 	note: string | null,
@@ -309,6 +306,8 @@ export type TrainingPlan = {
 	/**  ISO `YYYY-MM-DD`, always a Monday. */
 	start_date: string,
 	weeks: number,
+	/**  ISO `YYYY-MM-DD`; the end is EXCLUSIVE (see `plan::schedule::plan_range`). */
+	end_date: string,
 	/**  RFC 3339. */
 	created_at: string,
 	/**  `None` = active. */

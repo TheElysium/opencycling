@@ -11,35 +11,24 @@
     type TrainingPlan,
   } from '$lib/bindings';
   import { ble } from '$lib/ble.svelte';
-  import { session } from '$lib/session.svelte';
-  import { getSettings } from '$lib/settings';
+  import { library } from '$lib/library.svelte';
   import { workoutFtp } from '$lib/ftp';
-  import { currentPlan } from '$lib/plan-current';
-  import { todayIso } from '$lib/plan-date';
-  import { indexByFileName } from '$lib/plan-load';
-  import { resolvePlanStart, todayOf } from '$lib/plan-start';
+  import { currentPlan, todayIso } from '$lib/plan-date';
+  import { todayOf } from '$lib/plan-start';
   import WorkoutCard from './WorkoutCard.svelte';
 
   let planLoading = $state(true);
-  let libraryLoading = $state(true);
   let plan = $state<TrainingPlan | null>(null);
   let weekNumber = $state(0);
   let day = $state<PlanDay | null>(null);
   let error = $state<string | null>(null);
   let starting = $state(false);
 
-  // Library is best-effort: without it the entries still list, only without their
-  // structure chart and Start button.
-  let libraryFtp = $state(0);
-  let libraryAero = $state(false);
-  let libraryWorkouts = $state<ParsedWorkout[]>([]);
-  let libraryFlats = $state<FlatBlock[][]>([]);
-  let workoutIndex = $derived(indexByFileName(libraryWorkouts));
   // `flats` shares the index of `workouts` (list_workouts_cmd contract).
   let flatIndex = $derived(
     new Map(
-      libraryWorkouts.flatMap((w, i) =>
-        w.file_name === null ? [] : [[w.file_name, libraryFlats[i] ?? []] as const],
+      library.workouts.flatMap((w, i) =>
+        w.file_name === null ? [] : [[w.file_name, library.flats[i] ?? []] as const],
       ),
     ),
   );
@@ -69,37 +58,19 @@
     }
   }
 
-  async function loadLibrary() {
-    try {
-      const s = await getSettings();
-      libraryFtp = s.ftp_w;
-      libraryAero = s.aero_enabled;
-      if (s.workout_path) {
-        const lib = await commands.listWorkoutsCmd(s.workout_path, s.ftp_w);
-        libraryWorkouts = lib.workouts;
-        libraryFlats = lib.flats;
-      }
-    } catch {
-      libraryWorkouts = [];
-      libraryFlats = [];
-    } finally {
-      libraryLoading = false;
-    }
-  }
-
   onMount(() => {
     // Own fetches, independent of the page's BLE scan: neither awaits the other.
     void loadPlan();
-    void loadLibrary();
+    void library.load();
   });
 
   // Waits for the library too, so entries do not flash from plain rows to cards.
-  let loading = $derived(planLoading || libraryLoading);
+  let loading = $derived(planLoading || library.loading);
   let trainerReady = $derived(ble.trainerStatus === 'connected');
 
   function libraryWorkout(entry: PlanEntryView): ParsedWorkout | null {
     if (!entry.file_name || entry.missing) return null;
-    return workoutIndex.get(entry.file_name) ?? null;
+    return library.index.get(entry.file_name) ?? null;
   }
 
   let hasWorkout = $derived(day?.entries.some((e) => libraryWorkout(e) !== null) ?? false);
@@ -111,15 +82,10 @@
   async function start(entry: PlanEntryView) {
     if (starting) return;
     error = null;
-    const result = resolvePlanStart(entry, workoutIndex, libraryFtp);
-    if (!result.ok) {
-      error = result.error;
-      return;
-    }
     starting = true;
     try {
-      session.prepare(result.workout, result.ftpW, libraryAero, entry.entry_id);
-      await goto('/session');
+      const err = await library.start(entry);
+      if (err) error = err;
     } finally {
       starting = false;
     }
@@ -162,7 +128,7 @@
               <WorkoutCard
                 {workout}
                 flat={flatOf(workout)}
-                ftpWatts={workoutFtp(workout, libraryFtp)}
+                ftpWatts={workoutFtp(workout, library.ftp)}
                 chartHeight={110}
               >
                 {#snippet actions()}
@@ -204,7 +170,8 @@
 {/if}
 
 <style>
-  .muted { color: var(--muted); margin: 0; }
+  /* Global .muted has no margin reset: this component's usages need one. */
+  .muted { margin: 0; }
 
   .today-head {
     display: flex;

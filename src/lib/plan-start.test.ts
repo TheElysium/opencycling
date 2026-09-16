@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { ParsedWorkout, PlanDay, PlanEntryView, PlanWeek } from '$lib/bindings';
 import { resolvePlanStart, todayOf } from './plan-start';
 import { indexByFileName } from './plan-load';
+import { FTP_TEST_REFERENCE_W } from './ftp';
 
 function workout(overrides: Partial<ParsedWorkout> = {}): ParsedWorkout {
   return {
@@ -20,7 +21,6 @@ function workout(overrides: Partial<ParsedWorkout> = {}): ParsedWorkout {
 function entry(overrides: Partial<PlanEntryView> = {}): PlanEntryView {
   return {
     entry_id: 1,
-    position: 0,
     file_name: null,
     workout_name: null,
     note: null,
@@ -61,7 +61,7 @@ describe('resolvePlanStart', () => {
   it('resolves an FTP test at the reference FTP, not the rider FTP', () => {
     const w = workout({ file_name: 'test.zwo', is_ftp_test: true });
     const result = resolvePlanStart(entry({ file_name: 'test.zwo' }), indexByFileName([w]), 200);
-    expect(result).toEqual({ ok: true, workout: w, ftpW: 100 });
+    expect(result).toEqual({ ok: true, workout: w, ftpW: FTP_TEST_REFERENCE_W });
   });
 });
 

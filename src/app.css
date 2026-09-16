@@ -164,6 +164,50 @@ button:disabled {
   background: var(--bg);
 }
 
+.btn-delete {
+  background: transparent;
+  color: var(--danger);
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btn-delete:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.tag-pill {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+  color: var(--muted);
+}
+
+/* .tag-pill (above) provides the shared pastille look; this adds the
+   interactive-button bits (cursor, border, active state, transition). */
+.tag-filter {
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+
+.tag-filter:hover {
+  color: var(--text);
+}
+
+.tag-filter.active {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
 /* iOS-style toggle switch. Markup: <span class="switch"><input type="checkbox"><span class="slider"></span></span> */
 .switch {
   position: relative;

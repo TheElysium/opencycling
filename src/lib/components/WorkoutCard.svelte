@@ -156,17 +156,6 @@
     margin-top: 0.75rem;
   }
 
-  .tag-pill {
-    font-size: 0.65rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    padding: 0.1rem 0.4rem;
-    border-radius: 4px;
-    background: color-mix(in srgb, var(--muted) 12%, transparent);
-    color: var(--muted);
-  }
-
   .ftp-badge {
     display: inline-flex;
     align-items: center;

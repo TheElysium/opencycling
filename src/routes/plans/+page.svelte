@@ -2,22 +2,11 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { confirm } from '@tauri-apps/plugin-dialog';
-  import {
-    commands,
-    type NewPlan,
-    type ParsedWorkout,
-    type PlanEntryView,
-    type PlanWeek,
-    type TrainingPlan,
-  } from '$lib/bindings';
+  import { commands, type NewPlan, type PlanEntryView, type TrainingPlan } from '$lib/bindings';
   import { toMessage } from '$lib/format';
-  import { mondayOf, formatPlanRange, todayMonday, todayIso } from '$lib/plan-date';
-  import { currentPlan } from '$lib/plan-current';
-  import { getSettings } from '$lib/settings';
-  import { indexByFileName, maxWeekTss, weekLoad } from '$lib/plan-load';
-  import { resolvePlanStart, todayOf } from '$lib/plan-start';
-  import { session } from '$lib/session.svelte';
-  import PlanWeekRow from '$lib/components/PlanWeekRow.svelte';
+  import { currentPlan, mondayOf, formatPlanRange, todayMonday, todayIso } from '$lib/plan-date';
+  import { library } from '$lib/library.svelte';
+  import CurrentPlanWeek from '$lib/components/CurrentPlanWeek.svelte';
 
   const DEFAULT_WEEKS = 4;
   const MIN_WEEKS = 1;
@@ -43,25 +32,7 @@
 
   let active   = $derived(plans.filter(p => p.archived_at === null));
   let archived = $derived(plans.filter(p => p.archived_at !== null));
-
-  // Current-week preview: library is best-effort (see loadLibrary), the week is
-  // refetched whenever the current plan changes (tracked by weekFetchedForPlanId).
-  let libraryFtp = $state(0);
-  let libraryAero = $state(false);
-  let libraryWorkouts = $state<ParsedWorkout[]>([]);
-  let currentWeek = $state<PlanWeek | null>(null);
-  let currentPlanWeeks = $state<PlanWeek[]>([]);
-  let weekFetchedForPlanId = $state<number | null>(null);
-
-  let plan = $derived(currentPlan(plans, todayIso()));
-  // Distinguishes "still fetching" from "confirmed no current plan" so the empty state never flashes.
-  let weekPending = $derived(plan !== null && weekFetchedForPlanId !== plan.id);
-  let workoutIndex = $derived(indexByFileName(libraryWorkouts));
-  let currentWeekLoad = $derived(currentWeek ? weekLoad(currentWeek, workoutIndex, libraryFtp) : undefined);
-  // Relative to the whole plan (matches /plans/[id]'s planMaxTss), not just this one week.
-  let currentPlanMaxTss = $derived(
-    maxWeekTss(currentPlanWeeks.map((w) => weekLoad(w, workoutIndex, libraryFtp))),
-  );
+  let plan     = $derived(currentPlan(plans, todayIso()));
 
   async function load() {
     error = null;
@@ -74,41 +45,8 @@
     }
   }
 
-  // Best-effort: a rider without a configured library still gets a usable preview.
-  async function loadLibrary() {
-    try {
-      const s = await getSettings();
-      libraryFtp = s.ftp_w;
-      libraryAero = s.aero_enabled;
-      if (s.workout_path) {
-        const lib = await commands.listWorkoutsCmd(s.workout_path, s.ftp_w);
-        libraryWorkouts = lib.workouts;
-      }
-    } catch {
-      libraryWorkouts = [];
-    }
-  }
-
   onMount(async () => {
-    await Promise.all([load(), loadLibrary()]);
-  });
-
-  $effect(() => {
-    const p = plan;
-    if (!p || weekFetchedForPlanId === p.id) return;
-    commands
-      .getPlanWeeks(p.id)
-      .then((weeks) => {
-        currentPlanWeeks = weeks;
-        currentWeek = todayOf(weeks)?.week ?? null;
-      })
-      .catch(() => {
-        currentPlanWeeks = [];
-        currentWeek = null;
-      })
-      .finally(() => {
-        weekFetchedForPlanId = p.id;
-      });
+    await Promise.all([load(), library.load()]);
   });
 
   // Backend validation is the source of truth: its message is surfaced raw.
@@ -185,13 +123,8 @@
   async function startEntry(entry: PlanEntryView) {
     if (busy || !entry.file_name) return;
     error = null;
-    const result = resolvePlanStart(entry, workoutIndex, libraryFtp);
-    if (!result.ok) {
-      error = result.error;
-      return;
-    }
-    session.prepare(result.workout, result.ftpW, libraryAero, entry.entry_id);
-    await goto('/session');
+    const err = await library.start(entry);
+    if (err) error = err;
   }
 
   // Editing a day belongs to the full plan view (it owns the picker modal): jump there.
@@ -245,7 +178,7 @@
       <div class="plan-head">
         <a class="plan-name" href="/plans/{plan.id}">{plan.name}</a>
         <span class="plan-meta">
-          {formatPlanRange(plan.start_date, plan.weeks)}
+          {formatPlanRange(plan.start_date, plan.end_date)}
           <span class="sep">·</span>
           {plan.weeks} {plan.weeks === 1 ? 'week' : 'weeks'}
         </span>
@@ -265,27 +198,7 @@
   <h1>Plans</h1>
 
   <h2 class="section-title">Current plan</h2>
-  <section class="card current-week-card">
-    <div class="current-week-head">
-      <span class="current-week-label">Current week</span>
-      {#if plan}
-        <a class="plan-name" href="/plans/{plan.id}">{plan.name}</a>
-      {/if}
-    </div>
-    {#if loading || weekPending}
-      <p class="muted">Loading…</p>
-    {:else if !plan || !currentWeek}
-      <p class="muted">No active plan this week.</p>
-    {:else}
-      <PlanWeekRow
-        week={currentWeek}
-        load={currentWeekLoad}
-        maxTss={currentPlanMaxTss}
-        onopen={openInPlan}
-        onstart={startEntry}
-      />
-    {/if}
-  </section>
+  <CurrentPlanWeek {plan} {loading} onopen={openInPlan} onstart={startEntry} />
 
   <h2 class="section-title">Create plan</h2>
   <form
@@ -335,26 +248,7 @@
     margin: 0 0 0.6rem;
   }
 
-  .muted { color: var(--muted); }
-
   .create-card { margin-bottom: 1.25rem; }
-
-  .current-week-card { margin-bottom: 1.25rem; }
-
-  .current-week-head {
-    display: flex;
-    align-items: baseline;
-    gap: 0.6rem;
-    margin-bottom: 0.75rem;
-  }
-
-  .current-week-label {
-    font-size: 0.78rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--muted);
-  }
 
   .fields {
     display: flex;
@@ -451,16 +345,5 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-  }
-
-  .btn-delete {
-    background: transparent;
-    color: var(--danger);
-    border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
-    transition: background 0.15s, border-color 0.15s;
-  }
-
-  .btn-delete:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--danger) 10%, transparent);
   }
 </style>

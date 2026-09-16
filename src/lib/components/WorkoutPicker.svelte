@@ -111,8 +111,10 @@
     onpick(w);
   }
 
+  // Blocked while the picker loads its own list or the caller is busy applying
+  // a previous action: closing mid-mutation would discard its result silently.
   function close() {
-    if (!loading) onclose();
+    if (!loading && !disabled) onclose();
   }
 
   // Keep Tab cycling inside the modal while it is open.
@@ -218,7 +220,7 @@
         {#if mode === 'replace' && onremove}
           <button class="btn-delete" disabled={disabled} onclick={onremove}>Remove</button>
         {/if}
-        <button class="btn-secondary" onclick={close}>Cancel</button>
+        <button class="btn-secondary" disabled={disabled} onclick={close}>Cancel</button>
       </div>
     </div>
   </div>
@@ -323,27 +325,6 @@
     margin-bottom: 0.75rem;
   }
 
-  .tag-pill {
-    font-size: 0.65rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    padding: 0.15rem 0.45rem;
-    border-radius: 4px;
-    background: color-mix(in srgb, var(--muted) 12%, transparent);
-    color: var(--muted);
-    border: 1px solid transparent;
-    cursor: pointer;
-    transition: color 0.15s, background 0.15s, border-color 0.15s;
-  }
-
-  .tag-filter:hover { color: var(--text); }
-  .tag-filter.active {
-    color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 14%, transparent);
-    border-color: color-mix(in srgb, var(--accent) 30%, transparent);
-  }
-
   .list {
     display: flex;
     flex-direction: column;
@@ -390,8 +371,6 @@
     margin-top: 0.15rem;
   }
 
-  .muted { color: var(--muted); }
-
   .actions {
     display: flex;
     justify-content: flex-end;
@@ -399,34 +378,10 @@
     margin-top: auto;
   }
 
-  .btn-delete {
-    background: transparent;
-    color: var(--danger);
-    border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
-    border-radius: 6px;
+  /* Smaller footprint than the default .btn-secondary/.btn-delete: this
+     dialog's actions row is compact. */
+  .actions .btn-secondary,
+  .actions .btn-delete {
     padding: 0.45rem 0.85rem;
-    font: inherit;
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: background 0.15s, border-color 0.15s;
-  }
-
-  .btn-delete:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--danger) 10%, transparent);
-  }
-
-  .btn-secondary {
-    background: var(--bg);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 0.45rem 0.85rem;
-    font: inherit;
-    font-size: 0.85rem;
-    cursor: pointer;
-  }
-
-  .btn-secondary:hover:not(:disabled) {
-    border-color: var(--accent);
   }
 </style>

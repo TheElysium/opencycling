@@ -73,17 +73,9 @@
     color: var(--muted);
   }
 
+  /* Smaller footprint than the default .btn-secondary: this row is compact. */
   .btn-secondary {
-    background: var(--bg);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 6px;
     padding: 0.35rem 0.75rem;
-    font: inherit;
     font-size: 0.82rem;
-    cursor: pointer;
   }
-
-  .btn-secondary:hover:not(:disabled) { border-color: var(--accent); }
-  .btn-secondary:disabled { opacity: 0.5; cursor: default; }
 </style>

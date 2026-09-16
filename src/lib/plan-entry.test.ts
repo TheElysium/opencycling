@@ -5,7 +5,6 @@ import { assignAction, entryWorkoutName, noteAction, removeWorkoutAction } from 
 function entry(overrides: Partial<PlanEntryView> = {}): PlanEntryView {
   return {
     entry_id: 7,
-    position: 0,
     file_name: null,
     workout_name: null,
     note: null,
@@ -114,33 +113,12 @@ describe('assignAction', () => {
     });
   });
 
-  it('stores the authored <name> verbatim, case and punctuation included', () => {
-    const action = assignAction(null, { file_name: 'ss.zwo', workout_name: 'sweet spot 2x20' }, '');
-    expect(action).toEqual({
-      kind: 'create',
-      content: { file_name: 'ss.zwo', workout_name: 'sweet spot 2x20', note: null },
-    });
-  });
-
-  it('trims the authored <name> without reformatting it', () => {
-    const action = assignAction(null, { file_name: 'ss.zwo', workout_name: '  sweet spot  ' }, '');
-    expect(action).toEqual({
-      kind: 'create',
-      content: { file_name: 'ss.zwo', workout_name: 'sweet spot', note: null },
-    });
-  });
-
+  // Naming itself (verbatim/trim/fallback) is entryWorkoutName's own contract, tested below;
+  // this only pins that assignAction wires the picked workout through it.
   it('falls back to the file stem when the .zwo carries no <name>', () => {
     expect(assignAction(null, { file_name: 'run_3.zwo', workout_name: null }, '')).toEqual({
       kind: 'create',
       content: { file_name: 'run_3.zwo', workout_name: 'Run 3', note: null },
-    });
-  });
-
-  it('falls back to the file stem when the <name> is blank', () => {
-    expect(assignAction(null, { file_name: 'long-ride.zwo', workout_name: '  ' }, '')).toEqual({
-      kind: 'create',
-      content: { file_name: 'long-ride.zwo', workout_name: 'Long Ride', note: null },
     });
   });
 });

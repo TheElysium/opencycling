@@ -152,10 +152,7 @@ pub enum DbCommand {
         session_id: i64,
         reply: oneshot::Sender<Result<PlanEntry, AppError>>,
     },
-    WorkoutFileNames {
-        reply: oneshot::Sender<Result<Vec<String>, AppError>>,
-    },
-    EntryExistsFile {
+    WorkoutFileExists {
         file_name: String,
         reply: oneshot::Sender<Result<bool, AppError>>,
     },
@@ -575,19 +572,10 @@ impl DbActorHandle {
         rx.await.map_err(|_| AppError::ChannelClosed)?
     }
 
-    pub async fn workout_file_names(&self) -> Result<Vec<String>, AppError> {
+    pub async fn workout_file_exists(&self, file_name: String) -> Result<bool, AppError> {
         let (tx, rx) = oneshot::channel();
         self.sender
-            .send(DbCommand::WorkoutFileNames { reply: tx })
-            .await
-            .map_err(|_| AppError::ChannelClosed)?;
-        rx.await.map_err(|_| AppError::ChannelClosed)?
-    }
-
-    pub async fn entry_exists_file(&self, file_name: String) -> Result<bool, AppError> {
-        let (tx, rx) = oneshot::channel();
-        self.sender
-            .send(DbCommand::EntryExistsFile {
+            .send(DbCommand::WorkoutFileExists {
                 file_name,
                 reply: tx,
             })

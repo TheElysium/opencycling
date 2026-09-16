@@ -36,8 +36,13 @@
     {#each day.entries as entry (entry.entry_id)}
       <!-- Gate on the file: early rows stored an empty name and must not read as a rest day. -->
       {#if entry.file_name}
-        <span class="entry" class:missing={entry.missing} title={entry.file_name}>
-          {entry.workout_name || entry.file_name}
+        <span class="entry-row">
+          <span class="entry" class:missing={entry.missing} title={entry.file_name}>
+            {entry.workout_name || entry.file_name}
+          </span>
+          {#if entry.session_id != null}
+            <CircleCheck class="done-badge" size={12} strokeWidth={2.5} />
+          {/if}
         </span>
       {/if}
       {#if entry.note}

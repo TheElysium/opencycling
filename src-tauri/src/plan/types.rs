@@ -8,6 +8,8 @@ pub struct TrainingPlan {
     /// ISO `YYYY-MM-DD`, always a Monday.
     pub start_date: String,
     pub weeks: u32,
+    /// ISO `YYYY-MM-DD`; the end is EXCLUSIVE (see `plan::schedule::plan_range`).
+    pub end_date: String,
     /// RFC 3339.
     pub created_at: String,
     /// `None` = active.
@@ -40,7 +42,6 @@ pub struct PlanDay {
 #[derive(Serialize, Deserialize, Debug, Clone, Type)]
 pub struct PlanEntryView {
     pub entry_id: i64,
-    pub position: i32,
     pub file_name: Option<String>,
     pub workout_name: Option<String>,
     pub note: Option<String>,
@@ -75,9 +76,7 @@ pub struct NewEntry {
     pub plan_id: i64,
     /// ISO `YYYY-MM-DD`.
     pub date: String,
-    pub file_name: Option<String>,
-    pub workout_name: Option<String>,
-    pub note: Option<String>,
+    pub content: EntryContent,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type)]

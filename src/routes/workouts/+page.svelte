@@ -417,37 +417,7 @@
     margin: -0.5rem 0 1.25rem;
   }
 
-  /* .tag-pill (below) provides the shared pastille look; this adds the
-     interactive-button bits (cursor, border, active state, transition). */
-  .tag-filter {
-    border: 1px solid transparent;
-    cursor: pointer;
-    transition: color 0.15s, background 0.15s, border-color 0.15s;
-  }
-
-  .tag-filter:hover {
-    color: var(--text);
-  }
-
-  .tag-filter.active {
-    color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 14%, transparent);
-    border-color: color-mix(in srgb, var(--accent) 30%, transparent);
-  }
-
-  .muted { color: var(--muted); }
-  .link  { color: var(--accent); text-decoration: underline; }
-
-  .tag-pill {
-    font-size: 0.65rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    padding: 0.1rem 0.4rem;
-    border-radius: 4px;
-    background: color-mix(in srgb, var(--muted) 12%, transparent);
-    color: var(--muted);
-  }
+  .link { color: var(--accent); text-decoration: underline; }
 
   .warn-box {
     display: flex;

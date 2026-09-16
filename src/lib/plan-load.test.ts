@@ -30,7 +30,6 @@ function workout(overrides: Partial<ParsedWorkout> = {}): ParsedWorkout {
 function entry(overrides: Partial<PlanEntryView> = {}): PlanEntryView {
   return {
     entry_id: 1,
-    position: 0,
     file_name: null,
     workout_name: null,
     note: null,
@@ -179,22 +178,17 @@ describe('entryIntensities', () => {
   const base = workout({ file_name: 'base.zwo', workout_blocks: [steadyBlock(3600, 0.7)] });
   const vo2 = workout({ file_name: 'vo2.zwo', workout_blocks: [steadyBlock(1800, 1.1)] });
 
-  it('maps every entry across all weeks by its own entry_id', () => {
+  it('maps every entry across all weeks by its own entry_id, with a note-only entry mapped to null', () => {
     const index = indexByFileName([base, vo2]);
     const weeks = [
       week([day([entry({ entry_id: 1, file_name: 'base.zwo' })])]),
-      week([day([entry({ entry_id: 2, file_name: 'vo2.zwo' })])]),
+      week([day([entry({ entry_id: 2, file_name: 'vo2.zwo' }), entry({ entry_id: 3, note: 'swim 45min' })])]),
     ];
     const map = entryIntensities(weeks, index, 200);
     expect(map.get(1)).toBe('Endurance');
     expect(map.get(2)).toBe('VO2max');
-    expect(map.size).toBe(2);
-  });
-
-  it('maps a note-only or unindexed entry to null rather than omitting it', () => {
-    const weeks = [week([day([entry({ entry_id: 1, note: 'swim 45min' })])])];
-    const map = entryIntensities(weeks, indexByFileName([]), 200);
-    expect(map.get(1)).toBeNull();
+    expect(map.get(3)).toBeNull();
+    expect(map.size).toBe(3);
   });
 });
 

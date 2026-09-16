@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
-  import { goto } from '$app/navigation';
   import { ArrowLeft } from '@lucide/svelte';
   import { confirm } from '@tauri-apps/plugin-dialog';
   import {
@@ -20,10 +19,8 @@
     removeWorkoutAction,
     type DayAction,
   } from '$lib/plan-entry';
-  import { getSettings } from '$lib/settings';
-  import { entryIntensities, indexByFileName, maxWeekTss, weekLoad } from '$lib/plan-load';
-  import { resolvePlanStart } from '$lib/plan-start';
-  import { session } from '$lib/session.svelte';
+  import { library } from '$lib/library.svelte';
+  import { entryIntensities, maxWeekTss, weekLoad } from '$lib/plan-load';
   import PlanWeekRow from '$lib/components/PlanWeekRow.svelte';
   import PlanNoteField from '$lib/components/PlanNoteField.svelte';
   import WorkoutPicker from '$lib/components/WorkoutPicker.svelte';
@@ -35,11 +32,6 @@
   let loading = $state(true);
   let busy = $state(false);
   let error = $state<string | null>(null);
-
-  // Library/settings feed the week summaries only: their failure must not break the grid.
-  let libraryFtp = $state(0);
-  let libraryAero = $state(false);
-  let libraryWorkouts = $state<ParsedWorkout[]>([]);
 
   let pickerOpen = $state(false);
   let pickerDate = $state<string | null>(null);
@@ -61,28 +53,12 @@
     }
   }
 
-  // Best-effort: a rider without a configured library still gets a usable plan grid.
-  async function loadLibrary() {
-    try {
-      const s = await getSettings();
-      libraryFtp = s.ftp_w;
-      libraryAero = s.aero_enabled;
-      if (s.workout_path) {
-        const lib = await commands.listWorkoutsCmd(s.workout_path, s.ftp_w);
-        libraryWorkouts = lib.workouts;
-      }
-    } catch {
-      libraryWorkouts = [];
-    }
-  }
-
-  let workoutIndex = $derived(indexByFileName(libraryWorkouts));
-  let weekLoads = $derived(weeks.map((w) => weekLoad(w, workoutIndex, libraryFtp)));
+  let weekLoads = $derived(weeks.map((w) => weekLoad(w, library.index, library.ftp)));
   let planMaxTss = $derived(maxWeekTss(weekLoads));
-  let planIntensities = $derived(entryIntensities(weeks, workoutIndex, libraryFtp));
+  let planIntensities = $derived(entryIntensities(weeks, library.index, library.ftp));
 
   onMount(async () => {
-    await Promise.all([load(), loadLibrary()]);
+    await Promise.all([load(), library.load()]);
     loading = false;
   });
 
@@ -104,13 +80,8 @@
   async function startEntry(entry: PlanEntryView) {
     if (busy || !entry.file_name) return;
     error = null;
-    const result = resolvePlanStart(entry, workoutIndex, libraryFtp);
-    if (!result.ok) {
-      error = result.error;
-      return;
-    }
-    session.prepare(result.workout, result.ftpW, libraryAero, entry.entry_id);
-    await goto('/session');
+    const err = await library.start(entry);
+    if (err) error = err;
   }
 
   async function mutate(action: () => Promise<unknown>) {
@@ -139,7 +110,7 @@
     }
     await mutate(async () => {
       if (action.kind === 'create') {
-        await commands.createPlanEntry({ plan_id: planId, date, ...action.content });
+        await commands.createPlanEntry({ plan_id: planId, date, content: action.content });
       } else if (action.kind === 'update') {
         await commands.updatePlanEntry(action.entryId, action.content);
       } else {
@@ -187,9 +158,14 @@
 
   {#if loading}
     <p class="muted">Loading…</p>
-  {:else if error}
-    <p class="error-box">{error}</p>
-  {:else if plan}
+  {:else if !plan}
+    {#if error}
+      <p class="error-box">{error}</p>
+    {/if}
+  {:else}
+    {#if error}
+      <p class="error-box">{error}</p>
+    {/if}
     <header>
       <div class="title-line">
         <h1>{plan.name}</h1>
@@ -197,7 +173,7 @@
           <span class="archived-badge">Archived</span>
         {/if}
       </div>
-      <p class="meta">{formatPlanRange(plan.start_date, plan.weeks)}</p>
+      <p class="meta">{formatPlanRange(plan.start_date, plan.end_date)}</p>
     </header>
 
     <div class="grid">
@@ -237,8 +213,6 @@
 />
 
 <style>
-  .muted { color: var(--muted); }
-
   .back {
     display: inline-flex;
     align-items: center;

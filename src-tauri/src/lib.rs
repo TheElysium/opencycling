@@ -398,11 +398,16 @@ async fn get_plan_weeks(
 ) -> Result<Vec<PlanWeek>, AppError> {
     let plan = state.get_plan(id).await?;
     let entries = state.list_plan_entries(id).await?;
-    let file_names = state.workout_file_names().await?;
+    // Reuses the workout cache table (same rows `list_workouts_cmd` reads) instead of a
+    // dedicated round-trip: only the file names are needed here.
+    let cached = state.list_workout_cache().await?;
     crate::plan::build_weeks(
         &plan,
         &entries,
-        &file_names.into_iter().collect(),
+        &cached
+            .into_iter()
+            .map(|(file_name, _, _)| file_name)
+            .collect(),
         chrono::Local::now().date_naive(),
     )
 }
@@ -416,14 +421,12 @@ async fn create_plan_entry(
     let plan = state.get_plan(entry.plan_id).await?;
     reject_archived(&plan)?;
     validate_entry_date(&plan, &entry.date)?;
-    let content = checked_content(&state, content_of(&entry), None).await?;
+    let content = checked_content(&state, entry.content, None).await?;
     state
         .insert_plan_entry(NewEntry {
             plan_id: entry.plan_id,
             date: entry.date,
-            file_name: content.file_name,
-            workout_name: content.workout_name,
-            note: content.note,
+            content,
         })
         .await
 }
@@ -475,14 +478,6 @@ fn reject_archived(plan: &TrainingPlan) -> Result<(), AppError> {
     Ok(())
 }
 
-fn content_of(entry: &NewEntry) -> EntryContent {
-    EntryContent {
-        file_name: entry.file_name.clone(),
-        workout_name: entry.workout_name.clone(),
-        note: entry.note.clone(),
-    }
-}
-
 /// The single entry-content gate both write commands go through: normalize, then
 /// validate shape and library membership.
 /// `previous_file` is the file the entry already holds: an untouched one is not
@@ -506,7 +501,7 @@ async fn reject_missing_file(
     let Some(file_name) = file_name else {
         return Ok(());
     };
-    if !state.entry_exists_file(file_name.to_string()).await? {
+    if !state.workout_file_exists(file_name.to_string()).await? {
         return Err(AppError::PlanValidation(format!(
             "workout file `{file_name}` is not in the library"
         )));

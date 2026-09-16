@@ -107,8 +107,14 @@ class SessionStore {
       m.state,
       m.session_id
     )) {
-      this.linkedPlanSessionId = m.session_id;
-      commands.linkPlanEntrySessionCmd(this.pendingPlanEntryId!, m.session_id!).catch(() => {});
+      const sessionId = m.session_id!;
+      this.linkedPlanSessionId = sessionId;
+      // Reset (not swallow) a failure so the next session_metrics tick retries the
+      // link instead of losing it permanently (shouldLinkPlanEntry never retries on its own).
+      commands.linkPlanEntrySessionCmd(this.pendingPlanEntryId!, sessionId).catch((e) => {
+        console.warn('link_plan_entry_session_cmd failed, will retry', e);
+        if (this.linkedPlanSessionId === sessionId) this.linkedPlanSessionId = null;
+      });
     }
     if (!this.isFtpTest) return;
     this.drop = stepDropDetector(this.drop, {

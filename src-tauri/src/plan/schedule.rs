@@ -94,11 +94,14 @@ fn entries_for_days(entries: &[PlanEntry], start: NaiveDate, end: NaiveDate) -> 
 }
 
 fn view_entries(entries: &[&PlanEntry], known_files: &HashSet<String>) -> Vec<PlanEntryView> {
-    let mut views: Vec<_> = entries
-        .iter()
+    // Ordering stays DB-driven (position then id); the view drops `position`
+    // itself since the frontend never reads it.
+    let mut sorted: Vec<&PlanEntry> = entries.to_vec();
+    sorted.sort_by(|a, b| a.position.cmp(&b.position).then_with(|| a.id.cmp(&b.id)));
+    sorted
+        .into_iter()
         .map(|e| PlanEntryView {
             entry_id: e.id,
-            position: e.position,
             file_name: e.file_name.clone(),
             workout_name: e.workout_name.clone(),
             note: e.note.clone(),
@@ -108,13 +111,7 @@ fn view_entries(entries: &[&PlanEntry], known_files: &HashSet<String>) -> Vec<Pl
                 .as_ref()
                 .is_some_and(|f| !known_files.contains(f)),
         })
-        .collect();
-    views.sort_by(|a, b| {
-        a.position
-            .cmp(&b.position)
-            .then_with(|| a.entry_id.cmp(&b.entry_id))
-    });
-    views
+        .collect()
 }
 
 /// Validates an entry date against the plan's half-open range [start, end).
@@ -268,6 +265,11 @@ mod tests {
             name: format!("Plan {id}"),
             start_date: start_date.to_string(),
             weeks,
+            // Mirrors the store's own corrupt-row fallback: an unparseable
+            // start_date must not panic a test helper either.
+            end_date: plan_range(start_date, weeks)
+                .map(|(_, end)| end.format("%Y-%m-%d").to_string())
+                .unwrap_or_default(),
             created_at: "2026-09-01T10:00:00Z".to_string(),
             archived_at: None,
         }
