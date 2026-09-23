@@ -48,6 +48,17 @@ export const commands = {
 	saveKnownDevice: (kind: DeviceKind, id: string, name: string) => __TAURI_INVOKE<null>("save_known_device", { kind, id, name }),
 	setAutoConnect: (enabled: boolean) => __TAURI_INVOKE<null>("set_auto_connect", { enabled }),
 	uploadSessionToStrava: (sessionId: number, force: boolean) => __TAURI_INVOKE<number>("upload_session_to_strava", { sessionId, force }),
+	listPlans: (includeArchived: boolean) => __TAURI_INVOKE<TrainingPlan[]>("list_plans", { includeArchived }),
+	getPlan: (id: number) => __TAURI_INVOKE<TrainingPlan>("get_plan", { id }),
+	createPlan: (plan: NewPlan) => __TAURI_INVOKE<number>("create_plan", { plan }),
+	updatePlan: (id: number, plan: NewPlan) => __TAURI_INVOKE<null>("update_plan", { id, plan }),
+	setPlanArchived: (id: number, archived: boolean) => __TAURI_INVOKE<null>("set_plan_archived", { id, archived }),
+	deletePlan: (id: number) => __TAURI_INVOKE<null>("delete_plan", { id }),
+	getPlanWeeks: (id: number) => __TAURI_INVOKE<PlanWeek[]>("get_plan_weeks", { id }),
+	createPlanEntry: (entry: NewEntry) => __TAURI_INVOKE<PlanEntry>("create_plan_entry", { entry }),
+	updatePlanEntry: (entryId: number, content: EntryContent) => __TAURI_INVOKE<PlanEntry>("update_plan_entry", { entryId, content }),
+	deletePlanEntry: (entryId: number) => __TAURI_INVOKE<null>("delete_plan_entry", { entryId }),
+	linkPlanEntrySessionCmd: (entryId: number, sessionId: number) => __TAURI_INVOKE<PlanEntry>("link_plan_entry_session_cmd", { entryId, sessionId }),
 };
 
 /* Types */
@@ -72,6 +83,8 @@ export type BleReconnect = {
 	attempt: number | null,
 };
 
+export type DayMarker = "Past" | "Today" | "Future";
+
 export type DeviceInfo = {
 	id: string,
 	name: string,
@@ -79,6 +92,16 @@ export type DeviceInfo = {
 };
 
 export type DeviceKind = "Trainer" | "Hrm";
+
+/**
+ *  The editable part of an entry: a workout, a note, or both (mirrors the
+ *  `plan_entries` CHECK constraint).
+ */
+export type EntryContent = {
+	file_name: string | null,
+	workout_name: string | null,
+	note: string | null,
+};
 
 export type FlatBlock = {
 	duration_s: number,
@@ -107,6 +130,19 @@ export type Metric = {
 	aero_score: number | null,
 };
 
+export type NewEntry = {
+	plan_id: number,
+	/**  ISO `YYYY-MM-DD`. */
+	date: string,
+	content: EntryContent,
+};
+
+export type NewPlan = {
+	name: string,
+	start_date: string,
+	weeks: number,
+};
+
 export type ParsedWorkout = {
 	author: string | null,
 	name: string | null,
@@ -121,6 +157,41 @@ export type ParsedWorkout = {
 	 *  without a file context (e.g. tests or load_workout command).
 	 */
 	file_name: string | null,
+};
+
+/**  No weekday name: a week always holds 7 days from Monday, so the index is the weekday. */
+export type PlanDay = {
+	/**  ISO `YYYY-MM-DD`. */
+	date: string,
+	marker: DayMarker,
+	entries: PlanEntryView[],
+};
+
+export type PlanEntry = {
+	id: number,
+	plan_id: number,
+	/**  ISO `YYYY-MM-DD`. */
+	date: string,
+	position: number,
+	file_name: string | null,
+	workout_name: string | null,
+	note: string | null,
+	session_id: number | null,
+};
+
+export type PlanEntryView = {
+	entry_id: number,
+	file_name: string | null,
+	workout_name: string | null,
+	note: string | null,
+	session_id: number | null,
+	missing: boolean,
+};
+
+/**  One row of the plan grid; `number` is 1-based so the UI renders "Week 1" as is. */
+export type PlanWeek = {
+	number: number,
+	days: PlanDay[],
 };
 
 export type SessionCard = {
@@ -227,6 +298,20 @@ export type StravaStatus = {
 	athlete_id: number | null,
 	athlete_name: string | null,
 	auto_upload: boolean,
+};
+
+export type TrainingPlan = {
+	id: number,
+	name: string,
+	/**  ISO `YYYY-MM-DD`, always a Monday. */
+	start_date: string,
+	weeks: number,
+	/**  ISO `YYYY-MM-DD`; the end is EXCLUSIVE (see `plan::schedule::plan_range`). */
+	end_date: string,
+	/**  RFC 3339. */
+	created_at: string,
+	/**  `None` = active. */
+	archived_at: string | null,
 };
 
 export type WorkoutBlock = ({ SteadyState: {

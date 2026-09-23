@@ -1,0 +1,16 @@
+# Keep in sync with scripts/gate.sh and .github/workflows/ci.yml.
+stack: tauri
+
+format: cd src-tauri && cargo fmt --all --check
+
+lint: cd src-tauri && cargo clippy --all-targets -- -D warnings && cd .. && pnpm lint
+
+typecheck: pnpm check
+
+test: cd src-tauri && cargo test && cd .. && pnpm test
+
+bindings: cd src-tauri && cargo run --bin export_bindings && git diff --exit-code -- ../src/lib/bindings.ts
+
+sast: cd src-tauri && cargo audit
+
+size: bash scripts/check_size.sh

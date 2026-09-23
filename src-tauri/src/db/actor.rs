@@ -1,5 +1,6 @@
 use crate::ble::DeviceKind;
 use crate::db::command::DbCommand;
+use crate::db::plan_store;
 use crate::db::{
     KnownDevice, KnownDevices, Metric, SessionCard, SessionDetail, Settings, StravaAuth,
 };
@@ -156,6 +157,57 @@ impl DbActor {
                         reply,
                     } => {
                         let _ = reply.send(self.list_sessions_for_workout(&workout_name));
+                    }
+                    DbCommand::ListPlans {
+                        include_archived,
+                        reply,
+                    } => {
+                        let _ = reply.send(plan_store::list(&self.conn, include_archived));
+                    }
+                    DbCommand::GetPlan { id, reply } => {
+                        let _ = reply.send(plan_store::get(&self.conn, id));
+                    }
+                    DbCommand::InsertPlan { plan, reply } => {
+                        let _ = reply.send(plan_store::insert(&self.conn, &plan));
+                    }
+                    DbCommand::UpdatePlan { id, plan, reply } => {
+                        let _ = reply.send(plan_store::update(&self.conn, id, &plan));
+                    }
+                    DbCommand::SetPlanArchived {
+                        id,
+                        archived,
+                        reply,
+                    } => {
+                        let _ = reply.send(plan_store::set_archived(&self.conn, id, archived));
+                    }
+                    DbCommand::DeletePlan { id, reply } => {
+                        let _ = reply.send(plan_store::delete(&self.conn, id));
+                    }
+                    DbCommand::GetPlanEntry { id, reply } => {
+                        let _ = reply.send(plan_store::get_entry(&self.conn, id));
+                    }
+                    DbCommand::ListPlanEntries { plan_id, reply } => {
+                        let _ = reply.send(plan_store::list_entries(&self.conn, plan_id));
+                    }
+                    DbCommand::InsertPlanEntry { entry, reply } => {
+                        let _ = reply.send(plan_store::insert_entry(&self.conn, &entry));
+                    }
+                    DbCommand::UpdatePlanEntry { id, content, reply } => {
+                        let _ = reply.send(plan_store::update_entry(&self.conn, id, &content));
+                    }
+                    DbCommand::DeletePlanEntry { id, reply } => {
+                        let _ = reply.send(plan_store::delete_entry(&self.conn, id));
+                    }
+                    DbCommand::LinkPlanEntrySession {
+                        entry_id,
+                        session_id,
+                        reply,
+                    } => {
+                        let _ =
+                            reply.send(plan_store::link_session(&self.conn, entry_id, session_id));
+                    }
+                    DbCommand::WorkoutFileExists { file_name, reply } => {
+                        let _ = reply.send(plan_store::workout_file_exists(&self.conn, &file_name));
                     }
                 },
             }

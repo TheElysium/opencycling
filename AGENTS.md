@@ -15,10 +15,12 @@ cargo audit                          # dependency security audit (RustSec, CI-en
 cargo run --bin export_bindings      # regenerate src/lib/bindings.ts
 ```
 
-Quality gates (CI-enforced, local via `scripts/gate.sh`):
+Quality gates. The commands live in `.gates.yml` at the repo root, which agents read
+verbatim; `scripts/gate.sh` runs the same list in one shot and `ci.yml` enforces it
+per job. Change all three together.
 
 ```bash
-bash scripts/gate.sh                 # full gate: fmt + clippy + tests + audit + size + frontend
+bash scripts/gate.sh                 # full gate: fmt + clippy + tests + bindings drift + audit + size + frontend
 bash scripts/check_size.sh           # file size gate only: no source file over 1000 lines
 ```
 
@@ -63,7 +65,7 @@ Actors are wired in `lib.rs::run()` (`.setup()` closure) and registered with `ap
 
 ### Frontend (`src/`)
 
-SvelteKit routes: `/` (connection), `/workouts`, `/workouts/detail`, `/session`, `/history`, `/history/[id]`, `/settings`. Sidebar hidden on `/session`.
+SvelteKit routes: `/` (home: today card + device connection), `/workouts`, `/workouts/detail`, `/session`, `/history`, `/history/[id]`, `/settings`. Sidebar hidden on `/session`.
 
 Shared state lives in `.svelte.ts` rune stores: `lib/ble.svelte.ts`, `lib/session.svelte.ts`, `lib/workout.svelte.ts`, `lib/aero.svelte.ts`. Helpers: `lib/db.ts`, `lib/settings.ts`, `lib/format.ts`, `lib/metrics.ts`, `lib/ftp.ts`, `lib/audio.ts`, `lib/devices.ts` (auto-connect matching), `lib/chart-scale.ts`, `lib/session-visuals.ts`, `lib/strava.ts` (thin wrappers over generated commands), `lib/updater.ts` (`@tauri-apps/plugin-updater`, no-op under `tauri dev`), `lib/export.ts` (save dialog, then delegates to the Rust `export_session_tcx` command), `lib/aero.ts` (pure, unit-tested webcam aero-position scoring; `lib/aero.svelte.ts` owns the MoveNet detector, bundled offline under `static/models/`).
 

@@ -7,6 +7,7 @@
   import { ble, disconnectDevice, type DeviceKind, type DeviceStatus, type ReconnectState } from '$lib/ble.svelte';
   import { autoConnectCandidates } from '$lib/devices';
   import { toMessage } from '$lib/format';
+  import TodayCard from '$lib/components/TodayCard.svelte';
 
   let trainerId  = $state<string | null>(null);
   let hrmId      = $state<string | null>(null);
@@ -167,152 +168,161 @@
 </script>
 
 <div class="page-wide">
-  <div class="header">
-    <h1>Connection</h1>
-    <button
-      onclick={scanDevices}
-      disabled={scanning}
-      class="scan-btn {anyConnected ? 'btn-secondary' : 'btn-primary'}"
-    >
-      <span class="scan-label" class:hidden={scanning}>
-        <Search size={16} /> Scan
-      </span>
-      <span class="scan-label" class:hidden={!scanning}>
-        <LoaderCircle size={16} class="spin" /> Scanning…
-      </span>
-    </button>
-  </div>
+  <h1>Home</h1>
 
-  {#if scanError}
-    <p class="error-box scan-error">{scanError}</p>
-  {/if}
+  <section class="home-section">
+    <h2 class="section-title">Today</h2>
+    <TodayCard />
+  </section>
 
-  <div class="devices">
-    <div class="card device-card">
-      <div class="card-header">
-        <div class="device-info">
-          <span class="device-label">
-            <Gauge size={16} aria-hidden="true" /> Home Trainer
-          </span>
-          {#if ble.trainerName}
-            <span class="device-name">{ble.trainerName}</span>
-          {/if}
-        </div>
-        <div class="status">
-          <span class="dot" class:pulse-dot={ble.trainerStatus === 'scanning'} style="background: {reconnectColor(ble.trainerReconnect, ble.trainerStatus)}"></span>
-          <span class="status-text" style="color: {reconnectColor(ble.trainerReconnect, ble.trainerStatus)}">{reconnectText(ble.trainerReconnect, ble.trainerStatus, autoConnecting.trainer)}</span>
-        </div>
-      </div>
-      {#if ble.trainerStatus === 'not_found' && !bothNotFound}
-        <p class="hint" transition:slide={{ duration: 200 }}>Make sure your trainer is powered on, then scan again.</p>
-      {/if}
-      {#if ble.trainerStatus === 'disconnected'}
-        <p class="hint" transition:slide={{ duration: 200 }}>Trainer disconnected. Scan to reconnect.</p>
-      {/if}
-      {#if ble.trainerReconnect?.status === 'failed'}
-        <p class="hint" transition:slide={{ duration: 200 }}>Trainer unavailable.</p>
-        <div class="card-actions" transition:slide={{ duration: 200 }}>
-          <button onclick={() => ble.retryReconnect('Trainer')} class="btn-primary">Retry</button>
-        </div>
-      {/if}
-      {#if ble.trainerStatus === 'detected'}
-        <div class="card-actions" transition:slide={{ duration: 200 }}>
-          <button onclick={() => connect('Trainer')} class="btn-primary">Connect</button>
-        </div>
-      {/if}
-      {#if ble.trainerStatus === 'connected'}
-        <div class="card-actions" transition:slide={{ duration: 200 }}>
-          <button onclick={() => disconnectDevice('Trainer')} class="btn-ghost">Disconnect</button>
-        </div>
-      {/if}
-      {#if ble.trainerError}
-        <p class="error" transition:slide={{ duration: 200 }}>{ble.trainerError}</p>
-      {/if}
-    </div>
-
-    <div class="card device-card">
-      <div class="card-header">
-        <div class="device-info">
-          <span class="device-label">
-            <Heart size={16} aria-hidden="true" /> Heart Rate Monitor
-            <span class="optional">Optional</span>
-          </span>
-          {#if ble.hrmName}
-            <span class="device-name">{ble.hrmName}</span>
-          {/if}
-        </div>
-        <div class="status">
-          <span class="dot" class:pulse-dot={ble.hrmStatus === 'scanning'} style="background: {reconnectColor(ble.hrmReconnect, ble.hrmStatus)}"></span>
-          <span class="status-text" style="color: {reconnectColor(ble.hrmReconnect, ble.hrmStatus)}">{reconnectText(ble.hrmReconnect, ble.hrmStatus, autoConnecting.hrm)}</span>
-        </div>
-      </div>
-      {#if ble.hrmStatus === 'not_found'}
-        <p class="hint" transition:slide={{ duration: 200 }}>No heart rate monitor detected. Sessions work without HR.</p>
-      {/if}
-      {#if ble.hrmStatus === 'disconnected'}
-        <p class="hint" transition:slide={{ duration: 200 }}>Heart rate monitor disconnected. Scan to reconnect.</p>
-      {/if}
-      {#if ble.hrmReconnect?.status === 'failed'}
-        <p class="hint" transition:slide={{ duration: 200 }}>Heart rate monitor unavailable.</p>
-        <div class="card-actions" transition:slide={{ duration: 200 }}>
-          <button onclick={() => ble.retryReconnect('Hrm')} class="btn-primary">Retry</button>
-        </div>
-      {/if}
-      {#if ble.hrmStatus === 'detected'}
-        <div class="card-actions" transition:slide={{ duration: 200 }}>
-          <button onclick={() => connect('Hrm')} class="btn-primary">Connect</button>
-        </div>
-      {/if}
-      {#if ble.hrmStatus === 'connected'}
-        <div class="card-actions" transition:slide={{ duration: 200 }}>
-          <button onclick={() => disconnectDevice('Hrm')} class="btn-ghost">Disconnect</button>
-        </div>
-      {/if}
-      {#if ble.hrmError}
-        <p class="error" transition:slide={{ duration: 200 }}>{ble.hrmError}</p>
-      {/if}
-    </div>
-  </div>
-
-  {#if bothNotFound}
-    <div class="empty-state" transition:fade={{ duration: 200 }}>
-      <Plug2 size={36} aria-hidden="true" />
-      <div class="empty-body">
-        <p class="empty-title">No devices found</p>
-        <p class="empty-hint">
-          Power on your trainer, place it within ~2&nbsp;m of your computer, then scan again.
-        </p>
-      </div>
-      <button onclick={scanDevices} class="btn-primary big-scan">
-        <Search size={16} /> Scan again
+  <section class="home-section">
+    <div class="header">
+      <h2 class="section-title">Connection</h2>
+      <button
+        onclick={scanDevices}
+        disabled={scanning}
+        class="scan-btn {anyConnected ? 'btn-secondary' : 'btn-primary'}"
+      >
+        <span class="scan-label" class:hidden={scanning}>
+          <Search size={16} /> Scan
+        </span>
+        <span class="scan-label" class:hidden={!scanning}>
+          <LoaderCircle size={16} class="spin" /> Scanning…
+        </span>
       </button>
     </div>
-  {/if}
 
-  {#if anyConnected && ble.metrics}
-    <div class="metrics-card" transition:fade={{ duration: 200 }}>
-      <div class="metric">
-        <Activity size={14} class="metric-icon" />
-        <span class="value">{ble.metrics.power_w ?? '—'}</span>
-        <span class="unit">W</span>
+    {#if scanError}
+      <p class="error-box scan-error">{scanError}</p>
+    {/if}
+
+    <div class="devices">
+      <div class="card device-card">
+        <div class="card-header">
+          <div class="device-info">
+            <span class="device-label">
+              <Gauge size={16} aria-hidden="true" /> Home Trainer
+            </span>
+            {#if ble.trainerName}
+              <span class="device-name">{ble.trainerName}</span>
+            {/if}
+          </div>
+          <div class="status">
+            <span class="dot" class:pulse-dot={ble.trainerStatus === 'scanning'} style="background: {reconnectColor(ble.trainerReconnect, ble.trainerStatus)}"></span>
+            <span class="status-text" style="color: {reconnectColor(ble.trainerReconnect, ble.trainerStatus)}">{reconnectText(ble.trainerReconnect, ble.trainerStatus, autoConnecting.trainer)}</span>
+          </div>
+        </div>
+        {#if ble.trainerStatus === 'not_found' && !bothNotFound}
+          <p class="hint" transition:slide={{ duration: 200 }}>Make sure your trainer is powered on, then scan again.</p>
+        {/if}
+        {#if ble.trainerStatus === 'disconnected'}
+          <p class="hint" transition:slide={{ duration: 200 }}>Trainer disconnected. Scan to reconnect.</p>
+        {/if}
+        {#if ble.trainerReconnect?.status === 'failed'}
+          <p class="hint" transition:slide={{ duration: 200 }}>Trainer unavailable.</p>
+          <div class="card-actions" transition:slide={{ duration: 200 }}>
+            <button onclick={() => ble.retryReconnect('Trainer')} class="btn-primary">Retry</button>
+          </div>
+        {/if}
+        {#if ble.trainerStatus === 'detected'}
+          <div class="card-actions" transition:slide={{ duration: 200 }}>
+            <button onclick={() => connect('Trainer')} class="btn-primary">Connect</button>
+          </div>
+        {/if}
+        {#if ble.trainerStatus === 'connected'}
+          <div class="card-actions" transition:slide={{ duration: 200 }}>
+            <button onclick={() => disconnectDevice('Trainer')} class="btn-ghost">Disconnect</button>
+          </div>
+        {/if}
+        {#if ble.trainerError}
+          <p class="error" transition:slide={{ duration: 200 }}>{ble.trainerError}</p>
+        {/if}
       </div>
-      <div class="metric">
-        <span class="value">{ble.metrics.cadence_rpm ?? '—'}</span>
-        <span class="unit">rpm</span>
-      </div>
-      <div class="metric metric-hr" class:pulse={ble.metrics.hr_bpm !== null}>
-        <Heart size={14} class="metric-icon" />
-        <span class="value">{ble.metrics.hr_bpm ?? '—'}</span>
-        <span class="unit">bpm</span>
+
+      <div class="card device-card">
+        <div class="card-header">
+          <div class="device-info">
+            <span class="device-label">
+              <Heart size={16} aria-hidden="true" /> Heart Rate Monitor
+              <span class="optional">Optional</span>
+            </span>
+            {#if ble.hrmName}
+              <span class="device-name">{ble.hrmName}</span>
+            {/if}
+          </div>
+          <div class="status">
+            <span class="dot" class:pulse-dot={ble.hrmStatus === 'scanning'} style="background: {reconnectColor(ble.hrmReconnect, ble.hrmStatus)}"></span>
+            <span class="status-text" style="color: {reconnectColor(ble.hrmReconnect, ble.hrmStatus)}">{reconnectText(ble.hrmReconnect, ble.hrmStatus, autoConnecting.hrm)}</span>
+          </div>
+        </div>
+        {#if ble.hrmStatus === 'not_found'}
+          <p class="hint" transition:slide={{ duration: 200 }}>No heart rate monitor detected. Sessions work without HR.</p>
+        {/if}
+        {#if ble.hrmStatus === 'disconnected'}
+          <p class="hint" transition:slide={{ duration: 200 }}>Heart rate monitor disconnected. Scan to reconnect.</p>
+        {/if}
+        {#if ble.hrmReconnect?.status === 'failed'}
+          <p class="hint" transition:slide={{ duration: 200 }}>Heart rate monitor unavailable.</p>
+          <div class="card-actions" transition:slide={{ duration: 200 }}>
+            <button onclick={() => ble.retryReconnect('Hrm')} class="btn-primary">Retry</button>
+          </div>
+        {/if}
+        {#if ble.hrmStatus === 'detected'}
+          <div class="card-actions" transition:slide={{ duration: 200 }}>
+            <button onclick={() => connect('Hrm')} class="btn-primary">Connect</button>
+          </div>
+        {/if}
+        {#if ble.hrmStatus === 'connected'}
+          <div class="card-actions" transition:slide={{ duration: 200 }}>
+            <button onclick={() => disconnectDevice('Hrm')} class="btn-ghost">Disconnect</button>
+          </div>
+        {/if}
+        {#if ble.hrmError}
+          <p class="error" transition:slide={{ duration: 200 }}>{ble.hrmError}</p>
+        {/if}
       </div>
     </div>
-  {/if}
 
-  {#if ble.trainerStatus === 'connected'}
-    <div class="cta" transition:fade={{ duration: 300 }}>
-      <button class="btn-primary" onclick={() => goto('/workouts')}>Go to Workouts →</button>
-    </div>
-  {/if}
+    {#if bothNotFound}
+      <div class="empty-state" transition:fade={{ duration: 200 }}>
+        <Plug2 size={36} aria-hidden="true" />
+        <div class="empty-body">
+          <p class="empty-title">No devices found</p>
+          <p class="empty-hint">
+            Power on your trainer, place it within ~2&nbsp;m of your computer, then scan again.
+          </p>
+        </div>
+        <button onclick={scanDevices} class="btn-primary big-scan">
+          <Search size={16} /> Scan again
+        </button>
+      </div>
+    {/if}
+
+    {#if anyConnected && ble.metrics}
+      <div class="metrics-card" transition:fade={{ duration: 200 }}>
+        <div class="metric">
+          <Activity size={14} class="metric-icon" />
+          <span class="value">{ble.metrics.power_w ?? '—'}</span>
+          <span class="unit">W</span>
+        </div>
+        <div class="metric">
+          <span class="value">{ble.metrics.cadence_rpm ?? '—'}</span>
+          <span class="unit">rpm</span>
+        </div>
+        <div class="metric metric-hr" class:pulse={ble.metrics.hr_bpm !== null}>
+          <Heart size={14} class="metric-icon" />
+          <span class="value">{ble.metrics.hr_bpm ?? '—'}</span>
+          <span class="unit">bpm</span>
+        </div>
+      </div>
+    {/if}
+
+    {#if ble.trainerStatus === 'connected'}
+      <div class="cta" transition:fade={{ duration: 300 }}>
+        <button class="btn-primary" onclick={() => goto('/workouts')}>Go to Workouts →</button>
+      </div>
+    {/if}
+  </section>
 </div>
 
 <style>
@@ -358,13 +368,29 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 1.5rem;
+    margin-bottom: 0.6rem;
   }
 
   h1 {
     font-size: 1.4rem;
     font-weight: 600;
+    margin: 0 0 1.25rem;
+  }
+
+  /* Same section heading as /plans, so both pages read with one hierarchy. */
+  .section-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text);
     margin: 0;
+  }
+
+  .home-section + .home-section {
+    margin-top: 1.75rem;
+  }
+
+  .home-section > .section-title {
+    margin-bottom: 0.6rem;
   }
 
   .devices {

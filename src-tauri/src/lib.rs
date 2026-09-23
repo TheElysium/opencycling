@@ -2,6 +2,11 @@ use crate::ble::sim;
 use crate::ble::{BleActorHandle, BleEvent, BleMetrics, DeviceInfo, DeviceKind};
 use crate::db::{DbActorHandle, KnownDevices, SessionCard, SessionDetail, Settings, StravaAuth};
 use crate::errors::AppError;
+use crate::plan::{
+    EntryContent, NewEntry, NewPlan, PlanEntry, PlanWeek, TrainingPlan, introduced_file,
+    normalize_entry, normalize_plan, validate_entry_content, validate_entry_date,
+    validate_plan_write,
+};
 use crate::session::{FlatBlock, SessionActorHandle, SessionSnapshot, StateKind, flatten_workout};
 use crate::strava::types::StravaStatus;
 use crate::workout::{
@@ -19,6 +24,9 @@ pub mod db;
 pub mod errors;
 mod export;
 mod metrics;
+// pub: `plan_range` / `overlaps` have no consumer before the plan-entries slice,
+// and `-D warnings` rejects them as dead code behind a private module.
+pub mod plan;
 mod session;
 mod strava;
 pub mod workout;
@@ -301,6 +309,208 @@ async fn delete_session(state: tauri::State<'_, DbActorHandle>, id: i64) -> Resu
 
 #[tauri::command]
 #[specta::specta]
+async fn list_plans(
+    state: tauri::State<'_, DbActorHandle>,
+    include_archived: bool,
+) -> Result<Vec<TrainingPlan>, AppError> {
+    state.list_plans(include_archived).await
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn get_plan(
+    state: tauri::State<'_, DbActorHandle>,
+    id: i64,
+) -> Result<TrainingPlan, AppError> {
+    state.get_plan(id).await
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn create_plan(
+    state: tauri::State<'_, DbActorHandle>,
+    plan: NewPlan,
+) -> Result<i64, AppError> {
+    let plan = normalize_plan(&plan);
+    check_plan(&state, &plan, None, false).await?;
+    state.insert_plan(plan).await
+}
+
+/// Every write path (create, update, unarchive) gates here; archived plans skip the
+/// overlap check. Single-user app: the read-then-write race is accepted.
+async fn check_plan(
+    state: &tauri::State<'_, DbActorHandle>,
+    plan: &NewPlan,
+    editing_id: Option<i64>,
+    archived: bool,
+) -> Result<(), AppError> {
+    let active = if archived {
+        Vec::new()
+    } else {
+        state.list_plans(false).await?
+    };
+    validate_plan_write(plan, editing_id, archived, &active)
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn update_plan(
+    state: tauri::State<'_, DbActorHandle>,
+    id: i64,
+    plan: NewPlan,
+) -> Result<(), AppError> {
+    let archived = state.get_plan(id).await?.archived_at.is_some();
+    let plan = normalize_plan(&plan);
+    check_plan(&state, &plan, Some(id), archived).await?;
+    state.update_plan(id, plan).await
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn set_plan_archived(
+    state: tauri::State<'_, DbActorHandle>,
+    id: i64,
+    archived: bool,
+) -> Result<(), AppError> {
+    if !archived {
+        let existing = state.get_plan(id).await?;
+        let candidate = NewPlan {
+            name: existing.name,
+            start_date: existing.start_date,
+            weeks: existing.weeks,
+        };
+        check_plan(&state, &candidate, Some(id), false).await?;
+    }
+    state.set_plan_archived(id, archived).await
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn delete_plan(state: tauri::State<'_, DbActorHandle>, id: i64) -> Result<(), AppError> {
+    state.delete_plan(id).await
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn get_plan_weeks(
+    state: tauri::State<'_, DbActorHandle>,
+    id: i64,
+) -> Result<Vec<PlanWeek>, AppError> {
+    let plan = state.get_plan(id).await?;
+    let entries = state.list_plan_entries(id).await?;
+    // Reuses the workout cache table (same rows `list_workouts_cmd` reads) instead of a
+    // dedicated round-trip: only the file names are needed here.
+    let cached = state.list_workout_cache().await?;
+    crate::plan::build_weeks(
+        &plan,
+        &entries,
+        &cached
+            .into_iter()
+            .map(|(file_name, _, _)| file_name)
+            .collect(),
+        chrono::Local::now().date_naive(),
+    )
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn create_plan_entry(
+    state: tauri::State<'_, DbActorHandle>,
+    entry: NewEntry,
+) -> Result<PlanEntry, AppError> {
+    let plan = state.get_plan(entry.plan_id).await?;
+    reject_archived(&plan)?;
+    validate_entry_date(&plan, &entry.date)?;
+    let content = checked_content(&state, entry.content, None).await?;
+    state
+        .insert_plan_entry(NewEntry {
+            plan_id: entry.plan_id,
+            date: entry.date,
+            content,
+        })
+        .await
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn update_plan_entry(
+    state: tauri::State<'_, DbActorHandle>,
+    entry_id: i64,
+    content: EntryContent,
+) -> Result<PlanEntry, AppError> {
+    let entry = state.get_plan_entry(entry_id).await?;
+    let plan = state.get_plan(entry.plan_id).await?;
+    reject_archived(&plan)?;
+    validate_entry_date(&plan, &entry.date)?;
+    let content = checked_content(&state, content, entry.file_name.as_deref()).await?;
+    state.update_plan_entry(entry_id, content).await
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn delete_plan_entry(
+    state: tauri::State<'_, DbActorHandle>,
+    entry_id: i64,
+) -> Result<(), AppError> {
+    let entry = state.get_plan_entry(entry_id).await?;
+    let plan = state.get_plan(entry.plan_id).await?;
+    reject_archived(&plan)?;
+    state.delete_plan_entry(entry_id).await
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn link_plan_entry_session_cmd(
+    entry_id: i64,
+    session_id: i64,
+    db: tauri::State<'_, DbActorHandle>,
+) -> Result<PlanEntry, AppError> {
+    db.link_plan_entry_session(entry_id, session_id).await
+}
+
+fn reject_archived(plan: &TrainingPlan) -> Result<(), AppError> {
+    if plan.archived_at.is_some() {
+        return Err(AppError::PlanValidation(format!(
+            "plan '{}' is archived; unarchive it to edit its days",
+            plan.name
+        )));
+    }
+    Ok(())
+}
+
+/// The single entry-content gate both write commands go through: normalize, then
+/// validate shape and library membership.
+/// `previous_file` is the file the entry already holds: an untouched one is not
+/// re-checked, so a deleted `.zwo` never blocks a note edit.
+async fn checked_content(
+    state: &DbActorHandle,
+    content: EntryContent,
+    previous_file: Option<&str>,
+) -> Result<EntryContent, AppError> {
+    let content = normalize_entry(&content);
+    validate_entry_content(&content)?;
+    let added = introduced_file(previous_file, content.file_name.as_deref());
+    reject_missing_file(state, added).await?;
+    Ok(content)
+}
+
+async fn reject_missing_file(
+    state: &DbActorHandle,
+    file_name: Option<&str>,
+) -> Result<(), AppError> {
+    let Some(file_name) = file_name else {
+        return Ok(());
+    };
+    if !state.workout_file_exists(file_name.to_string()).await? {
+        return Err(AppError::PlanValidation(format!(
+            "workout file `{file_name}` is not in the library"
+        )));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
 async fn export_session_tcx(
     state: tauri::State<'_, DbActorHandle>,
     id: i64,
@@ -473,6 +683,17 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             save_known_device,
             set_auto_connect,
             upload_session_to_strava,
+            list_plans,
+            get_plan,
+            create_plan,
+            update_plan,
+            set_plan_archived,
+            delete_plan,
+            get_plan_weeks,
+            create_plan_entry,
+            update_plan_entry,
+            delete_plan_entry,
+            link_plan_entry_session_cmd,
         ])
         .typ::<crate::ble::BleMetrics>()
         .typ::<crate::ble::BleError>()
