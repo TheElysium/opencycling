@@ -58,10 +58,19 @@ OpenCycling speaks the standard BLE **FTMS** (trainers) and **HRS** (heart rate)
 
 <!-- Replace each placeholder below with a real capture in docs/screenshots/ -->
 
-### Connection
-<!-- Screenshot: device connection page -->
-<img src="docs/screenshots/connection.png" alt="Connection page">
+### Home
+<!-- Screenshot: home page (today's entry + device connection) -->
+<img src="docs/screenshots/home.png" alt="Home page">
 
+### Training plans
+
+<!-- Screenshot: plans list + a plan's full week grid -->
+<table>
+  <tr>
+    <td><img src="docs/screenshots/plans-list.png" alt="Plans list"></td>
+    <td><img src="docs/screenshots/plans.png" alt="Training plan week grid"></td>
+  </tr>
+</table>
 
 ### Workout library and detail
 
