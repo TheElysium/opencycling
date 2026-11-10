@@ -2,11 +2,11 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { confirm } from '@tauri-apps/plugin-dialog';
-  import { commands, type NewPlan, type PlanEntryView, type TrainingPlan } from '$lib/bindings';
-  import { toMessage } from '$lib/format';
-  import { currentPlan, mondayOf, formatPlanRange, todayMonday, todayIso } from '$lib/plan-date';
-  import { library } from '$lib/library.svelte';
-  import CurrentPlanWeek from '$lib/components/CurrentPlanWeek.svelte';
+  import { commands, type NewPlan, type PlanEntryView, type TrainingPlan } from '#lib/bindings';
+  import { toMessage } from '#lib/format';
+  import { currentPlan, mondayOf, formatPlanRange, todayMonday, todayIso } from '#lib/plan-date';
+  import { library } from '#lib/library.svelte';
+  import CurrentPlanWeek from '#lib/components/CurrentPlanWeek.svelte';
 
   const DEFAULT_WEEKS = 4;
   const MIN_WEEKS = 1;

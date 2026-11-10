@@ -2,12 +2,12 @@
   import type { Snippet } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
   import { Search, X } from '@lucide/svelte';
-  import { commands, type ParsedWorkout, type WorkoutLibrary } from '$lib/bindings';
-  import { computeWorkoutMetrics } from '$lib/metrics';
-  import { workoutFtp } from '$lib/ftp';
-  import { getSettings } from '$lib/settings';
-  import { displayWorkoutName, formatDuration, toMessage } from '$lib/format';
-  import { uniqueSortedTags, matchesSelectedTags } from '$lib/workout-filter';
+  import { commands, type ParsedWorkout, type WorkoutLibrary } from '#lib/bindings';
+  import { computeWorkoutMetrics } from '#lib/metrics';
+  import { workoutFtp } from '#lib/ftp';
+  import { getSettings } from '#lib/settings';
+  import { displayWorkoutName, formatDuration, toMessage } from '#lib/format';
+  import { uniqueSortedTags, matchesSelectedTags } from '#lib/workout-filter';
 
   type Props = {
     open: boolean;

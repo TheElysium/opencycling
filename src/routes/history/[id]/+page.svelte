@@ -1,21 +1,21 @@
 <script lang="ts">
-  import { commands } from '$lib/bindings';
+  import { commands } from '#lib/bindings';
   import { confirm } from '@tauri-apps/plugin-dialog';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { ArrowLeft, Upload, RotateCw, Dumbbell } from '@lucide/svelte';
-  import { workoutTypeColor } from '$lib/metrics';
-  import { toMessage } from '$lib/format';
+  import { workoutTypeColor } from '#lib/metrics';
+  import { toMessage } from '#lib/format';
   import {
     type SessionDetail,
     formatLongDate, formatHourMinute, formatHmsShort,
-  } from '$lib/db';
-  import { getSettings } from '$lib/settings';
-  import { exportSessionTcx } from '$lib/export';
-  import { uploadSessionToStrava, activityUrl } from '$lib/strava';
-  import SessionDetailRecap from '$lib/components/SessionDetailRecap.svelte';
-  import { workoutSelection, type ParsedWorkout } from '$lib/workout.svelte';
+  } from '#lib/db';
+  import { getSettings } from '#lib/settings';
+  import { exportSessionTcx } from '#lib/export';
+  import { uploadSessionToStrava, activityUrl } from '#lib/strava';
+  import SessionDetailRecap from '#lib/components/SessionDetailRecap.svelte';
+  import { workoutSelection, type ParsedWorkout } from '#lib/workout.svelte';
 
   let detail        = $state<SessionDetail | null>(null);
   let maxHr         = $state(190);
@@ -24,7 +24,7 @@
   let uploading     = $state(false);
   let sourceWorkout = $state<ParsedWorkout | null>(null);
 
-  let id = $derived(parseInt($page.params.id ?? '0', 10));
+  let id = $derived(parseInt(page.params.id ?? '0', 10));
 
   onMount(async () => {
     try {

@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Component } from 'svelte';
-  import { targetKind, kindColor } from '$lib/session-visuals';
+  import { targetKind, kindColor } from '#lib/session-visuals';
 
   let { label, value, unit, target = null, icon: Icon = undefined, status = null, onretry = null }:
     { label: string; value: number | null; unit: string; target?: number | null; icon?: Component; status?: string | null; onretry?: (() => void) | null } = $props();

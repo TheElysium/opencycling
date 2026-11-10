@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Zap } from '@lucide/svelte';
-  import { targetKind, kindColor } from '$lib/session-visuals';
+  import { targetKind, kindColor } from '#lib/session-visuals';
 
   let { power_w, target_w }: { power_w: number | null; target_w: number | null } = $props();
 

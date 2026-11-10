@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { ParsedWorkout, PlanDay, PlanEntryView, PlanWeek } from '$lib/bindings';
+import type { ParsedWorkout, PlanDay, PlanEntryView, PlanWeek } from '#lib/bindings';
 import { resolvePlanStart, todayOf } from './plan-start';
 import { indexByFileName } from './plan-load';
 import { FTP_TEST_REFERENCE_W } from './ftp';

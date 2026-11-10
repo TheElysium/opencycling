@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { HelpCircle } from '@lucide/svelte';
-  import { aero } from '$lib/aero.svelte';
-  import { calibQuality } from '$lib/aero';
+  import { aero } from '#lib/aero.svelte';
+  import { calibQuality } from '#lib/aero';
 
   let { done }: { done: () => void } = $props();
   let video: HTMLVideoElement;

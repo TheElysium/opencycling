@@ -3,12 +3,12 @@
   import { onMount } from 'svelte';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import {House, History, Settings, Bike, CalendarDays, FlaskConical} from '@lucide/svelte';
-  import type { BleError } from '$lib/bindings';
-  import { commands } from '$lib/bindings';
-  import { ble, kindFromWire, type BleMetrics, type DeviceStatus, type DeviceWire, type ReconnectState, type ReconnectStatus } from '$lib/ble.svelte';
-  import { session, type SessionMetrics } from '$lib/session.svelte';
-  import { checkForUpdate } from '$lib/updater';
-  import SimPanel from '$lib/components/SimPanel.svelte';
+  import type { BleError } from '#lib/bindings';
+  import { commands } from '#lib/bindings';
+  import { ble, kindFromWire, type BleMetrics, type DeviceStatus, type DeviceWire, type ReconnectState, type ReconnectStatus } from '#lib/ble.svelte';
+  import { session, type SessionMetrics } from '#lib/session.svelte';
+  import { checkForUpdate } from '#lib/updater';
+  import SimPanel from '#lib/components/SimPanel.svelte';
   import '../app.css';
 
   let { children } = $props();

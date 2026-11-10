@@ -1,6 +1,6 @@
 import { commands } from './bindings';
 import type { BleMetrics, DeviceKind } from './bindings';
-import { toMessage } from '$lib/format';
+import { toMessage } from '#lib/format';
 
 // Generated from the Rust types (src-tauri/src/ble/types.rs).
 export type { BleMetrics, DeviceKind } from './bindings';

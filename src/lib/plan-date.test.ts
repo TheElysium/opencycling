@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { TrainingPlan } from '$lib/bindings';
+import type { TrainingPlan } from '#lib/bindings';
 import { currentPlan, dayOfMonth, formatPlanRange, mondayOf, todayIso, todayMonday } from './plan-date';
 
 describe('mondayOf', () => {

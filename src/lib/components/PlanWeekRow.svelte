@@ -1,7 +1,7 @@
 <script lang="ts">
-  import type { PlanDay, PlanEntryView, PlanWeek } from '$lib/bindings';
-  import type { WeekLoad } from '$lib/plan-load';
-  import type { WorkoutType } from '$lib/metrics';
+  import type { PlanDay, PlanEntryView, PlanWeek } from '#lib/bindings';
+  import type { WeekLoad } from '#lib/plan-load';
+  import type { WorkoutType } from '#lib/metrics';
   import PlanDayCell from './PlanDayCell.svelte';
   import WeekLoadSummary from './WeekLoadSummary.svelte';
 

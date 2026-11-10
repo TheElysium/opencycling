@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Wind } from '@lucide/svelte';
-  import { aero } from '$lib/aero.svelte';
+  import { aero } from '#lib/aero.svelte';
 
   // Host the live camera for the session loop: the calibration overlay's <video>
   // is gone by now, so the pose loop needs an in-DOM element to read frames from.

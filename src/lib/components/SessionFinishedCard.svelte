@@ -1,6 +1,6 @@
 <script lang="ts">
   import { CircleCheck } from '@lucide/svelte';
-  import { formatClock } from '$lib/session.svelte';
+  import { formatClock } from '#lib/session.svelte';
 
   let { total_active_s }: { total_active_s: number } = $props();
 </script>

@@ -3,17 +3,17 @@
   import { onMount } from 'svelte';
   import { fade } from 'svelte/transition';
   import { Check } from '@lucide/svelte';
-  import { getSettings, updateSettings } from '$lib/settings';
-  import { commands } from '$lib/bindings';
+  import { getSettings, updateSettings } from '#lib/settings';
+  import { commands } from '#lib/bindings';
   import {
     stravaStatus,
     stravaConnect,
     stravaDisconnect,
     stravaSetAutoUpload,
     type StravaStatus
-  } from '$lib/strava';
-  import { toMessage } from '$lib/format';
-  import SimPanel from '$lib/components/SimPanel.svelte';
+  } from '#lib/strava';
+  import { toMessage } from '#lib/format';
+  import SimPanel from '#lib/components/SimPanel.svelte';
 
   let ftp         = $state<number | null>(null);
   let maxHr       = $state<number | null>(null);

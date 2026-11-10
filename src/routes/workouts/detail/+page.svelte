@@ -2,20 +2,20 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { ArrowLeft, HelpCircle, Flame, Target, Zap, Battery, RotateCw } from '@lucide/svelte';
-  import WorkoutPreview from '$lib/components/WorkoutPreview.svelte';
-  import MetricsStrip, { type MetricTile } from '$lib/components/MetricsStrip.svelte';
-  import { commands, type FlatBlock } from '$lib/bindings';
-  import { workoutSelection, type WorkoutBlock } from '$lib/workout.svelte';
-  import { ble } from '$lib/ble.svelte';
-  import { blockDuration, totalDuration, formatDuration, displayWorkoutName, stripHtml, toMessage } from '$lib/format';
-  import { computeWorkoutMetrics, workoutTypeColor, zoneOf } from '$lib/metrics';
-  import { workoutFtp } from '$lib/ftp';
-  import { getSettings } from '$lib/settings';
-  import { session } from '$lib/session.svelte';
+  import WorkoutPreview from '#lib/components/WorkoutPreview.svelte';
+  import MetricsStrip, { type MetricTile } from '#lib/components/MetricsStrip.svelte';
+  import { commands, type FlatBlock } from '#lib/bindings';
+  import { workoutSelection, type WorkoutBlock } from '#lib/workout.svelte';
+  import { ble } from '#lib/ble.svelte';
+  import { blockDuration, totalDuration, formatDuration, displayWorkoutName, stripHtml, toMessage } from '#lib/format';
+  import { computeWorkoutMetrics, workoutTypeColor, zoneOf } from '#lib/metrics';
+  import { workoutFtp } from '#lib/ftp';
+  import { getSettings } from '#lib/settings';
+  import { session } from '#lib/session.svelte';
   import {
     type SessionCard,
     formatDayNum, formatWeekdayShort, formatHourMinute, formatHmsShort,
-  } from '$lib/db';
+  } from '#lib/db';
 
   let ftp = $state(200);
   let aeroFeature = $state(false); // master switch from Settings; gates the per-ride toggle

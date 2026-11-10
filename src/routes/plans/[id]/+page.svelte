@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { ArrowLeft } from '@lucide/svelte';
   import { confirm } from '@tauri-apps/plugin-dialog';
   import {
@@ -9,21 +9,21 @@
     type PlanEntryView,
     type PlanWeek,
     type TrainingPlan,
-  } from '$lib/bindings';
-  import { toMessage } from '$lib/format';
-  import { formatPlanRange } from '$lib/plan-date';
+  } from '#lib/bindings';
+  import { toMessage } from '#lib/format';
+  import { formatPlanRange } from '#lib/plan-date';
   import {
     assignAction,
     entryWorkoutName,
     noteAction,
     removeWorkoutAction,
     type DayAction,
-  } from '$lib/plan-entry';
-  import { library } from '$lib/library.svelte';
-  import { entryIntensities, maxWeekTss, weekLoad } from '$lib/plan-load';
-  import PlanWeekRow from '$lib/components/PlanWeekRow.svelte';
-  import PlanNoteField from '$lib/components/PlanNoteField.svelte';
-  import WorkoutPicker from '$lib/components/WorkoutPicker.svelte';
+  } from '#lib/plan-entry';
+  import { library } from '#lib/library.svelte';
+  import { entryIntensities, maxWeekTss, weekLoad } from '#lib/plan-load';
+  import PlanWeekRow from '#lib/components/PlanWeekRow.svelte';
+  import PlanNoteField from '#lib/components/PlanNoteField.svelte';
+  import WorkoutPicker from '#lib/components/WorkoutPicker.svelte';
 
   const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -38,7 +38,7 @@
   let dayEntry = $state<PlanEntryView | null>(null);
   let noteDraft = $state('');
 
-  let id = $derived(parseInt($page.params.id ?? '0', 10));
+  let id = $derived(parseInt(page.params.id ?? '0', 10));
   let archived = $derived(plan?.archived_at !== null);
   let pickerMode = $derived<'create' | 'replace'>(dayEntry?.file_name ? 'replace' : 'create');
 

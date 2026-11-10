@@ -3,18 +3,18 @@
   import { SvelteSet } from 'svelte/reactivity';
   import { goto } from '$app/navigation';
   import { Search, X, ArrowUp, ArrowDown, RefreshCw } from '@lucide/svelte';
-  import WorkoutCard from '$lib/components/WorkoutCard.svelte';
-  import { commands, type FlatBlock } from '$lib/bindings';
-  import { workoutSelection, type ParsedWorkout, type WorkoutFileError } from '$lib/workout.svelte';
+  import WorkoutCard from '#lib/components/WorkoutCard.svelte';
+  import { commands, type FlatBlock } from '#lib/bindings';
+  import { workoutSelection, type ParsedWorkout, type WorkoutFileError } from '#lib/workout.svelte';
   import {
     displayWorkoutName,
     formatRelativeDate,
     toMessage,
-  } from '$lib/format';
-  import { computeWorkoutMetrics, type WorkoutType } from '$lib/metrics';
-  import { workoutFtp } from '$lib/ftp';
-  import { getSettings } from '$lib/settings';
-  import { uniqueSortedTags, matchesSelectedTags } from '$lib/workout-filter';
+  } from '#lib/format';
+  import { computeWorkoutMetrics, type WorkoutType } from '#lib/metrics';
+  import { workoutFtp } from '#lib/ftp';
+  import { getSettings } from '#lib/settings';
+  import { uniqueSortedTags, matchesSelectedTags } from '#lib/workout-filter';
 
   let workoutPath    = $state('');
   let ftp            = $state(200);

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { ParsedWorkout, PlanDay, PlanEntryView, PlanWeek, WorkoutBlock } from '$lib/bindings';
+import type { ParsedWorkout, PlanDay, PlanEntryView, PlanWeek, WorkoutBlock } from '#lib/bindings';
 import {
   entryIntensities,
   entryIntensity,

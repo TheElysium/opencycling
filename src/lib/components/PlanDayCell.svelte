@@ -1,8 +1,8 @@
 <script lang="ts">
-  import type { PlanDay, PlanEntryView } from '$lib/bindings';
-  import type { WorkoutType } from '$lib/metrics';
-  import { dayOfMonth } from '$lib/plan-date';
-  import { workoutTypeColor } from '$lib/metrics';
+  import type { PlanDay, PlanEntryView } from '#lib/bindings';
+  import type { WorkoutType } from '#lib/metrics';
+  import { dayOfMonth } from '#lib/plan-date';
+  import { workoutTypeColor } from '#lib/metrics';
   import { Play, CircleCheck } from '@lucide/svelte';
 
   type Props = {

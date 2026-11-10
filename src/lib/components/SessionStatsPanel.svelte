@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Zap, Heart, RotateCw, Flame, Target, Battery, Wind, HelpCircle } from '@lucide/svelte';
-  import { type SessionDetail } from '$lib/db';
+  import { type SessionDetail } from '#lib/db';
   import MetricsStrip, { type MetricTile } from './MetricsStrip.svelte';
   import SessionChart from './SessionChart.svelte';
 

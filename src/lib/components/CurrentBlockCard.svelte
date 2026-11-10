@@ -1,9 +1,9 @@
 <script lang="ts">
   import { SkipForward } from '@lucide/svelte';
-  import { session, formatClock, flatBlockAvgPct, type SessionMetrics, type FlatBlock } from '$lib/session.svelte';
-  import { zoneOf } from '$lib/metrics';
-  import { tintBg } from '$lib/session-visuals';
-  import { toMessage } from '$lib/format';
+  import { session, formatClock, flatBlockAvgPct, type SessionMetrics, type FlatBlock } from '#lib/session.svelte';
+  import { zoneOf } from '#lib/metrics';
+  import { tintBg } from '#lib/session-visuals';
+  import { toMessage } from '#lib/format';
 
   let { metrics, flat_blocks }: { metrics: SessionMetrics; flat_blocks: FlatBlock[] } = $props();
 
