@@ -1,4 +1,4 @@
-import type { EntryContent, PlanEntryView } from '$lib/bindings';
+import type { EntryContent, PlanEntryView } from '#lib/bindings';
 import { displayWorkoutName } from './format';
 
 /**

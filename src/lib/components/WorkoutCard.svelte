@@ -1,9 +1,9 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import type { FlatBlock, ParsedWorkout } from '$lib/bindings';
+  import type { FlatBlock, ParsedWorkout } from '#lib/bindings';
   import WorkoutThumb from './WorkoutThumb.svelte';
-  import { formatDuration, totalDuration, displayWorkoutName } from '$lib/format';
-  import { computeWorkoutMetrics, workoutTypeColor } from '$lib/metrics';
+  import { formatDuration, totalDuration, displayWorkoutName } from '#lib/format';
+  import { computeWorkoutMetrics, workoutTypeColor } from '#lib/metrics';
 
   // `ftpWatts` is the run FTP (workoutFtp), so an FTP test renders at its reference.
   // Pass `onclick` or `actions`, never both: actions hold buttons, which cannot nest in one.

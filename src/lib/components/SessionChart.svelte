@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type { FlatBlock } from '$lib/workout.svelte';
-  import type { MetricSample } from '$lib/db';
+  import type { FlatBlock } from '#lib/workout.svelte';
+  import type { MetricSample } from '#lib/db';
   import WorkoutChart from './WorkoutChart.svelte';
 
   let { metrics, blocks, ftpWatts, maxHr = 0 }:

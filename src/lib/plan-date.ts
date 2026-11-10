@@ -1,7 +1,7 @@
 // All arithmetic stays in UTC: `new Date('2026-09-14')` is UTC midnight, and a
 // rider in UTC-5 must not see the previous day. Only `todayMonday` reads local time.
 
-import type { TrainingPlan } from '$lib/bindings';
+import type { TrainingPlan } from '#lib/bindings';
 
 const MS_PER_DAY = 86_400_000;
 const DAYS_PER_WEEK = 7;

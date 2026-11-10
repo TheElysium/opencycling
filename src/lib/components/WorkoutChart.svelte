@@ -1,7 +1,7 @@
 <script lang="ts">
-  import type { FlatBlock } from '$lib/workout.svelte';
-  import type { MetricSample } from '$lib/db';
-  import { powerScale, POWER_CAP } from '$lib/chart-scale';
+  import type { FlatBlock } from '#lib/workout.svelte';
+  import type { MetricSample } from '#lib/db';
+  import { powerScale, POWER_CAP } from '#lib/chart-scale';
 
   type ZoneSlice = { color: string; label: string; pct: number };
   type TimeMark  = { t: number; label: string };

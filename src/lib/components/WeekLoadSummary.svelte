@@ -1,7 +1,7 @@
 <script lang="ts">
-  import type { WeekLoad } from '$lib/plan-load';
-  import { loadBarRatio } from '$lib/plan-load';
-  import { formatDuration } from '$lib/format';
+  import type { WeekLoad } from '#lib/plan-load';
+  import { loadBarRatio } from '#lib/plan-load';
+  import { formatDuration } from '#lib/format';
 
   type Props = {
     load: WeekLoad;

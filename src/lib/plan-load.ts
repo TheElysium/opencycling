@@ -1,4 +1,4 @@
-import type { ParsedWorkout, PlanEntryView, PlanWeek } from '$lib/bindings';
+import type { ParsedWorkout, PlanEntryView, PlanWeek } from '#lib/bindings';
 import { computeWorkoutMetrics, type WorkoutType } from './metrics';
 import { workoutFtp } from './ftp';
 

@@ -9,12 +9,12 @@
     type PlanDay,
     type PlanEntryView,
     type TrainingPlan,
-  } from '$lib/bindings';
-  import { ble } from '$lib/ble.svelte';
-  import { library } from '$lib/library.svelte';
-  import { workoutFtp } from '$lib/ftp';
-  import { currentPlan, todayIso } from '$lib/plan-date';
-  import { todayOf } from '$lib/plan-start';
+  } from '#lib/bindings';
+  import { ble } from '#lib/ble.svelte';
+  import { library } from '#lib/library.svelte';
+  import { workoutFtp } from '#lib/ftp';
+  import { currentPlan, todayIso } from '#lib/plan-date';
+  import { todayOf } from '#lib/plan-start';
   import WorkoutCard from './WorkoutCard.svelte';
 
   let planLoading = $state(true);

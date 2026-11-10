@@ -1,4 +1,4 @@
-import type { ParsedWorkout, PlanDay, PlanEntryView, PlanWeek } from '$lib/bindings';
+import type { ParsedWorkout, PlanDay, PlanEntryView, PlanWeek } from '#lib/bindings';
 import { workoutFtp } from './ftp';
 
 export type PlanStartResult =

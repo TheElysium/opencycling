@@ -1,15 +1,15 @@
 <script lang="ts">
-  import { commands } from '$lib/bindings';
+  import { commands } from '#lib/bindings';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { Zap, Heart, RotateCw } from '@lucide/svelte';
-  import { workoutTypeColor } from '$lib/metrics';
-  import { toMessage } from '$lib/format';
+  import { workoutTypeColor } from '#lib/metrics';
+  import { toMessage } from '#lib/format';
   import {
     type SessionCard, type SessionGroup,
     groupByPeriod,
     formatDayNum, formatWeekdayShort, formatHourMinute, formatHmsShort,
-  } from '$lib/db';
+  } from '#lib/db';
 
   let sessions = $state<SessionCard[]>([]);
   let loading  = $state(true);

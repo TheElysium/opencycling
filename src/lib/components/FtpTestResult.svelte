@@ -1,7 +1,7 @@
 <script lang="ts">
-  import type { SessionDetail } from '$lib/db';
-  import { getSettings, updateSettings } from '$lib/settings';
-  import { estimateFtpFromRamp } from '$lib/ftp';
+  import type { SessionDetail } from '#lib/db';
+  import { getSettings, updateSettings } from '#lib/settings';
+  import { estimateFtpFromRamp } from '#lib/ftp';
 
   let { detail, oldFtp }: { detail: SessionDetail; oldFtp: number } = $props();
 

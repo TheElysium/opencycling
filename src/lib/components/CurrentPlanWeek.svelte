@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { commands, type PlanEntryView, type PlanWeek, type TrainingPlan } from '$lib/bindings';
-  import { toMessage } from '$lib/format';
-  import { library } from '$lib/library.svelte';
-  import { entryIntensities, maxWeekTss, weekLoad } from '$lib/plan-load';
-  import { todayOf } from '$lib/plan-start';
+  import { commands, type PlanEntryView, type PlanWeek, type TrainingPlan } from '#lib/bindings';
+  import { toMessage } from '#lib/format';
+  import { library } from '#lib/library.svelte';
+  import { entryIntensities, maxWeekTss, weekLoad } from '#lib/plan-load';
+  import { todayOf } from '#lib/plan-start';
   import PlanWeekRow from './PlanWeekRow.svelte';
 
   type Props = {

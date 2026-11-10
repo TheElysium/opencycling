@@ -2,8 +2,8 @@
   import {
     formatClock, totalFlatDuration,
     type FlatBlock, type SessionMetrics,
-  } from '$lib/session.svelte';
-  import { stateClass, zoneBg } from '$lib/session-visuals';
+  } from '#lib/session.svelte';
+  import { stateClass, zoneBg } from '#lib/session-visuals';
 
   let { flat_blocks, metrics }: { flat_blocks: FlatBlock[]; metrics: SessionMetrics } = $props();
 

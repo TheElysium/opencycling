@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { zoneOf } from '$lib/metrics';
-  import { formatDuration } from '$lib/format';
+  import { zoneOf } from '#lib/metrics';
+  import { formatDuration } from '#lib/format';
   import {
     type SessionDetail,
     powerZoneDistribution,
     hrZoneDistribution,
-  } from '$lib/db';
+  } from '#lib/db';
   import SessionStatsPanel from './SessionStatsPanel.svelte';
   import ZoneBar from './ZoneBar.svelte';
 

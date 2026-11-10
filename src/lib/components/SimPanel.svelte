@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { toMessage } from '$lib/format';
-  import { commands, type DeviceKind } from '$lib/bindings';
+  import { toMessage } from '#lib/format';
+  import { commands, type DeviceKind } from '#lib/bindings';
 
   let { variant = 'card' }: { variant?: 'card' | 'floating' } = $props();
 

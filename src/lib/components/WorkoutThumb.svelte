@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { FlatBlock } from '$lib/workout.svelte';
+  import type { FlatBlock } from '#lib/workout.svelte';
   import WorkoutChart from './WorkoutChart.svelte';
 
   let { blocks, height = 72, ftpWatts }:

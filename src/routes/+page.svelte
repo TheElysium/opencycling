@@ -3,11 +3,11 @@
   import { fade, slide } from 'svelte/transition';
   import { goto } from '$app/navigation';
   import { Search, LoaderCircle, Plug2, Heart, Activity, Gauge } from '@lucide/svelte';
-  import { commands, type DeviceInfo, type KnownDevices } from '$lib/bindings';
-  import { ble, disconnectDevice, type DeviceKind, type DeviceStatus, type ReconnectState } from '$lib/ble.svelte';
-  import { autoConnectCandidates } from '$lib/devices';
-  import { toMessage } from '$lib/format';
-  import TodayCard from '$lib/components/TodayCard.svelte';
+  import { commands, type DeviceInfo, type KnownDevices } from '#lib/bindings';
+  import { ble, disconnectDevice, type DeviceKind, type DeviceStatus, type ReconnectState } from '#lib/ble.svelte';
+  import { autoConnectCandidates } from '#lib/devices';
+  import { toMessage } from '#lib/format';
+  import TodayCard from '#lib/components/TodayCard.svelte';
 
   let trainerId  = $state<string | null>(null);
   let hrmId      = $state<string | null>(null);

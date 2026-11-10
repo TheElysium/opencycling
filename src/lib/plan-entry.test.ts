@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { PlanEntryView } from '$lib/bindings';
+import type { PlanEntryView } from '#lib/bindings';
 import { assignAction, entryWorkoutName, noteAction, removeWorkoutAction } from './plan-entry';
 
 function entry(overrides: Partial<PlanEntryView> = {}): PlanEntryView {
