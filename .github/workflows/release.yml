@@ -23,8 +23,8 @@ jobs:
           fetch-depth: 0 # cargo-release needs the full history
           token: ${{ secrets.RELEASE_PAT }} # admin PAT to bypass the main ruleset on push
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Setup Rust (pinned by rust-toolchain.toml)
+        run: rustup toolchain install
 
       - name: Install cargo-release
         run: cargo install cargo-release
@@ -102,8 +102,8 @@ jobs:
         with:
           node-version: 22
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Setup Rust (pinned by rust-toolchain.toml)
+        run: rustup toolchain install
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2

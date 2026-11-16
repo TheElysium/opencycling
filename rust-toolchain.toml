@@ -1,0 +1,5 @@
+# Pinned so local clippy and CI clippy report the same lints. Bump deliberately.
+[toolchain]
+channel = "1.96.0"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

@@ -1,0 +1,46 @@
+[advisories]
+# Same bar as cargo audit: vulnerabilities fail; unmaintained/unsound only fail for
+# direct deps (transitive ones come from Tauri/btleplug and are not actionable here).
+unmaintained = "workspace"
+unsound = "workspace"
+yanked = "warn"
+ignore = [
+  # zip 4.x comes only from tauri-plugin-updater 2.10.1 (no fixed release yet).
+  # Revisit when the updater moves to zip >= 9.
+  "RUSTSEC-2026-0367",
+  "RUSTSEC-2026-0368",
+  "RUSTSEC-2026-0369",
+  "RUSTSEC-2026-0429",
+]
+
+[licenses]
+# Everything here is compatible with shipping the app under GPL-3.0-or-later.
+allow = [
+  "0BSD",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "BSL-1.0",
+  "CC0-1.0",
+  "CDLA-Permissive-2.0",
+  "GPL-3.0-or-later",
+  "ISC",
+  "LGPL-2.1-or-later",
+  "MIT",
+  "MIT-0",
+  "MPL-2.0",
+  "Unicode-3.0",
+  "Unlicense",
+  "Zlib",
+]
+confidence-threshold = 0.8
+
+[bans]
+# Tauri pulls several majors of the same crates (windows-*, bitflags...); not actionable.
+multiple-versions = "allow"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

@@ -3,6 +3,7 @@ name = "opencycling"
 version = "0.7.0"
 description = "Free local-first indoor cycling training app: FTMS trainer control, .zwo workouts, session recording"
 authors = ["Luka Signe--Morice"]
+license = "GPL-3.0-or-later"
 edition = "2024"
 default-run = "opencycling"
 
@@ -47,6 +48,10 @@ specta = "2.0.0-rc"
 tauri = { version = "2", features = ["test"] }
 # start_paused tokio tests auto-advance the sim's 1 s tick / 3 s reconnect cadence.
 tokio = { version = "1.52.3", features = ["test-util"] }
+
+[lints.rust]
+# No FFI or raw-pointer work in this app: any unsafe must come from a dependency.
+unsafe_code = "forbid"
 
 # Native quality gate: threshold lives in clippy.toml (15).
 [lints.clippy]

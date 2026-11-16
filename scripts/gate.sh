@@ -1,45 +1,53 @@
 #!/usr/bin/env bash
-# Full verification gate for agents: run before declaring any task done.
-# Commands mirror .gates.yml (what agents run) and ci.yml (what CI enforces):
-# fmt, clippy (+ complexity gate), tests, bindings drift, audit, file-size
-# gate, frontend lint, type check and unit tests. Change all three together.
+# Usage: bash scripts/gate.sh [--quick | KEY...]   (no args: every gate in .gates.yml)
 set -euo pipefail
+cd "$(dirname "$0")/.."
 
-# Cargo may be installed outside the default PATH (e.g. WSL interop: cargo.exe).
-CARGO=cargo
+GATES_FILE=.gates.yml
+QUICK=(format lint typecheck test)
+
+gate_keys() { sed -n 's/^\([a-z_]*\):.*/\1/p' "$GATES_FILE" | grep -vx stack; }
+gate_cmd() { sed -n "/^$1:/{s/^$1:[[:space:]]*//p;q}" "$GATES_FILE" | tr -d '\r'; }
+
+# WSL interop: cargo may only exist as cargo.exe; expose it as `cargo` to gate commands.
 if ! command -v cargo >/dev/null 2>&1 && command -v cargo.exe >/dev/null 2>&1; then
-  CARGO=cargo.exe
+  shim=$(mktemp -d)
+  ln -s "$(command -v cargo.exe)" "$shim/cargo"
+  PATH="$shim:$PATH"
 fi
 
-cd src-tauri
-echo "== cargo fmt =="
-$CARGO fmt --all --check
-echo "== cargo clippy (incl. cognitive-complexity gate) =="
-$CARGO clippy --all-targets -- -D warnings
-echo "== cargo test =="
-$CARGO test
-
-# The tauri-specta bridge is generated: fail if the committed copy drifted.
-echo "== bindings drift =="
-$CARGO run --bin export_bindings
-git diff --exit-code -- ../src/lib/bindings.ts
-
-echo "== cargo audit =="
-if ! command -v cargo-audit >/dev/null 2>&1 && ! command -v cargo-audit.exe >/dev/null 2>&1; then
-  echo "cargo-audit not found, installing (one-time, takes a few minutes)..."
-  $CARGO install cargo-audit --locked
+if [ $# -eq 0 ]; then
+  mapfile -t keys < <(gate_keys)
+elif [ "$1" = --quick ]; then
+  keys=("${QUICK[@]}")
+else
+  keys=("$@")
 fi
-$CARGO audit
 
-echo "== file size gate =="
-cd ..
-bash scripts/check_size.sh
+for key in "${keys[@]}"; do
+  if [ -z "$(gate_cmd "$key")" ]; then
+    echo "Unknown gate '$key'. Available: $(gate_keys | tr '\n' ' ')" >&2
+    exit 2
+  fi
+done
 
-echo "== pnpm lint =="
-pnpm lint
-echo "== pnpm check =="
-pnpm check
-echo "== pnpm test =="
-pnpm test
+if [[ " ${keys[*]} " == *" sast "* ]] && ! cargo deny --version >/dev/null 2>&1; then
+  echo "cargo-deny not found, installing (one-time, takes a few minutes)..."
+  cargo install cargo-deny --locked
+fi
 
-echo "GATE OK"
+failed=()
+for key in "${keys[@]}"; do
+  cmd=$(gate_cmd "$key")
+  echo "== $key: $cmd =="
+  # Subshell: a `cd` inside one gate must not leak into the next.
+  if ! (set -euo pipefail; eval "$cmd"); then
+    failed+=("$key")
+  fi
+done
+
+if [ ${#failed[@]} -ne 0 ]; then
+  echo "GATE FAILED: ${failed[*]}"
+  exit 1
+fi
+echo "GATE OK: ${keys[*]}"

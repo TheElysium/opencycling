@@ -2,3 +2,7 @@ allowBuilds:
   esbuild: false
 onlyBuiltDependencies:
   - esbuild
+overrides:
+  # Only reached via @tensorflow-models/pose-detection > rimraf (unused at runtime);
+  # pin the patched 1.x line until upstream drops rimraf 2.
+  brace-expansion@1: 1.1.22
