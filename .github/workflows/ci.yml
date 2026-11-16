@@ -5,6 +5,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 # Cancel in-progress runs for the same ref (e.g. new push to a PR).
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
