@@ -1,18 +1,14 @@
-# Single source of truth for quality gates: scripts/gate.sh runs these keys and CI
-# calls `gate.sh <key>`. One `key: command` per line, run from the repo root.
+# Read by scripts/gate.sh (CI calls it too), parsed with sed: one `key: command` per line.
 stack: tauri
 
 format: cd src-tauri && cargo fmt --all --check
 
-# File size (1000 lines), clippy (incl. cognitive complexity 15), ESLint (complexity 15).
 lint: bash scripts/check_size.sh && cd src-tauri && cargo clippy --all-targets -- -D warnings && cd .. && pnpm lint
 
 typecheck: pnpm check
 
 test: cd src-tauri && cargo test && cd .. && pnpm test
 
-# Regenerates the tauri-specta bindings and fails if the committed copy drifted.
 build: cd src-tauri && cargo run --bin export_bindings && git diff --exit-code -- ../src/lib/bindings.ts
 
-# RustSec advisories + licenses + sources (src-tauri/deny.toml), npm advisories (prod deps).
 sast: cd src-tauri && cargo deny check && cd .. && pnpm audit --prod --audit-level high

@@ -1,10 +1,5 @@
 #!/usr/bin/env bash
-# Runs the quality gates declared in .gates.yml (the single source of truth; CI calls
-# this script too). Every selected gate runs, failures are summarized at the end.
-#
-# Usage: bash scripts/gate.sh            all gates, in .gates.yml order
-#        bash scripts/gate.sh --quick    format lint typecheck test (inner dev loop)
-#        bash scripts/gate.sh KEY...     only those gates (e.g. `lint test`)
+# Usage: bash scripts/gate.sh [--quick | KEY...]   (no args: every gate in .gates.yml)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

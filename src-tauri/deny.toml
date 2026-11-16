@@ -1,6 +1,3 @@
-# cargo-deny: RustSec advisories (supersedes cargo audit), licenses, sources.
-# Run from src-tauri/: `cargo deny check`.
-
 [advisories]
 # Same bar as cargo audit: vulnerabilities fail; unmaintained/unsound only fail for
 # direct deps (transitive ones come from Tauri/btleplug and are not actionable here).
